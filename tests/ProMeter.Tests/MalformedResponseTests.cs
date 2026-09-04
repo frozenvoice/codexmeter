@@ -27,7 +27,8 @@ public class MalformedResponseTests
     public void InvalidJson_ReturnsNull()
     {
         Assert.Null(ChatGptJson.ParseNode("{not-json"));
-        Assert.Null(AccountParser.ParseConversationIndex(new JsonObject { ["oops"] = true }, false).FirstOrDefault());
+        Assert.False(AccountParser.ParseConversationIndex(new JsonObject { ["oops"] = true }, false).RecognizedShape);
+        Assert.Empty(AccountParser.ParseConversationIndex(new JsonObject { ["oops"] = true }, false).Items);
     }
 
     [Fact]
@@ -36,7 +37,7 @@ public class MalformedResponseTests
         var status = AccountParser.ParseSession(new JsonObject());
         Assert.False(status.IsSignedIn);
         Assert.Empty(AccountParser.ParseModels(new JsonObject()));
-        Assert.Empty(AccountParser.ParseProjects(new JsonObject()));
-        Assert.False(AccountParser.ParseQuotaMetadata(new JsonObject()).IsAuthoritative);
+        Assert.False(AccountParser.ParseProjects(new JsonObject()).RecognizedShape);
+        Assert.False(AccountParser.ParseQuotaMetadata(new JsonObject()).Found);
     }
 }

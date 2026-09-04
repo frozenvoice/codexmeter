@@ -14,7 +14,7 @@ public class QuotaCoverageTests
             {
                 new JsonObject
                 {
-                    ["feature_name"] = "gpt-6-pro",
+                    ["feature_name"] = "gpt_pro_weekly",
                     ["reset_at"] = "2026-09-08T14:30:00Z"
                 }
             }
@@ -22,8 +22,8 @@ public class QuotaCoverageTests
 
         Assert.True(metadata.MatchesGptProAllowance);
         Assert.True(metadata.Found);
-        Assert.NotNull(metadata.ResetAt);
-        Assert.False(metadata.IsAuthoritative);
+        Assert.NotNull(metadata.SharedProWeekly?.ResetAt);
+        Assert.False(metadata.SharedProWeekly!.IsAuthoritative);
 
         var coverage = new CoverageInfo { NormalChats = true };
         var snapshot = new QuotaEngine().Build(
@@ -41,6 +41,33 @@ public class QuotaCoverageTests
         Assert.True(snapshot.ResetEstimated is false);
         Assert.Equal(0, snapshot.Used);
         Assert.Equal(50, snapshot.Limit);
+    }
+
+    [Fact]
+    public void DailyReset_IsNotUsedForSevenDayPeriod()
+    {
+        var settings = AppSettings.CreateDefaults();
+        settings.ApplyPreset(SubscriptionPreset.Pro200);
+        settings.ResetTimeZoneId = "UTC";
+        settings.ResetWeekday = DayOfWeek.Monday;
+        settings.ResetTime = TimeSpan.Zero;
+        var now = new DateTimeOffset(2026, 9, 4, 15, 0, 0, TimeSpan.Zero);
+        var dailyReset = now.AddHours(6);
+        var metadata = new QuotaMetadataSet
+        {
+            SolProDaily = new QuotaWindow
+            {
+                Found = true,
+                Used = 10,
+                Limit = 170,
+                ResetAt = dailyReset,
+                FeatureName = "gpt-5-6-pro-daily"
+            }
+        };
+        var snapshot = new QuotaEngine().Build([], settings, now, now, new CoverageInfo(), metadata, AppSyncStatus.UpToDate);
+        Assert.NotEqual(dailyReset, snapshot.ResetAt);
+        Assert.True(snapshot.PeriodEnd - snapshot.PeriodStart == TimeSpan.FromDays(7));
+        Assert.True(snapshot.ResetEstimated);
     }
 
     [Fact]
@@ -68,7 +95,7 @@ public class QuotaCoverageTests
         });
 
         Assert.False(metadata.MatchesGptProAllowance);
-        Assert.False(metadata.IsAuthoritative);
+        Assert.False(metadata.Found);
         Assert.False(AccountParser.IsGptProAllowanceFeature("voice_pro"));
         Assert.False(AccountParser.IsGptProAllowanceFeature("pro"));
         Assert.True(AccountParser.IsGptProAllowanceFeature("gpt-5-6-pro"));
@@ -84,14 +111,16 @@ public class QuotaCoverageTests
         {
             ProEvent("sol", "GPT-5.6 Sol Pro", "gpt-5-6-pro", created)
         };
-        var metadata = new QuotaMetadata
+        var metadata = new QuotaMetadataSet
         {
-            Found = true,
-            MatchesGptProAllowance = true,
-            Used = 7,
-            Limit = 50,
-            ResetAt = created.AddDays(2),
-            IsAuthoritative = true
+            SharedProWeekly = new QuotaWindow
+            {
+                Found = true,
+                Used = 7,
+                Limit = 50,
+                ResetAt = created.AddDays(2),
+                FeatureName = "gpt_pro_weekly"
+            }
         };
         var coverage = new CoverageInfo { NormalChats = true };
         var snapshot = new QuotaEngine().Build(events, settings, created, created, coverage, metadata, AppSyncStatus.UpToDate);
@@ -115,7 +144,7 @@ public class QuotaCoverageTests
             ProEvent("sol", "GPT-5.6 Sol Pro", "gpt-5-6-pro", now.AddHours(-1))
         };
         var coverage = new CoverageInfo { NormalChats = true, ArchivedChats = true, Projects = true };
-        var snapshot = new QuotaEngine().Build(events, settings, now, now, coverage, new QuotaMetadata(), AppSyncStatus.UpToDate);
+        var snapshot = new QuotaEngine().Build(events, settings, now, now, coverage, new QuotaMetadataSet(), AppSyncStatus.UpToDate);
         Assert.False(snapshot.UsesServerCount);
         Assert.Equal(1, snapshot.Used);
         Assert.Equal(200, snapshot.Limit);
@@ -127,6 +156,50 @@ public class QuotaCoverageTests
         Assert.Equal(169, snapshot.SolProDailyRemaining);
         Assert.Equal(198, snapshot.CombinedDailyRemaining);
         Assert.Equal(CoverageConfidence.HighConfidence, coverage.CountConfidence);
+    }
+
+    [Fact]
+    public void Pro200Windows_AreOrderIndependent()
+    {
+        var entries = new JsonNode[]
+        {
+            new JsonObject { ["feature_name"] = "gpt-6-pro", ["used"] = 11, ["limit"] = 200, ["reset_at"] = "2026-09-08T00:00:00Z" },
+            new JsonObject { ["feature_name"] = "gpt-5-6-pro-daily", ["used"] = 4, ["limit"] = 170, ["reset_at"] = "2026-09-05T00:00:00Z" },
+            new JsonObject { ["feature_name"] = "combined_pro_daily", ["used"] = 9, ["limit"] = 200, ["reset_at"] = "2026-09-05T00:00:00Z" }
+        };
+
+        foreach (var order in new[] { (0, 1, 2), (2, 0, 1), (1, 2, 0) })
+        {
+            var parsed = AccountParser.ParseQuotaMetadata(new JsonObject
+            {
+                ["limits_progress"] = new JsonArray
+                {
+                    entries[order.Item1]!.DeepClone(),
+                    entries[order.Item2]!.DeepClone(),
+                    entries[order.Item3]!.DeepClone()
+                }
+            });
+            Assert.Equal(11, parsed.Gpt6ProWeekly?.Used);
+            Assert.Equal(200, parsed.Gpt6ProWeekly?.Limit);
+            Assert.Equal(4, parsed.SolProDaily?.Used);
+            Assert.Equal(170, parsed.SolProDaily?.Limit);
+            Assert.Equal(9, parsed.CombinedProDaily?.Used);
+            Assert.Equal(200, parsed.CombinedProDaily?.Limit);
+            Assert.Null(parsed.SharedProWeekly);
+            Assert.Equal(new DateTimeOffset(2026, 9, 8, 0, 0, 0, TimeSpan.Zero), parsed.WeeklyResetAt);
+
+            var settings = AppSettings.CreateDefaults();
+            settings.ApplyPreset(SubscriptionPreset.Pro200);
+            settings.ResetTimeZoneId = "UTC";
+            var now = new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero);
+            var snapshot = new QuotaEngine().Build([], settings, now, now, new CoverageInfo { NormalChats = true }, parsed, AppSyncStatus.UpToDate);
+            Assert.True(snapshot.UsesServerCount);
+            Assert.Equal(11, snapshot.Used);
+            Assert.Equal(200, snapshot.Limit);
+            Assert.Equal(4, snapshot.TodaySolPro);
+            Assert.Equal(9, snapshot.CombinedToday);
+            Assert.Equal(new DateTimeOffset(2026, 9, 8, 0, 0, 0, TimeSpan.Zero), snapshot.ResetAt);
+        }
     }
 
     [Fact]

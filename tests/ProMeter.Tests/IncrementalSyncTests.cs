@@ -117,6 +117,6 @@ public class IncrementalSyncTests
             BodyFetches++;
             return _inner.GetConversationMessagesAsync(conversationId, cancellationToken);
         }
-        public Task<QuotaMetadata> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default) => _inner.TryGetQuotaMetadataAsync(cancellationToken);
+        public Task<QuotaMetadataSet> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default) => _inner.TryGetQuotaMetadataAsync(cancellationToken);
     }
 }

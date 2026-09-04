@@ -262,9 +262,7 @@ public partial class App : Application
         }
 
         var json = File.ReadAllText(dialog.FileName);
-        var importReset = _sync.LastQuotaMetadata is { MatchesGptProAllowance: true, ResetAt: not null }
-            ? _sync.LastQuotaMetadata.ResetAt
-            : null;
+        var importReset = _sync.LastQuotaMetadata?.WeeklyWindow(_settings.PlanPreset)?.ResetAt;
         var (start, _) = QuotaPeriodCalculator.CurrentPeriod(_settings, DateTimeOffset.Now, importReset);
         var imported = _importer.Import(json, _settings.ImportHistoricalStatistics, start);
         if (imported.Error is not null)

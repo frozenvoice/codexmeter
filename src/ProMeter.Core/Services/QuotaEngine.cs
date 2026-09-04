@@ -8,13 +8,13 @@ public sealed class QuotaEngine
         DateTimeOffset now,
         DateTimeOffset? lastSync,
         CoverageInfo coverage,
-        QuotaMetadata? serverQuota,
+        QuotaMetadataSet? serverQuota,
         AppSyncStatus status,
         string? statusDetail = null)
     {
-        var matched = serverQuota is { MatchesGptProAllowance: true };
-        var serverReset = matched && serverQuota?.ResetAt is not null ? serverQuota.ResetAt : null;
-        var (start, end) = QuotaPeriodCalculator.CurrentPeriod(settings, now, serverReset);
+        var weekly = serverQuota?.WeeklyWindow(settings.PlanPreset);
+        var weeklyReset = weekly?.ResetAt;
+        var (start, end) = QuotaPeriodCalculator.CurrentPeriod(settings, now, weeklyReset);
         var todayStart = QuotaPeriodCalculator.LocalDayStart(now, settings);
         var periodEvents = events.Where(e => QuotaPeriodCalculator.InRange(e.CreatedAt, start, end)).ToList();
         var todayEvents = events.Where(e => e.CreatedAt >= todayStart).ToList();
@@ -25,26 +25,30 @@ public sealed class QuotaEngine
         var gpt6Weekly = proEvents.Count(IsGpt6Pro);
         var todaySol = todayEvents.Count(IsSolPro);
         var combinedToday = todayEvents.Count(e => e.QuotaFamily == QuotaFamily.GptPro);
-        var useServerCount = matched
-            && serverQuota?.Used is not null
-            && serverQuota.Limit is not null
-            && serverQuota.ResetAt is not null;
+        var useServerCount = weekly is { IsAuthoritative: true };
+        var solWindow = serverQuota?.SolProDaily;
+        var combinedWindow = serverQuota?.CombinedProDaily;
 
-        coverage.ResetTimeAuthoritative = serverReset is not null;
+        coverage.ResetTimeAuthoritative = weeklyReset is not null;
         coverage.QuotaMetadataAuthoritative = useServerCount;
         coverage.CountConfidence = useServerCount
             ? CoverageConfidence.Authoritative
             : coverage is { NormalChats: true, IndexIncomplete: false, ConversationIncomplete: false, FailedConversations: 0 }
                 ? CoverageConfidence.HighConfidence
                 : CoverageConfidence.Estimated;
-        coverage.ResetConfidence = serverReset is not null
+        coverage.ResetConfidence = weeklyReset is not null
             ? CoverageConfidence.Authoritative
             : CoverageConfidence.Estimated;
         coverage.TemporaryChats = false;
         coverage.DeletedChats = false;
 
-        var used = useServerCount ? serverQuota!.Used!.Value : settings.PlanPreset == SubscriptionPreset.Pro200 ? gpt6Weekly : reconstructed;
-        var limit = useServerCount ? serverQuota!.Limit!.Value : Math.Max(1, settings.WeeklyProQuota);
+        var reconstructedTop = settings.PlanPreset == SubscriptionPreset.Pro200 ? gpt6Weekly : reconstructed;
+        var used = useServerCount ? weekly!.Used!.Value : reconstructedTop;
+        var limit = useServerCount ? weekly!.Limit!.Value : Math.Max(1, settings.WeeklyProQuota);
+        var solLimit = solWindow?.Limit ?? settings.SolProDailyQuota;
+        var combinedLimit = combinedWindow?.Limit ?? settings.CombinedDailyQuota;
+        var solUsed = solWindow is { IsAuthoritative: true } ? solWindow.Used!.Value : todaySol;
+        var combinedUsed = combinedWindow is { IsAuthoritative: true } ? combinedWindow.Used!.Value : combinedToday;
 
         return new QuotaSnapshot
         {
@@ -69,13 +73,13 @@ public sealed class QuotaEngine
             StatusDetail = statusDetail,
             Coverage = coverage,
             TodayPro = todayEvents.Count(e => e.QuotaFamily == QuotaFamily.GptPro),
-            TodaySolPro = todaySol,
-            CombinedToday = combinedToday,
+            TodaySolPro = solUsed,
+            CombinedToday = combinedUsed,
             Gpt6WeeklyUsed = gpt6Weekly,
             ReconstructedUsed = reconstructed,
             UsesServerCount = useServerCount,
-            SolProDailyLimit = settings.SolProDailyQuota,
-            CombinedDailyLimit = settings.CombinedDailyQuota,
+            SolProDailyLimit = solLimit,
+            CombinedDailyLimit = combinedLimit,
             Reasoning = new ReasoningStats
             {
                 Today = todayReasoning.Count,

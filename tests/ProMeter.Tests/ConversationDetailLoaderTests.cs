@@ -13,7 +13,8 @@ public class ConversationDetailLoaderTests
         var result = await loader.LoadAsync(null!, "conv-short", (method, path, _, _) =>
         {
             Assert.Equal("GET", method);
-            if (path.Contains("include_full_conversation=true", StringComparison.Ordinal))
+            if (path.Contains("/conversations/conv-short?", StringComparison.Ordinal)
+                || path.Contains("include_full_conversation=true", StringComparison.Ordinal))
             {
                 return Task.FromResult<JsonNode?>(shortChat.DeepClone());
             }
@@ -37,7 +38,8 @@ public class ConversationDetailLoaderTests
         var loader = new ConversationDetailLoader();
         var result = await loader.LoadAsync(null!, "conv-long", (_, path, _, _) =>
         {
-            if (path.Contains("include_full_conversation=true", StringComparison.Ordinal))
+            if (path.Contains("/conversations/conv-long?", StringComparison.Ordinal)
+                || path.Contains("include_full_conversation=true", StringComparison.Ordinal))
             {
                 return Task.FromResult<JsonNode?>(longChat.DeepClone());
             }
@@ -59,12 +61,6 @@ public class ConversationDetailLoaderTests
         var result = await loader.LoadAsync(null!, "conv-paged", (_, path, _, _) =>
         {
             fetches.Add(path);
-            if (path.Contains("include_full_conversation=true", StringComparison.Ordinal)
-                || path.EndsWith("/conversation/conv-paged", StringComparison.Ordinal))
-            {
-                return Task.FromResult<JsonNode?>(ConversationFixtures.IncompleteMapping("conv-paged"));
-            }
-
             if (path.Contains("/conversations/conv-paged?", StringComparison.Ordinal)
                 && path.Contains("num_turns=100", StringComparison.Ordinal))
             {
@@ -79,7 +75,9 @@ public class ConversationDetailLoaderTests
             throw new InvalidOperationException("Unexpected path " + path);
         });
 
+        Assert.Contains(fetches, path => path.Contains("/conversations/conv-paged?", StringComparison.Ordinal));
         Assert.Contains(fetches, path => path.Contains("/messages?", StringComparison.Ordinal));
+        Assert.DoesNotContain(fetches, path => path.Contains("include_full_conversation=true", StringComparison.Ordinal));
         Assert.True(result.Complete);
         Assert.True(result.PaginatedUsed);
         Assert.Equal(2, result.PagesFetched);
@@ -108,13 +106,12 @@ public class ConversationDetailLoaderTests
         };
         var result = await loader.LoadAsync(null!, "conv-loop", (_, path, _, _) =>
         {
-            if (path.Contains("include_full_conversation", StringComparison.Ordinal)
-                || path.Contains("/conversation/conv-loop", StringComparison.Ordinal))
+            if (path.Contains("/conversations/conv-loop", StringComparison.Ordinal))
             {
-                throw new ChatGptProviderException("missing", 404);
+                return Task.FromResult<JsonNode?>(looping.DeepClone());
             }
 
-            return Task.FromResult<JsonNode?>(looping.DeepClone());
+            throw new InvalidOperationException("Unexpected path " + path);
         });
 
         Assert.False(result.Complete);
@@ -169,6 +166,48 @@ public class ConversationDetailLoaderTests
     {
         var result = ConversationDetailLoader.FromFixture(ConversationFixtures.IncompleteMapping());
         Assert.False(result.Complete);
+    }
+
+    [Fact]
+    public async Task PrefersPluralPaginatedEndpoint()
+    {
+        var loader = new ConversationDetailLoader();
+        var paths = new List<string>();
+        await loader.LoadAsync(null!, "conv-order", (_, path, _, _) =>
+        {
+            paths.Add(path);
+            return Task.FromResult<JsonNode?>(ConversationFixtures.NormalPro("conv-order"));
+        });
+        Assert.StartsWith("/backend-api/conversations/conv-order?", paths[0]);
+        Assert.Contains("num_turns=100", paths[0]);
+        Assert.Single(paths);
+    }
+
+    [Fact]
+    public async Task UnsupportedEndpoint_IsProbedOncePerSession()
+    {
+        var loader = new ConversationDetailLoader();
+        var paths = new List<string>();
+        Task<JsonNode?> Fetch(string conversationId, string path)
+        {
+            paths.Add(conversationId + ":" + path);
+            if (path.Contains("/conversations/", StringComparison.Ordinal) || path.Contains("include_full_conversation=true", StringComparison.Ordinal))
+            {
+                throw new ChatGptProviderException("gone", 404);
+            }
+
+            return Task.FromResult<JsonNode?>(ConversationFixtures.NormalPro(conversationId));
+        }
+
+        var first = await loader.LoadAsync(null!, "one", (_, path, _, _) => Fetch("one", path));
+        var second = await loader.LoadAsync(null!, "two", (_, path, _, _) => Fetch("two", path));
+        Assert.True(first.Complete);
+        Assert.True(second.Complete);
+        Assert.Equal(1, paths.Count(p => p.Contains("/conversations/", StringComparison.Ordinal)));
+        Assert.Equal(1, paths.Count(p => p.Contains("include_full_conversation=true", StringComparison.Ordinal)));
+        Assert.Contains(paths, p => p.StartsWith("two:/backend-api/conversation/two", StringComparison.Ordinal)
+                                    && !p.Contains("include_full_conversation", StringComparison.Ordinal));
+        Assert.DoesNotContain(paths, p => p.StartsWith("two:") && p.Contains("/conversations/", StringComparison.Ordinal));
     }
 
     private static void AssertEmptyBodies(JsonNode? node)

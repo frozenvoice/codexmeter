@@ -9,7 +9,7 @@ public sealed class FixtureChatGptProvider : IChatGptProvider
     private readonly Dictionary<string, List<ConversationIndexItem>> _projectConversations = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ModelCatalogEntry> _catalog = [];
     private readonly AccountStatus _account;
-    private readonly QuotaMetadata _quota;
+    private readonly QuotaMetadataSet _quota;
 
     public bool IndexIncomplete { get; set; }
     public Func<string, ConversationLoadResult>? LoadOverride { get; set; }
@@ -17,14 +17,14 @@ public sealed class FixtureChatGptProvider : IChatGptProvider
     public FixtureChatGptProvider(
         AccountStatus? account = null,
         IEnumerable<ModelCatalogEntry>? catalog = null,
-        QuotaMetadata? quota = null)
+        QuotaMetadataSet? quota = null)
     {
         _account = account ?? new AccountStatus { IsSignedIn = true, Email = "fixture@example.com", PlanType = "pro" };
         _catalog = catalog?.ToList() ??
         [
             new ModelCatalogEntry { Slug = "gpt-5-6-pro", Title = "GPT-5.6 Sol Pro" }
         ];
-        _quota = quota ?? new QuotaMetadata();
+        _quota = quota ?? new QuotaMetadataSet();
     }
 
     public void AddConversation(ConversationIndexItem item, JsonNode body)
@@ -97,7 +97,7 @@ public sealed class FixtureChatGptProvider : IChatGptProvider
         return Task.FromResult(ConversationDetailLoader.FromFixture(null));
     }
 
-    public Task<QuotaMetadata> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default) =>
+    public Task<QuotaMetadataSet> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(_quota);
 
     private ConversationIndexResult ToIndex(IReadOnlyList<ConversationIndexItem> items) =>
@@ -116,9 +116,15 @@ public sealed class FixtureChatGptProvider : IChatGptProvider
         var result = new List<ConversationIndexItem>();
         foreach (var item in list)
         {
+            if (item.UpdateTime <= 0)
+            {
+                result.Add(item);
+                continue;
+            }
+
             if (item.UpdateTime < minUpdateTime)
             {
-                break;
+                continue;
             }
 
             result.Add(item);

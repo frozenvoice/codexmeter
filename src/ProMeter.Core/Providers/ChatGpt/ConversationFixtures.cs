@@ -165,6 +165,28 @@ public static class ConversationFixtures
         return Conversation(conversationId, time, nodes.ToArray());
     }
 
+    public static JsonObject MixedRequestIdFragments(string conversationId = "conv-mixed-req", double time = 1_777_500_655)
+    {
+        return Conversation(
+            conversationId,
+            time,
+            Node("user-1", "user", null, time - 4, requestedModel: "gpt-5-6-pro", children: ["hidden"]),
+            Node("hidden", "assistant", "user-1", time - 3, modelSlug: "gpt-5-6-pro", hidden: true, endTurn: false, children: ["tool"]),
+            Node("tool", "assistant", "hidden", time - 2, modelSlug: "gpt-5-6-pro", endTurn: false, recipient: "browser", children: ["final"]),
+            Node("final", "assistant", "tool", time - 1, requestId: "req-mixed", modelSlug: "gpt-5-6-pro"));
+    }
+
+    public static JsonObject UnrelatedTurns(string conversationId = "conv-unrelated", double time = 1_777_500_656)
+    {
+        return Conversation(
+            conversationId,
+            time,
+            Node("user-1", "user", null, time - 6, requestedModel: "gpt-5-6-pro", children: ["hidden-1"]),
+            Node("hidden-1", "assistant", "user-1", time - 5, modelSlug: "gpt-5-6-pro", hidden: true, endTurn: false),
+            Node("user-2", "user", null, time - 3, requestedModel: "gpt-5-6-pro", children: ["final-2"]),
+            Node("final-2", "assistant", "user-2", time - 1, requestId: "req-other", modelSlug: "gpt-5-6-pro"));
+    }
+
     public static JsonObject MissingRequestIdFragments(string conversationId = "conv-noreq-cluster", double time = 1_777_500_650)
     {
         return Conversation(

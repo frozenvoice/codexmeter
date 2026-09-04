@@ -107,9 +107,9 @@ public sealed class ConversationParser
                 LastSeenAt = now,
                 QuotaFamily = family,
                 DedupeKey = dedupeKey,
-                DedupeConfidence = string.IsNullOrWhiteSpace(representative.RequestId)
-                    ? DedupeConfidence.Heuristic
-                    : DedupeConfidence.High
+                DedupeConfidence = group.All(n => !string.IsNullOrWhiteSpace(n.RequestId))
+                    ? DedupeConfidence.High
+                    : DedupeConfidence.Heuristic
             });
         }
 
@@ -134,6 +134,18 @@ public sealed class ConversationParser
         foreach (var node in assistants.Where(n => !string.IsNullOrWhiteSpace(n.RequestId)))
         {
             AddGroup(groups, "req:" + node.RequestId!.Trim(), node);
+            assigned.Add(node.Id);
+        }
+
+        foreach (var node in assistants.Where(n => !assigned.Contains(n.Id)))
+        {
+            var tagged = FindTaggedGroup(groups, nodes, node);
+            if (tagged is null)
+            {
+                continue;
+            }
+
+            AddGroup(groups, tagged, node);
             assigned.Add(node.Id);
         }
 
@@ -169,6 +181,99 @@ public sealed class ConversationParser
         }
 
         return groups;
+    }
+
+    private static string? FindTaggedGroup(
+        IReadOnlyDictionary<string, List<ParsedNode>> groups,
+        IReadOnlyDictionary<string, ParsedNode> nodes,
+        ParsedNode node)
+    {
+        var user = FindUserAncestor(nodes, node);
+        string? best = null;
+        var bestDelta = double.MaxValue;
+        foreach (var (key, members) in groups)
+        {
+            if (!key.StartsWith("req:", StringComparison.OrdinalIgnoreCase) || members.Count == 0)
+            {
+                continue;
+            }
+
+            if (user is null || members.All(member => FindUserAncestor(nodes, member) != user))
+            {
+                continue;
+            }
+
+            if (IsVisibleFinal(node) && members.Any(IsVisibleFinal))
+            {
+                continue;
+            }
+
+            if (!members.Any(member => CompatibleBranch(nodes, node, member)))
+            {
+                continue;
+            }
+
+            if (!members.Any(member => CompatibleModel(node, member)))
+            {
+                continue;
+            }
+
+            var delta = members.Min(member => Math.Abs((member.CreatedAt - node.CreatedAt)?.TotalSeconds ?? double.MaxValue));
+            if (delta > 20 * 60)
+            {
+                continue;
+            }
+
+            if (delta < bestDelta)
+            {
+                bestDelta = delta;
+                best = key;
+            }
+        }
+
+        return best;
+    }
+
+    private static bool CompatibleBranch(
+        IReadOnlyDictionary<string, ParsedNode> nodes,
+        ParsedNode left,
+        ParsedNode right)
+    {
+        if (string.Equals(left.ParentId, right.Id, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(right.ParentId, left.Id, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(left.ParentId, right.ParentId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return Ancestors(nodes, left).Contains(right.Id) || Ancestors(nodes, right).Contains(left.Id);
+    }
+
+    private static HashSet<string> Ancestors(IReadOnlyDictionary<string, ParsedNode> nodes, ParsedNode node)
+    {
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var cursor = node.ParentId;
+        var guard = 0;
+        while (!string.IsNullOrWhiteSpace(cursor) && guard++ < 64)
+        {
+            ids.Add(cursor);
+            if (!nodes.TryGetValue(cursor, out var parent))
+            {
+                break;
+            }
+
+            cursor = parent.ParentId;
+        }
+
+        return ids;
+    }
+
+    private static bool CompatibleModel(ParsedNode left, ParsedNode right)
+    {
+        var a = FirstNonEmpty(left.ModelSlug, left.ResponseModel, left.RequestedModel);
+        var b = FirstNonEmpty(right.ModelSlug, right.ResponseModel, right.RequestedModel);
+        return string.IsNullOrWhiteSpace(a) || string.IsNullOrWhiteSpace(b)
+               || string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void AddGroup(IDictionary<string, List<ParsedNode>> groups, string key, ParsedNode node)

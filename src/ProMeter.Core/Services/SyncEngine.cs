@@ -8,6 +8,8 @@ public sealed class SyncEngine
     private readonly AppLog _log;
     private readonly SemaphoreSlim _bodyLock = new(1, 1);
     private int _consecutiveFailures;
+    public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(2);
+    public int RetryAttempts { get; set; } = 6;
 
     public SyncEngine(SqliteStore store, ConversationParser parser, ModelNormalizer models, AppLog log)
     {
@@ -23,7 +25,7 @@ public sealed class SyncEngine
     public AppSyncStatus LastStatus { get; private set; } = AppSyncStatus.Idle;
     public string? LastStatusDetail { get; private set; }
     public DateTimeOffset? LastSyncCompleted { get; private set; }
-    public QuotaMetadata? LastQuotaMetadata { get; private set; }
+    public QuotaMetadataSet? LastQuotaMetadata { get; private set; }
     public AccountStatus? LastAccount { get; private set; }
 
     public event Action<SyncProgress>? ProgressChanged;
@@ -78,7 +80,11 @@ public sealed class SyncEngine
 
                 _log.Info($"catalog models={catalog.Count}");
             }
-            catch (ChatGptProviderException ex) when (!ex.IsUnauthorized)
+            catch (ChatGptProviderException ex) when (IsFatalProviderError(ex))
+            {
+                throw;
+            }
+            catch (ChatGptProviderException ex)
             {
                 _log.Warn($"catalog unavailable status={ex.Status}");
             }
@@ -87,16 +93,18 @@ public sealed class SyncEngine
             {
                 LastQuotaMetadata = await provider.TryGetQuotaMetadataAsync(cancellationToken);
             }
+            catch (ChatGptProviderException ex) when (IsFatalProviderError(ex))
+            {
+                throw;
+            }
             catch (Exception ex)
             {
                 _log.Warn("quota metadata unavailable: " + AppLog.Sanitize(ex.Message));
-                LastQuotaMetadata = new QuotaMetadata();
+                LastQuotaMetadata = new QuotaMetadataSet();
             }
 
             var now = DateTimeOffset.UtcNow;
-            var serverReset = LastQuotaMetadata is { MatchesGptProAllowance: true, ResetAt: not null }
-                ? LastQuotaMetadata.ResetAt
-                : null;
+            var serverReset = LastQuotaMetadata?.WeeklyWindow(settings.PlanPreset)?.ResetAt;
             var (periodStart, _) = QuotaPeriodCalculator.CurrentPeriod(settings, now, serverReset);
             var minUpdate = periodStart.ToUnixTimeSeconds();
 
@@ -104,12 +112,14 @@ public sealed class SyncEngine
             Report("Scanning current quota period...");
 
             parsed += await SyncIndexAsync(provider, false, minUpdate, "chat", UsageSource.ConversationSync, coverage, force, value => worst = Worse(worst, value), cancellationToken);
-            coverage.NormalChats = !coverage.IndexIncomplete;
 
             try
             {
                 parsed += await SyncIndexAsync(provider, true, minUpdate, "archived", UsageSource.ArchivedSync, coverage, force, value => worst = Worse(worst, value), cancellationToken);
-                coverage.ArchivedChats = true;
+            }
+            catch (ChatGptProviderException ex) when (IsFatalProviderError(ex))
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -121,19 +131,31 @@ public sealed class SyncEngine
             try
             {
                 var projects = await ExecuteWithRetry(() => provider.GetProjectsAsync(cancellationToken), "projects", cancellationToken);
-                if (projects.Incomplete)
+                if (projects.SchemaMismatch)
+                {
+                    coverage.IndexIncomplete = true;
+                    worst = Worse(worst, AppSyncStatus.ProviderSchemaMismatch);
+                }
+                else if (projects.Incomplete)
                 {
                     coverage.IndexIncomplete = true;
                     worst = Worse(worst, AppSyncStatus.PartialData);
                 }
 
                 _log.Info($"projects={projects.Projects.Count}");
-                foreach (var project in projects.Projects)
+                if (!projects.SchemaMismatch)
                 {
-                    parsed += await SyncProjectAsync(provider, project, minUpdate, coverage, force, value => worst = Worse(worst, value), cancellationToken);
-                }
+                    foreach (var project in projects.Projects)
+                    {
+                        parsed += await SyncProjectAsync(provider, project, minUpdate, coverage, force, value => worst = Worse(worst, value), cancellationToken);
+                    }
 
-                coverage.Projects = true;
+                    coverage.Projects = !projects.Incomplete;
+                }
+            }
+            catch (ChatGptProviderException ex) when (IsFatalProviderError(ex))
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -222,13 +244,37 @@ public sealed class SyncEngine
         var result = archived
             ? await ExecuteWithRetry(() => provider.GetArchivedConversationIndexAsync(minUpdate, cancellationToken), "archived-index", cancellationToken)
             : await ExecuteWithRetry(() => provider.GetConversationIndexAsync(false, minUpdate, cancellationToken), "index", cancellationToken);
-        if (result.Incomplete)
+        if (result.SchemaMismatch)
         {
             coverage.IndexIncomplete = true;
+            setWorst(AppSyncStatus.ProviderSchemaMismatch);
+        }
+        else if (result.Incomplete || result.TimestampIncomplete)
+        {
+            coverage.IndexIncomplete = true;
+            if (result.TimestampIncomplete)
+            {
+                coverage.ConversationIncomplete = true;
+            }
+
             setWorst(AppSyncStatus.PartialData);
         }
 
-        _log.Info($"{source} index={result.Items.Count} pages={result.Pages} incomplete={result.Incomplete}");
+        if (archived)
+        {
+            coverage.ArchivedChats = !result.SchemaMismatch && !result.Incomplete;
+        }
+        else
+        {
+            coverage.NormalChats = !result.SchemaMismatch && !result.Incomplete && !result.TimestampIncomplete;
+        }
+
+        _log.Info($"{source} index={result.Items.Count} pages={result.Pages} incomplete={result.Incomplete} mismatch={result.SchemaMismatch}");
+        if (result.SchemaMismatch)
+        {
+            return 0;
+        }
+
         return await ProcessItemsAsync(provider, result.Items, source, usageSource, coverage, force, setWorst, cancellationToken);
     }
 
@@ -245,9 +291,21 @@ public sealed class SyncEngine
             () => provider.GetProjectConversationsAsync(project.Id, minUpdate, cancellationToken),
             "project-index",
             cancellationToken);
-        if (result.Incomplete)
+        if (result.SchemaMismatch)
         {
             coverage.IndexIncomplete = true;
+            setWorst(AppSyncStatus.ProviderSchemaMismatch);
+            return 0;
+        }
+
+        if (result.Incomplete || result.TimestampIncomplete)
+        {
+            coverage.IndexIncomplete = true;
+            if (result.TimestampIncomplete)
+            {
+                coverage.ConversationIncomplete = true;
+            }
+
             setWorst(AppSyncStatus.PartialData);
         }
 
@@ -293,6 +351,10 @@ public sealed class SyncEngine
                         () => provider.GetConversationMessagesAsync(item.Id, cancellationToken),
                         "conversation",
                         cancellationToken);
+                }
+                catch (ChatGptProviderException ex) when (IsFatalProviderError(ex))
+                {
+                    throw;
                 }
                 catch (Exception ex)
                 {
@@ -364,20 +426,26 @@ public sealed class SyncEngine
 
                 parsed += result.Events.Count;
                 var now = DateTimeOffset.UtcNow;
+                var trusted = item.UpdateTime > 0;
                 _store.ReconcileConversation(new ConversationRecord
                 {
                     ConversationId = item.Id,
-                    UpdateTime = item.UpdateTime,
+                    UpdateTime = trusted ? item.UpdateTime : 0,
                     ProjectId = item.ProjectId,
                     Archived = item.Archived,
                     LastScanned = now,
-                    LastSeenUpdateTime = item.UpdateTime,
+                    LastSeenUpdateTime = trusted ? item.UpdateTime : 0,
                     Source = source,
-                    LastSuccessfulScan = now,
-                    LastError = null,
-                    LastErrorAt = null,
-                    Status = ConversationScanStatus.Ok
+                    LastSuccessfulScan = trusted ? now : null,
+                    LastError = trusted ? null : "missing update_time",
+                    LastErrorAt = trusted ? null : now,
+                    Status = trusted ? ConversationScanStatus.Ok : ConversationScanStatus.Incomplete
                 }, result.Events);
+                if (!trusted)
+                {
+                    coverage.ConversationIncomplete = true;
+                    setWorst(AppSyncStatus.PartialData);
+                }
                 processed++;
                 Report("Scanning conversations...", items.Count, changed, processed, parsed);
             }
@@ -392,6 +460,11 @@ public sealed class SyncEngine
 
     private bool NeedsBody(ConversationIndexItem item)
     {
+        if (item.UpdateTime <= 0)
+        {
+            return true;
+        }
+
         var existing = _store.GetConversation(item.Id);
         if (existing is null || existing.LastSuccessfulScan is null)
         {
@@ -405,6 +478,9 @@ public sealed class SyncEngine
 
         return existing.LastSeenUpdateTime + 0.001 < item.UpdateTime;
     }
+
+    private static bool IsFatalProviderError(ChatGptProviderException ex) =>
+        ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline;
 
     private static AppSyncStatus Worse(AppSyncStatus current, AppSyncStatus incoming)
     {
@@ -423,8 +499,9 @@ public sealed class SyncEngine
 
     private async Task<T> ExecuteWithRetry<T>(Func<Task<T>> action, string operation, CancellationToken cancellationToken)
     {
-        var delay = TimeSpan.FromSeconds(2);
-        for (var attempt = 0; attempt < 6; attempt++)
+        var delay = RetryBaseDelay;
+        var attempts = Math.Max(1, RetryAttempts);
+        for (var attempt = 0; attempt < attempts; attempt++)
         {
             try
             {
@@ -435,13 +512,18 @@ public sealed class SyncEngine
             catch (ChatGptProviderException ex) when (ex.IsRateLimited || ex.IsServerError)
             {
                 _log.Http(operation, ex.Status, $"attempt={attempt + 1}");
-                var wait = ParseRetryAfter(ex.RetryAfter) ?? delay;
-                await Task.Delay(wait, cancellationToken);
-                delay = TimeSpan.FromMilliseconds(Math.Min(delay.TotalMilliseconds * 2, 60_000));
-                if (attempt == 5)
+                if (attempt == attempts - 1)
                 {
                     throw;
                 }
+
+                var wait = ParseRetryAfter(ex.RetryAfter) ?? delay;
+                if (wait > TimeSpan.Zero)
+                {
+                    await Task.Delay(wait, cancellationToken);
+                }
+
+                delay = TimeSpan.FromMilliseconds(Math.Min(Math.Max(delay.TotalMilliseconds, 1) * 2, 60_000));
             }
         }
 
@@ -452,7 +534,7 @@ public sealed class SyncEngine
     {
         if (int.TryParse(value, out var seconds))
         {
-            return TimeSpan.FromSeconds(Math.Clamp(seconds, 1, 300));
+            return TimeSpan.FromSeconds(Math.Clamp(seconds, 0, 300));
         }
 
         return null;

@@ -9,7 +9,7 @@ public interface IChatGptProvider
     Task<ProjectListResult> GetProjectsAsync(CancellationToken cancellationToken = default);
     Task<ConversationIndexResult> GetProjectConversationsAsync(string projectId, double? minUpdateTime = null, CancellationToken cancellationToken = default);
     Task<ConversationLoadResult> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default);
-    Task<QuotaMetadata> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default);
+    Task<QuotaMetadataSet> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class ChatGptProviderException : Exception

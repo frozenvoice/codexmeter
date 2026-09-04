@@ -117,6 +117,8 @@ public sealed class ConversationIndexResult
     public IReadOnlyList<ConversationIndexItem> Items { get; init; } = [];
     public bool ReachedCutoff { get; init; }
     public bool Incomplete { get; init; }
+    public bool SchemaMismatch { get; init; }
+    public bool TimestampIncomplete { get; init; }
     public int Pages { get; init; }
 }
 
@@ -124,5 +126,20 @@ public sealed class ProjectListResult
 {
     public IReadOnlyList<ProjectInfo> Projects { get; init; } = [];
     public bool Incomplete { get; init; }
+    public bool SchemaMismatch { get; init; }
     public int Pages { get; init; }
+}
+
+public sealed class IndexParseResult
+{
+    public IReadOnlyList<ConversationIndexItem> Items { get; init; } = [];
+    public bool RecognizedShape { get; init; }
+    public bool TimestampComplete { get; init; }
+    public int MissingTimestamps { get; init; }
+}
+
+public sealed class ProjectParseResult
+{
+    public IReadOnlyList<ProjectInfo> Projects { get; init; } = [];
+    public bool RecognizedShape { get; init; }
 }

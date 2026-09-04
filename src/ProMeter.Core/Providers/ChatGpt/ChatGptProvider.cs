@@ -55,12 +55,20 @@ public sealed class ChatGptProvider : IChatGptProvider
         string? cursor = null;
         var pages = 0;
         var incomplete = false;
+        var mismatch = false;
         while (pages < ConversationIndexPager.MaxPages)
         {
             var root = await GetJsonAsync("GET", ChatGptEndpoints.ProjectsSidebarQuery(cursor), cancellationToken: cancellationToken);
             var page = AccountParser.ParseProjects(root);
-            projects.AddRange(page);
             pages++;
+            if (!page.RecognizedShape)
+            {
+                mismatch = true;
+                incomplete = true;
+                break;
+            }
+
+            projects.AddRange(page.Projects);
             var info = ConversationIndexPager.ReadCursor(root);
             if (!ConversationIndexPager.ShouldFetchNextCursor(cursor, info, seen))
             {
@@ -80,7 +88,7 @@ public sealed class ChatGptProvider : IChatGptProvider
             incomplete = true;
         }
 
-        return new ProjectListResult { Projects = projects, Incomplete = incomplete, Pages = pages };
+        return new ProjectListResult { Projects = projects, Incomplete = incomplete, SchemaMismatch = mismatch, Pages = pages };
     }
 
     public async Task<ConversationIndexResult> GetProjectConversationsAsync(string projectId, double? minUpdateTime = null, CancellationToken cancellationToken = default)
@@ -90,15 +98,33 @@ public sealed class ChatGptProvider : IChatGptProvider
         string? cursor = "0";
         var pages = 0;
         var incomplete = false;
+        var mismatch = false;
         var cutoff = false;
+        var timestampIncomplete = false;
         seen.Add("0");
         while (pages < ConversationIndexPager.MaxPages)
         {
             var root = await GetJsonAsync("GET", ChatGptEndpoints.ProjectConversationsById(projectId, cursor), cancellationToken: cancellationToken);
             var page = AccountParser.ParseConversationIndex(root, archived: false, projectId, "project");
-            foreach (var item in page)
+            pages++;
+            if (!page.RecognizedShape)
             {
-                if (minUpdateTime is double min && item.UpdateTime > 0 && item.UpdateTime < min)
+                mismatch = true;
+                incomplete = true;
+                break;
+            }
+
+            timestampIncomplete |= !page.TimestampComplete;
+            foreach (var item in page.Items)
+            {
+                if (item.UpdateTime <= 0)
+                {
+                    timestampIncomplete = true;
+                    items.Add(item);
+                    continue;
+                }
+
+                if (minUpdateTime is double min && item.UpdateTime < min)
                 {
                     cutoff = true;
                     break;
@@ -107,7 +133,6 @@ public sealed class ChatGptProvider : IChatGptProvider
                 items.Add(item);
             }
 
-            pages++;
             var info = ConversationIndexPager.ReadCursor(root);
             if (cutoff || !ConversationIndexPager.ShouldFetchNextCursor(cursor, info, seen))
             {
@@ -127,13 +152,21 @@ public sealed class ChatGptProvider : IChatGptProvider
             incomplete = true;
         }
 
-        return new ConversationIndexResult { Items = items, ReachedCutoff = cutoff, Incomplete = incomplete, Pages = pages };
+        return new ConversationIndexResult
+        {
+            Items = items,
+            ReachedCutoff = cutoff,
+            Incomplete = incomplete || timestampIncomplete,
+            SchemaMismatch = mismatch,
+            TimestampIncomplete = timestampIncomplete,
+            Pages = pages
+        };
     }
 
     public Task<ConversationLoadResult> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default) =>
         _loader.LoadAsync(_transport, conversationId, GetJsonAsync, cancellationToken);
 
-    public async Task<QuotaMetadata> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default)
+    public async Task<QuotaMetadataSet> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -148,6 +181,10 @@ public sealed class ChatGptProvider : IChatGptProvider
                 return parsed;
             }
         }
+        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline)
+        {
+            throw;
+        }
         catch (ChatGptProviderException)
         {
         }
@@ -161,11 +198,15 @@ public sealed class ChatGptProvider : IChatGptProvider
                 return parsed;
             }
         }
+        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline)
+        {
+            throw;
+        }
         catch (ChatGptProviderException)
         {
         }
 
-        return new QuotaMetadata();
+        return new QuotaMetadataSet();
     }
 
     public async Task<ConversationIndexResult> FetchIndexAsync(bool archived, double? minUpdateTime, CancellationToken cancellationToken)
@@ -175,14 +216,32 @@ public sealed class ChatGptProvider : IChatGptProvider
         var seenNext = new HashSet<int>();
         var pages = 0;
         var incomplete = false;
+        var mismatch = false;
         var cutoff = false;
+        var timestampIncomplete = false;
         while (pages < ConversationIndexPager.MaxPages)
         {
             var root = await GetJsonAsync("GET", ChatGptEndpoints.ConversationsPage(offset, ConversationIndexPager.RequestedLimit, archived), cancellationToken: cancellationToken);
-            var pageItems = AccountParser.ParseConversationIndex(root, archived, source: archived ? "archived" : "chat");
-            foreach (var item in pageItems)
+            var parsed = AccountParser.ParseConversationIndex(root, archived, source: archived ? "archived" : "chat");
+            pages++;
+            if (!parsed.RecognizedShape)
             {
-                if (minUpdateTime is double min && item.UpdateTime > 0 && item.UpdateTime < min)
+                mismatch = true;
+                incomplete = true;
+                break;
+            }
+
+            timestampIncomplete |= !parsed.TimestampComplete;
+            foreach (var item in parsed.Items)
+            {
+                if (item.UpdateTime <= 0)
+                {
+                    timestampIncomplete = true;
+                    items.Add(item);
+                    continue;
+                }
+
+                if (minUpdateTime is double min && item.UpdateTime < min)
                 {
                     cutoff = true;
                     break;
@@ -191,8 +250,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 items.Add(item);
             }
 
-            var info = ConversationIndexPager.ReadPage(root, offset, ConversationIndexPager.RequestedLimit, pageItems.Count, cutoff);
-            pages++;
+            var info = ConversationIndexPager.ReadPage(root, offset, ConversationIndexPager.RequestedLimit, parsed.Items.Count, cutoff);
             if (!ConversationIndexPager.ShouldFetchNext(info, offset, seenNext))
             {
                 if (!cutoff && info.HasMore == true && (info.NextOffset is null || info.NextOffset <= offset))
@@ -203,7 +261,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 break;
             }
 
-            offset = info.NextOffset ?? (offset + Math.Max(pageItems.Count, 1));
+            offset = info.NextOffset ?? (offset + Math.Max(parsed.Items.Count, 1));
         }
 
         if (!cutoff && pages >= ConversationIndexPager.MaxPages)
@@ -215,7 +273,9 @@ public sealed class ChatGptProvider : IChatGptProvider
         {
             Items = items,
             ReachedCutoff = cutoff,
-            Incomplete = incomplete,
+            Incomplete = incomplete || timestampIncomplete,
+            SchemaMismatch = mismatch,
+            TimestampIncomplete = timestampIncomplete,
             Pages = pages
         };
     }

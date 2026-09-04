@@ -61,4 +61,44 @@ public class UsageDedupeTests
         Assert.StartsWith("turn:", result.Events[0].DedupeKey);
         Assert.Equal("final", result.Events[0].MessageId);
     }
+
+    [Fact]
+    public void TaggedFinalPlusUntaggedFragments_CountOnce()
+    {
+        var parser = new ConversationParser(new ModelNormalizer());
+        var result = parser.Parse(ConversationFixtures.MixedRequestIdFragments(), new ConversationParseContext
+        {
+            ConversationId = "conv-mixed-req"
+        });
+
+        Assert.Single(result.Events);
+        Assert.Equal("req-mixed", result.Events[0].RequestId);
+        Assert.Equal(DedupeConfidence.Heuristic, result.Events[0].DedupeConfidence);
+        Assert.Equal("final", result.Events[0].MessageId);
+    }
+
+    [Fact]
+    public void TwoTaggedRegeneratedFinals_CountSeparately()
+    {
+        var parser = new ConversationParser(new ModelNormalizer());
+        var result = parser.Parse(ConversationFixtures.Regenerated(), new ConversationParseContext
+        {
+            ConversationId = "conv-regen"
+        });
+        Assert.Equal(3, result.Events.Count);
+        Assert.All(result.Events, e => Assert.Equal(DedupeConfidence.High, e.DedupeConfidence));
+    }
+
+    [Fact]
+    public void UnrelatedTurns_AreNotMerged()
+    {
+        var parser = new ConversationParser(new ModelNormalizer());
+        var result = parser.Parse(ConversationFixtures.UnrelatedTurns(), new ConversationParseContext
+        {
+            ConversationId = "conv-unrelated"
+        });
+        Assert.Equal(2, result.Events.Count);
+        Assert.Contains(result.Events, e => e.DedupeConfidence == DedupeConfidence.Heuristic);
+        Assert.Contains(result.Events, e => e.RequestId == "req-other" && e.DedupeConfidence == DedupeConfidence.High);
+    }
 }

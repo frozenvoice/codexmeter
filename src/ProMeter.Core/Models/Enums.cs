@@ -65,6 +65,15 @@ public enum DedupeConfidence
     Heuristic
 }
 
+public enum QuotaWindowKind
+{
+    Unclassified,
+    SharedProWeekly,
+    Gpt6ProWeekly,
+    SolProDaily,
+    CombinedProDaily
+}
+
 public enum TrayIconStyle
 {
     RemainingNumber,
