@@ -972,8 +972,46 @@ public static class BridgeProjection
 
     private static JsonObject ProjectMappingNode(JsonObject node)
     {
+        if (LooksLikeDirectPaginatedMessage(node))
+        {
+            return CanonicalizeMappingNode(node, node);
+        }
+
+        var nested = node["message"] as JsonObject;
+        return CanonicalizeMappingNode(node, nested);
+    }
+
+    private static bool LooksLikeDirectPaginatedMessage(JsonObject node)
+    {
+        if (node["message"] is JsonObject)
+        {
+            return false;
+        }
+
+        return node["author"] is not null
+               || node["metadata"] is not null
+               || node["content"] is not null
+               || node["role"] is not null
+               || node["message_id"] is not null
+               || node["end_turn"] is not null
+               || node["recipient"] is not null;
+    }
+
+    private static JsonObject CanonicalizeMappingNode(JsonObject node, JsonObject? messageSource)
+    {
         var result = new JsonObject();
-        CopyIfPresent(node, result, "id", "parent", "parent_id");
+        var id = ChatGptJson.GetString(node, "id", "message_id") ?? ChatGptJson.GetString(messageSource, "id");
+        var parent = ChatGptJson.GetString(node, "parent", "parent_id");
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            result["id"] = id;
+        }
+
+        if (!string.IsNullOrWhiteSpace(parent))
+        {
+            result["parent"] = parent;
+        }
+
         if (node["children"] is JsonArray children)
         {
             var projectedChildren = new JsonArray();
@@ -988,12 +1026,17 @@ public static class BridgeProjection
             result["children"] = projectedChildren;
         }
 
-        if (node["message"] is JsonObject message)
+        if (messageSource is not null)
         {
-            result["message"] = ProjectMessage(message);
+            var message = ProjectMessage(messageSource);
+            if (!string.IsNullOrWhiteSpace(id) && message["id"] is null)
+            {
+                message["id"] = id;
+            }
+
+            result["message"] = message;
         }
 
-        CopyIfPresent(node, result, "create_time", "createTime");
         return result;
     }
 
@@ -1004,6 +1047,10 @@ public static class BridgeProjection
         if (message["author"] is JsonObject author)
         {
             result["author"] = Pick(author, "role");
+        }
+        else if (ChatGptJson.GetString(message, "role") is { Length: > 0 } role)
+        {
+            result["author"] = new JsonObject { ["role"] = role };
         }
 
         if (message["content"] is JsonObject content)

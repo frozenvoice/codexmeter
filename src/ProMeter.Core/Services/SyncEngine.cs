@@ -2,6 +2,9 @@ namespace ProMeter.Services;
 
 public sealed class SyncEngine
 {
+    public const string MissingAssistantUsageDiagnostic =
+        "Conversation history loaded but no assistant usage metadata was reconstructed.";
+
     private readonly SqliteStore _store;
     private readonly ConversationParser _parser;
     private readonly ModelNormalizer _models;
@@ -12,6 +15,8 @@ public sealed class SyncEngine
     public int RetryAttempts { get; set; } = 6;
     private int _bodyFetchDelayMs = 250;
     private bool _pacedBodyThisSync;
+    private ReconstructionTotals _reconstruction = new();
+    private readonly List<DeferredZeroEventScan> _deferredZeroEvents = [];
 
     public SyncEngine(SqliteStore store, ConversationParser parser, ModelNormalizer models, AppLog log)
     {
@@ -57,6 +62,8 @@ public sealed class SyncEngine
         var worst = AppSyncStatus.UpToDate;
         _bodyFetchDelayMs = Math.Clamp(settings.BodyFetchDelayMilliseconds, 0, 5000);
         _pacedBodyThisSync = false;
+        _reconstruction = new ReconstructionTotals();
+        _deferredZeroEvents.Clear();
         try
         {
             Report("Detecting account...");
@@ -169,6 +176,7 @@ public sealed class SyncEngine
             }
 
             _store.SetState("last_index_sync", now.ToString("O"));
+            ApplyZeroEventDiagnostics(coverage, value => worst = Worse(worst, value));
             LastSyncCompleted = now;
             LastCoverage = coverage;
             LastStatus = coverage.Confidence == CoverageConfidence.Incomplete
@@ -179,10 +187,24 @@ public sealed class SyncEngine
                 LastStatus = AppSyncStatus.PartialData;
             }
 
-            LastStatusDetail = $"parsed={parsed}";
+            LastStatusDetail = coverage.HistoryLoadedWithoutUsage
+                ? MissingAssistantUsageDiagnostic
+                : $"parsed={parsed}";
             _consecutiveFailures = 0;
             IsPaused = false;
             _log.Info($"sync complete parsed={parsed} status={LastStatus} coverage={coverage.SummaryLabel}");
+            _log.Info(
+                "sync diagnostics" +
+                $" loaded={_reconstruction.Loaded}" +
+                $" failed={_reconstruction.Failed}" +
+                $" withEvents={_reconstruction.WithEvents}" +
+                $" zeroEvents={_reconstruction.ZeroEvents}" +
+                $" assistantNodes={_reconstruction.AssistantLikeNodes}" +
+                $" modelMetadataNodes={_reconstruction.NodesWithModelMetadata}" +
+                $" families GptPro={FamilyCount(QuotaFamily.GptPro)}" +
+                $" SolReasoning={FamilyCount(QuotaFamily.SolReasoning)}" +
+                $" Instant={FamilyCount(QuotaFamily.Instant)}" +
+                $" Unknown={FamilyCount(QuotaFamily.Unknown)}");
             Report(DisplayFormatting.StatusLabel(LastStatus), parsedEvents: parsed);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
@@ -335,6 +357,7 @@ public sealed class SyncEngine
     {
         var changed = items.Count(item => force || NeedsBody(item));
         _log.Info($"{source} changed={changed} force={force}");
+        _reconstruction.IndexedConversations += items.Count;
         var parsed = 0;
         var processed = 0;
         foreach (var item in items)
@@ -363,6 +386,7 @@ public sealed class SyncEngine
                 }
                 catch (Exception ex)
                 {
+                    _reconstruction.Failed++;
                     coverage.FailedConversations++;
                     coverage.ConversationIncomplete = true;
                     setWorst(AppSyncStatus.PartialData);
@@ -374,6 +398,7 @@ public sealed class SyncEngine
                 if (!load.Complete || load.SchemaMismatch || load.Conversation is null)
                 {
                     var status = load.SchemaMismatch ? ConversationScanStatus.SchemaMismatch : ConversationScanStatus.Incomplete;
+                    _reconstruction.Failed++;
                     coverage.FailedConversations++;
                     coverage.ConversationIncomplete = true;
                     setWorst(load.SchemaMismatch ? AppSyncStatus.ProviderSchemaMismatch : AppSyncStatus.PartialData);
@@ -403,6 +428,7 @@ public sealed class SyncEngine
 
                 if (result.SchemaMismatch)
                 {
+                    _reconstruction.Failed++;
                     coverage.FailedConversations++;
                     coverage.ConversationIncomplete = true;
                     setWorst(AppSyncStatus.ProviderSchemaMismatch);
@@ -416,41 +442,22 @@ public sealed class SyncEngine
                     continue;
                 }
 
-                if (result.HasAlternateBranches)
+                ObserveParse(result);
+                if (result.Events.Count == 0)
                 {
-                    coverage.BranchesIncluded = true;
-                }
-
-                foreach (var usage in result.Events)
-                {
-                    if (!string.IsNullOrWhiteSpace(usage.RawModel))
+                    _reconstruction.ZeroEvents++;
+                    _deferredZeroEvents.Add(new DeferredZeroEventScan
                     {
-                        _store.ObserveModel(usage.RawModel, usage.NormalizedModel, "conversation");
-                    }
+                        Item = item,
+                        Result = result,
+                        Source = source
+                    });
+                    processed++;
+                    Report("Scanning conversations...", items.Count, changed, processed, parsed);
+                    continue;
                 }
 
-                parsed += result.Events.Count;
-                var now = DateTimeOffset.UtcNow;
-                var trusted = item.UpdateTime > 0;
-                _store.ReconcileConversation(new ConversationRecord
-                {
-                    ConversationId = item.Id,
-                    UpdateTime = trusted ? item.UpdateTime : 0,
-                    ProjectId = item.ProjectId,
-                    Archived = item.Archived,
-                    LastScanned = now,
-                    LastSeenUpdateTime = trusted ? item.UpdateTime : 0,
-                    Source = source,
-                    LastSuccessfulScan = trusted ? now : null,
-                    LastError = trusted ? null : "missing update_time",
-                    LastErrorAt = trusted ? null : now,
-                    Status = trusted ? ConversationScanStatus.Ok : ConversationScanStatus.Incomplete
-                }, result.Events);
-                if (!trusted)
-                {
-                    coverage.ConversationIncomplete = true;
-                    setWorst(AppSyncStatus.PartialData);
-                }
+                parsed += CommitSuccessfulParse(item, result, source, coverage, setWorst);
                 processed++;
                 Report("Scanning conversations...", items.Count, changed, processed, parsed);
             }
@@ -462,6 +469,106 @@ public sealed class SyncEngine
 
         return parsed;
     }
+
+    private void ObserveParse(ParseResult result)
+    {
+        _reconstruction.Loaded++;
+        _reconstruction.AssistantLikeNodes += result.AssistantLikeNodeCount;
+        _reconstruction.NodesWithModelMetadata += result.NodesWithModelMetadata;
+        if (result.Events.Count > 0)
+        {
+            _reconstruction.WithEvents++;
+        }
+
+        foreach (var usage in result.Events)
+        {
+            _reconstruction.AddFamily(usage.QuotaFamily);
+        }
+    }
+
+    private int CommitSuccessfulParse(
+        ConversationIndexItem item,
+        ParseResult result,
+        string source,
+        CoverageInfo coverage,
+        Action<AppSyncStatus> setWorst)
+    {
+        if (result.HasAlternateBranches)
+        {
+            coverage.BranchesIncluded = true;
+        }
+
+        foreach (var usage in result.Events)
+        {
+            if (!string.IsNullOrWhiteSpace(usage.RawModel))
+            {
+                _store.ObserveModel(usage.RawModel, usage.NormalizedModel, "conversation");
+            }
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var trusted = item.UpdateTime > 0;
+        _store.ReconcileConversation(new ConversationRecord
+        {
+            ConversationId = item.Id,
+            UpdateTime = trusted ? item.UpdateTime : 0,
+            ProjectId = item.ProjectId,
+            Archived = item.Archived,
+            LastScanned = now,
+            LastSeenUpdateTime = trusted ? item.UpdateTime : 0,
+            Source = source,
+            LastSuccessfulScan = trusted ? now : null,
+            LastError = trusted ? null : "missing update_time",
+            LastErrorAt = trusted ? null : now,
+            Status = trusted ? ConversationScanStatus.Ok : ConversationScanStatus.Incomplete
+        }, result.Events);
+        if (!trusted)
+        {
+            coverage.ConversationIncomplete = true;
+            setWorst(AppSyncStatus.PartialData);
+        }
+
+        return result.Events.Count;
+    }
+
+    private void ApplyZeroEventDiagnostics(CoverageInfo coverage, Action<AppSyncStatus> setWorst)
+    {
+        coverage.LoadedConversations = _reconstruction.Loaded;
+        coverage.ConversationsWithEvents = _reconstruction.WithEvents;
+        coverage.ZeroEventConversations = _reconstruction.ZeroEvents;
+        coverage.AssistantLikeNodes = _reconstruction.AssistantLikeNodes;
+        coverage.NodesWithModelMetadata = _reconstruction.NodesWithModelMetadata;
+
+        var suspect = _reconstruction.IndexedConversations > 0
+                      && _reconstruction.Loaded >= 2
+                      && _reconstruction.WithEvents == 0;
+        if (suspect)
+        {
+            coverage.HistoryLoadedWithoutUsage = true;
+            coverage.ConversationIncomplete = true;
+            coverage.Notes = MissingAssistantUsageDiagnostic;
+            setWorst(AppSyncStatus.ProviderSchemaMismatch);
+            foreach (var deferred in _deferredZeroEvents)
+            {
+                coverage.FailedConversations++;
+                _store.RecordConversationFailure(
+                    _store.GetConversation(deferred.Item.Id),
+                    deferred.Item,
+                    ConversationScanStatus.SchemaMismatch,
+                    MissingAssistantUsageDiagnostic);
+            }
+
+            return;
+        }
+
+        foreach (var deferred in _deferredZeroEvents)
+        {
+            CommitSuccessfulParse(deferred.Item, deferred.Result, deferred.Source, coverage, setWorst);
+        }
+    }
+
+    private int FamilyCount(QuotaFamily family) =>
+        _reconstruction.Families.TryGetValue(family, out var count) ? count : 0;
 
     private bool NeedsBody(ConversationIndexItem item)
     {
@@ -578,6 +685,31 @@ public sealed class SyncEngine
             ProcessedConversations = processed,
             ParsedEvents = parsedEvents
         });
+    }
+
+    private sealed class ReconstructionTotals
+    {
+        public int IndexedConversations { get; set; }
+        public int Loaded { get; set; }
+        public int Failed { get; set; }
+        public int WithEvents { get; set; }
+        public int ZeroEvents { get; set; }
+        public int AssistantLikeNodes { get; set; }
+        public int NodesWithModelMetadata { get; set; }
+        public Dictionary<QuotaFamily, int> Families { get; } = [];
+
+        public void AddFamily(QuotaFamily family)
+        {
+            Families.TryGetValue(family, out var count);
+            Families[family] = count + 1;
+        }
+    }
+
+    private sealed class DeferredZeroEventScan
+    {
+        public required ConversationIndexItem Item { get; init; }
+        public required ParseResult Result { get; init; }
+        public required string Source { get; init; }
     }
 }
 

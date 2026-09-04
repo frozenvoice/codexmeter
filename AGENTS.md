@@ -81,11 +81,18 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - All ChatGPT internal API paths stay behind the provider/transport abstraction. UI must not hard-code backend endpoints.
 - Preserve raw model slugs. Do not guess unknown future slugs into an existing model.
 - Database reconciliation must preserve OfficialExport evidence unless explicitly superseded by equivalent verified evidence.
+- A successful HTTP conversation response with zero parsed assistant usage must be diagnostically distinguishable from an actually empty conversation.
+- Browser projection must support both nested mapping-node message shapes and direct paginated message shapes.
+- Projection must canonicalize both server shapes into one metadata-only internal shape before crossing Native Messaging.
+- UI callbacks originating from pipe/background threads must marshal to the WPF Dispatcher before touching controls.
+- Dark-theme flyout values must never rely on the platform default foreground.
+- An incomplete reconstruction must not present "0 / quota" as though zero were a trustworthy usage measurement.
 
 ## Testing and completion
 
 - Every correctness bug gets a regression test. Preserve existing tests.
 - Malformed API fixtures must be synthetic and contain no real user content.
+- Live compatibility tests must cover the actual response-shape families observed from ChatGPT, using synthetic fixtures without storing real content.
 - Before completion run: `dotnet restore`, Release build, Release tests (`--no-build`), win-x64 self-contained single-file publish.
 - Do not report PASS without actual command output.
 - Keep the GitHub Actions Windows workflow green.

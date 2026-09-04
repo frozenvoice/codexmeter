@@ -205,6 +205,127 @@ public static class ConversationFixtures
         return conversation;
     }
 
+    public static JsonObject DirectPaginatedPro(
+        string conversationId = "conv-direct-pro",
+        double time = 1_777_500_900,
+        string modelSlug = "gpt-5-6-pro",
+        string requestId = "req-direct-pro")
+    {
+        return new JsonObject
+        {
+            ["conversation_id"] = conversationId,
+            ["id"] = conversationId,
+            ["update_time"] = time,
+            ["current_node"] = "asst-1",
+            ["messages"] = new JsonArray
+            {
+                DirectPaginatedMessage(
+                    "user-1",
+                    "user",
+                    parent: null,
+                    createTime: time - 2,
+                    requestedModel: modelSlug,
+                    parts: "SYNTHETIC_PROMPT_TEXT_DO_NOT_STORE"),
+                DirectPaginatedMessage(
+                    "asst-1",
+                    "assistant",
+                    parent: "user-1",
+                    createTime: time - 1,
+                    requestId: requestId,
+                    modelSlug: modelSlug,
+                    parts: "SYNTHETIC_ASSISTANT_TEXT_DO_NOT_STORE",
+                    endTurn: true)
+            },
+            ["page_info"] = new JsonObject
+            {
+                ["has_previous_page"] = false,
+                ["start_cursor"] = "synthetic-cursor-start"
+            }
+        };
+    }
+
+    public static JsonObject DirectPaginatedGpt6Pro(
+        string conversationId = "conv-direct-gpt6",
+        double time = 1_777_500_910) =>
+        DirectPaginatedPro(conversationId, time, "gpt-6-pro", "req-direct-gpt6");
+
+    public static JsonObject DirectPaginatedMessage(
+        string id,
+        string role,
+        string? parent,
+        double createTime,
+        string? requestId = null,
+        string? modelSlug = null,
+        string? requestedModel = null,
+        string? parts = null,
+        bool endTurn = true,
+        bool useAliases = false)
+    {
+        var metadata = new JsonObject();
+        if (!string.IsNullOrWhiteSpace(requestId)) metadata["request_id"] = requestId;
+        if (!string.IsNullOrWhiteSpace(modelSlug)) metadata["model_slug"] = modelSlug;
+        if (!string.IsNullOrWhiteSpace(requestedModel)) metadata["requested_model"] = requestedModel;
+
+        var node = new JsonObject
+        {
+            [useAliases ? "message_id" : "id"] = id,
+            ["author"] = new JsonObject { ["role"] = role },
+            ["create_time"] = createTime,
+            ["end_turn"] = endTurn,
+            ["recipient"] = "all",
+            ["content"] = new JsonObject
+            {
+                ["content_type"] = "text",
+                ["parts"] = new JsonArray(parts ?? "[redacted]"),
+                ["text"] = parts ?? ""
+            },
+            ["metadata"] = metadata
+        };
+        if (!string.IsNullOrWhiteSpace(parent))
+        {
+            node[useAliases ? "parent_id" : "parent"] = parent;
+        }
+
+        return node;
+    }
+
+    public static JsonObject MappingWithStrippedAssistantRoles(string conversationId = "conv-stripped", double time = 1_777_500_920)
+    {
+        return Conversation(
+            conversationId,
+            time,
+            new JsonObject
+            {
+                ["id"] = "user-1",
+                ["parent"] = null,
+                ["children"] = new JsonArray("asst-1"),
+                ["message"] = new JsonObject
+                {
+                    ["id"] = "user-1",
+                    ["author"] = new JsonObject { ["role"] = "" },
+                    ["create_time"] = time - 2,
+                    ["content"] = new JsonObject { ["content_type"] = "text" },
+                    ["metadata"] = new JsonObject()
+                }
+            },
+            new JsonObject
+            {
+                ["id"] = "asst-1",
+                ["parent"] = "user-1",
+                ["children"] = new JsonArray(),
+                ["message"] = new JsonObject
+                {
+                    ["id"] = "asst-1",
+                    ["author"] = new JsonObject { ["role"] = "" },
+                    ["create_time"] = time - 1,
+                    ["end_turn"] = true,
+                    ["recipient"] = "all",
+                    ["content"] = new JsonObject { ["content_type"] = "text" },
+                    ["metadata"] = new JsonObject()
+                }
+            });
+    }
+
     public static JsonObject PaginatedHead(string conversationId = "conv-paged", double time = 1_777_500_670) =>
         new()
         {

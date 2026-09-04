@@ -106,6 +106,94 @@ const nativeMessage = { type: "invokeResult", body: JSON.stringify(projected.bod
 assert.ok(JSON.stringify(nativeMessage).indexOf("in-memory-only-token") < 0);
 auth.neverSerializeToken(nativeMessage);
 
+const directPaginated = {
+  conversation_id: "conv-direct",
+  current_node: "asst-1",
+  update_time: 1777500900,
+  messages: [
+    {
+      id: "user-1",
+      parent: null,
+      author: { role: "user" },
+      create_time: 1777500898,
+      content: {
+        content_type: "text",
+        parts: ["SYNTHETIC_PROMPT_TEXT_DO_NOT_STORE"],
+        text: "SYNTHETIC_PROMPT_TEXT_DO_NOT_STORE"
+      },
+      metadata: {}
+    },
+    {
+      id: "asst-1",
+      parent: "user-1",
+      author: { role: "assistant" },
+      create_time: 1777500899,
+      end_turn: true,
+      recipient: "all",
+      content: {
+        content_type: "text",
+        parts: ["SYNTHETIC_ASSISTANT_TEXT_DO_NOT_STORE"],
+        text: "SYNTHETIC_ASSISTANT_TEXT_DO_NOT_STORE"
+      },
+      metadata: {
+        request_id: "req-direct-pro",
+        model_slug: "gpt-5-6-pro"
+      }
+    }
+  ],
+  page_info: {
+    has_previous_page: false,
+    start_cursor: "synthetic-cursor-start"
+  }
+};
+const projectedDirect = project.project("GetConversationFull", directPaginated);
+assert.strictEqual(projectedDirect.ok, true);
+assert.strictEqual(projectedDirect.body.messages[1].message.author.role, "assistant");
+assert.strictEqual(projectedDirect.body.messages[1].message.metadata.request_id, "req-direct-pro");
+assert.strictEqual(projectedDirect.body.messages[1].message.metadata.model_slug, "gpt-5-6-pro");
+assert.strictEqual(projectedDirect.body.messages[1].id, "asst-1");
+assert.strictEqual(projectedDirect.body.messages[1].parent, "user-1");
+assert.strictEqual(projectedDirect.body.messages[1].message.content.content_type, "text");
+assert.ok(!projectedDirect.body.messages[1].message.content.parts);
+assert.ok(!projectedDirect.body.messages[1].message.content.text);
+assert.strictEqual(project.containsPromptOrResponseText(projectedDirect.body), false);
+const projectedDirectJson = JSON.stringify(projectedDirect.body);
+assert.ok(projectedDirectJson.indexOf("SYNTHETIC_PROMPT_TEXT_DO_NOT_STORE") < 0);
+assert.ok(projectedDirectJson.indexOf("SYNTHETIC_ASSISTANT_TEXT_DO_NOT_STORE") < 0);
+
+const aliasedDirect = {
+  conversation_id: "conv-alias",
+  current_node: "asst-1",
+  messages: [
+    {
+      message_id: "user-1",
+      parent_id: null,
+      author: { role: "user" },
+      create_time: 1777500901,
+      content: { content_type: "text", parts: ["SYNTHETIC_PROMPT_TEXT_DO_NOT_STORE"] }
+    },
+    {
+      message_id: "asst-1",
+      parent_id: "user-1",
+      author: { role: "assistant" },
+      create_time: 1777500902,
+      end_turn: true,
+      content: { content_type: "text", parts: ["SYNTHETIC_ASSISTANT_TEXT_DO_NOT_STORE"] },
+      metadata: { request_id: "req-alias", model_slug: "gpt-6-pro" }
+    }
+  ]
+};
+const projectedAlias = project.project("GetOlderConversationMessages", aliasedDirect);
+assert.strictEqual(projectedAlias.ok, true);
+assert.strictEqual(projectedAlias.body.messages[1].id, "asst-1");
+assert.strictEqual(projectedAlias.body.messages[1].parent, "user-1");
+assert.strictEqual(projectedAlias.body.messages[1].message_id, undefined);
+assert.strictEqual(projectedAlias.body.messages[1].parent_id, undefined);
+assert.strictEqual(projectedAlias.body.messages[1].message.author.role, "assistant");
+assert.strictEqual(projectedAlias.body.messages[1].message.metadata.request_id, "req-alias");
+assert.strictEqual(projectedAlias.body.messages[1].message.metadata.model_slug, "gpt-6-pro");
+assert.strictEqual(project.containsPromptOrResponseText(projectedAlias.body), false);
+
 let sessionCalls = 0;
 let backendCalls = 0;
 async function fetchImpl(url, init) {

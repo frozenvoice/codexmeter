@@ -83,6 +83,7 @@ public partial class App : Application
         _tray.SyncRequested += () => _ = SyncAsync(true);
         _tray.LoginRequested += () => _ = SignInAsync();
         _tray.SettingsRequested += ShowSettings;
+        _tray.OpenLogsRequested += OpenLogs;
         _tray.AboutRequested += ShowAbout;
         _tray.StartupToggled += enabled =>
         {
@@ -118,22 +119,17 @@ public partial class App : Application
     private void RunWelcome()
     {
         var welcome = new WelcomeWindow();
-        void SyncConnectionState()
+        var adapter = new WelcomeCompanionConnectionAdapter(
+            new DispatcherUiMarshal(welcome.Dispatcher),
+            () => welcome.CompanionRegistered,
+            welcome.SetCompanionState);
+        void OnCompanionConnectionChanged() => adapter.HandleConnectionChanged(_companionHub.IsConnected);
+        _companionHub.ConnectionChanged += OnCompanionConnectionChanged;
+        welcome.Closed += (_, _) =>
         {
-            if (_companionHub.IsConnected)
-            {
-                welcome.SetCompanionState("Connected", registered: true, connected: true);
-                return;
-            }
-
-            if (welcome.CompanionRegistered)
-            {
-                welcome.SetCompanionState("Disconnected", registered: true, connected: false);
-            }
-        }
-
-        _companionHub.ConnectionChanged += SyncConnectionState;
-        welcome.Closed += (_, _) => _companionHub.ConnectionChanged -= SyncConnectionState;
+            adapter.Detach();
+            _companionHub.ConnectionChanged -= OnCompanionConnectionChanged;
+        };
         welcome.OpenExtensionFolderRequested += () =>
         {
             var folder = Path.Combine(AppContext.BaseDirectory, "extension");
@@ -211,7 +207,7 @@ public partial class App : Application
 
             welcome.SetBusy("Running first manual sync...");
             var outcome = await SyncAsync(true);
-            welcome.ApplyOutcome(OnboardingOutcomeMapper.From(outcome.Status, _snapshot.Used, _snapshot.Limit, outcome.Detail));
+            welcome.ApplyOutcome(OnboardingOutcomeMapper.From(outcome.Status, _snapshot.Used, _snapshot.Limit, outcome.Detail, _snapshot.DisplayUsageUnavailable));
             _log.Info("welcome sync " + outcome.Status);
         };
         if (welcome.ShowDialog() == true)
@@ -344,12 +340,17 @@ public partial class App : Application
         };
         window.ImportRequested += ImportExport;
         window.ExportRequested += format => Export(format);
-        window.OpenLogsRequested += () => Process.Start(new ProcessStartInfo
+        window.OpenLogsRequested += OpenLogs;
+        window.ShowDialog();
+    }
+
+    private void OpenLogs()
+    {
+        Process.Start(new ProcessStartInfo
         {
             FileName = _log.DirectoryPath,
             UseShellExecute = true
         });
-        window.ShowDialog();
     }
 
     private void ImportExport()

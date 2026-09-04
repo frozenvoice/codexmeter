@@ -12,6 +12,12 @@
         ResizeMode="NoResize"
         Deactivated="OnDeactivated"
         PreviewKeyDown="OnPreviewKeyDown">
+    <Window.Resources>
+        <Style x:Key="FlyoutValueText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+        </Style>
+    </Window.Resources>
     <Border Background="{StaticResource CardBrush}"
             BorderBrush="{StaticResource LineBrush}"
             BorderThickness="1"
@@ -39,30 +45,30 @@
             <StackPanel x:Name="Pro200Panel" Visibility="Collapsed" Margin="0,8,0,0">
                 <DockPanel>
                     <TextBlock Text="GPT-6 Pro week" Foreground="{StaticResource MutedBrush}"/>
-                    <TextBlock x:Name="Gpt6WeekText" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+                    <TextBlock x:Name="Gpt6WeekText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
                 </DockPanel>
                 <DockPanel Margin="0,4,0,0">
                     <TextBlock Text="Sol Pro daily" Foreground="{StaticResource MutedBrush}"/>
-                    <TextBlock x:Name="SolDailyText" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+                    <TextBlock x:Name="SolDailyText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
                 </DockPanel>
                 <DockPanel Margin="0,4,0,0">
                     <TextBlock Text="Combined daily" Foreground="{StaticResource MutedBrush}"/>
-                    <TextBlock x:Name="CombinedDailyText" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+                    <TextBlock x:Name="CombinedDailyText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
                 </DockPanel>
             </StackPanel>
             <ItemsControl x:Name="ModelRows" Margin="0,8,0,0"/>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="SOL REASONING"/>
-            <DockPanel><TextBlock Text="Today" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonToday" DockPanel.Dock="Right" HorizontalAlignment="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="This week" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonWeek" DockPanel.Dock="Right" HorizontalAlignment="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="Medium" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonMedium" DockPanel.Dock="Right" HorizontalAlignment="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="High" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonHigh" DockPanel.Dock="Right" HorizontalAlignment="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="Extra High" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonExtra" DockPanel.Dock="Right" HorizontalAlignment="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="Limit" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonLimit" DockPanel.Dock="Right" HorizontalAlignment="Right"/></DockPanel>
+            <DockPanel><TextBlock Text="Today" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonToday" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock Text="This week" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonWeek" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock Text="Medium" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonMedium" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock Text="High" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonHigh" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock Text="Extra High" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonExtra" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock Text="Limit" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ReasonLimit" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="STATUS"/>
-            <DockPanel><TextBlock Text="Reset" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ResetText" DockPanel.Dock="Right" HorizontalAlignment="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="Last sync" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="SyncText" DockPanel.Dock="Right" HorizontalAlignment="Right"/></DockPanel>
+            <DockPanel><TextBlock Text="Reset" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="ResetText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock Text="Last sync" Foreground="{StaticResource MutedBrush}"/><TextBlock x:Name="SyncText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
             <Button Click="OnCoverageClick" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" Cursor="Hand" Margin="0,4,0,0">
                 <DockPanel>
                     <TextBlock Text="Coverage" Foreground="{StaticResource MutedBrush}"/>

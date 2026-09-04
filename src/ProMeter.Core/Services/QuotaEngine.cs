@@ -62,6 +62,10 @@ public sealed class QuotaEngine
         var combinedLimit = combinedWindow?.Limit ?? (allowCombinedDaily ? settings.CombinedDailyQuota : null);
         var solUsed = solWindow is { IsAuthoritative: true } ? solWindow.Used!.Value : todaySol;
         var combinedUsed = combinedWindow is { IsAuthoritative: true } ? combinedWindow.Used!.Value : combinedToday;
+        var usageUnavailable = !useServerCount
+            && reconstructed == 0
+            && coverage.HistoryLoadedWithoutUsage
+            && (coverage.Confidence == CoverageConfidence.Incomplete || status == AppSyncStatus.ProviderSchemaMismatch);
 
         return new QuotaSnapshot
         {
@@ -92,6 +96,7 @@ public sealed class QuotaEngine
             Gpt6WeeklyUsed = gpt6Weekly,
             ReconstructedUsed = reconstructed,
             UsesServerCount = useServerCount,
+            DisplayUsageUnavailable = usageUnavailable,
             SolProDailyLimit = solLimit,
             CombinedDailyLimit = combinedLimit,
             Reasoning = new ReasoningStats

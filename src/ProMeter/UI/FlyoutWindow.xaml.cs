@@ -17,13 +17,11 @@ public partial class FlyoutWindow : Window
     public void Bind(QuotaSnapshot snapshot, AppSettings settings)
     {
         StatusText.Text = DisplayFormatting.StatusLabel(snapshot.Status);
-        ProCountText.Text = $"{snapshot.Used} / {snapshot.Limit}";
-        RemainingText.Text = snapshot.Remaining.ToString(CultureInfo.InvariantCulture);
-        CountSourceText.Text = snapshot.UsesServerCount
-            ? $"Server count · reconstructed {snapshot.ReconstructedUsed}"
-            : snapshot.Coverage.CountConfidence == CoverageConfidence.HighConfidence
-                ? "Reconstructed · high confidence"
-                : "Reconstructed · estimated";
+        ProCountText.Text = DisplayFormatting.UsageLabel(snapshot);
+        RemainingText.Text = snapshot.DisplayUsageUnavailable
+            ? "?"
+            : snapshot.Remaining.ToString(CultureInfo.InvariantCulture);
+        CountSourceText.Text = DisplayFormatting.CountSourceLabel(snapshot);
         var showPro200 = snapshot.SolProDailyLimit is not null || snapshot.CombinedDailyLimit is not null;
         Pro200Panel.Visibility = showPro200 ? Visibility.Visible : Visibility.Collapsed;
         if (showPro200)
@@ -61,7 +59,8 @@ public partial class FlyoutWindow : Window
             var count = new TextBlock
             {
                 Text = model.Count.ToString(CultureInfo.InvariantCulture),
-                HorizontalAlignment = System.Windows.HorizontalAlignment.Right
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                Style = (Style)FindResource("FlyoutValueText")
             };
             DockPanel.SetDock(count, Dock.Right);
             row.Children.Add(count);

@@ -23,6 +23,7 @@ public sealed class QuotaSnapshot
     public int Gpt6WeeklyUsed { get; set; }
     public int ReconstructedUsed { get; set; }
     public bool UsesServerCount { get; set; }
+    public bool DisplayUsageUnavailable { get; set; }
     public int? SolProDailyLimit { get; set; }
     public int? CombinedDailyLimit { get; set; }
     public int SolProDailyRemaining => SolProDailyLimit is int limit ? Math.Max(0, limit - TodaySolPro) : 0;

@@ -67,12 +67,42 @@ public static class DisplayFormatting
         _ => "Idle"
     };
 
+    public static string UsageLabel(QuotaSnapshot snapshot)
+    {
+        var used = snapshot.DisplayUsageUnavailable
+            ? "?"
+            : snapshot.Used.ToString(CultureInfo.InvariantCulture);
+        return $"{used} / {snapshot.Limit}";
+    }
+
+    public static string CountSourceLabel(QuotaSnapshot snapshot)
+    {
+        if (snapshot.DisplayUsageUnavailable)
+        {
+            return "Incomplete reconstruction";
+        }
+
+        if (snapshot.UsesServerCount)
+        {
+            return $"Server count · reconstructed {snapshot.ReconstructedUsed}";
+        }
+
+        return snapshot.Coverage.CountConfidence == CoverageConfidence.HighConfidence
+            ? "Reconstructed · high confidence"
+            : "Reconstructed · estimated";
+    }
+
+    public static string Headline(QuotaSnapshot snapshot) =>
+        snapshot.UsesServerCount
+            ? $"GPT Pro usage: {UsageLabel(snapshot)}  (server · reconstructed {snapshot.ReconstructedUsed})"
+            : $"GPT Pro usage: {UsageLabel(snapshot)}";
+
     public static string Tooltip(QuotaSnapshot snapshot)
     {
         return $"""
             ProMeter
-            GPT Pro: {snapshot.Used} / {snapshot.Limit}
-            Remaining: {snapshot.Remaining}
+            GPT Pro: {UsageLabel(snapshot)}
+            Remaining: {(snapshot.DisplayUsageUnavailable ? "?" : snapshot.Remaining.ToString(CultureInfo.InvariantCulture))}
             Reset: {ResetLabel(snapshot)}
             Last sync: {LastSyncLabel(snapshot.LastSync)}
             """;

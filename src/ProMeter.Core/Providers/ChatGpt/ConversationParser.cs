@@ -55,6 +55,11 @@ public sealed class ConversationParser
             return result;
         }
 
+        result.MappingNodeCount = nodes.Count;
+        result.AssistantLikeNodeCount = nodes.Values.Count(IsAssistantLike);
+        result.NodesWithModelMetadata = nodes.Values.Count(HasModelMetadata);
+        result.NodesMissingRole = nodes.Values.Count(n => n.HasMessage && string.IsNullOrWhiteSpace(n.Role));
+
         var groups = GroupAssistantNodes(conversationId, nodes);
 
         var now = DateTimeOffset.UtcNow;
@@ -360,9 +365,15 @@ public sealed class ConversationParser
             Hidden = hidden,
             EndTurn = endTurn,
             ContentType = contentType,
-            Recipient = recipient
+            Recipient = recipient,
+            HasMessage = message is not null
         };
     }
+
+    private static bool HasModelMetadata(ParsedNode node) =>
+        !string.IsNullOrWhiteSpace(node.ModelSlug)
+        || !string.IsNullOrWhiteSpace(node.RequestedModel)
+        || !string.IsNullOrWhiteSpace(node.ResponseModel);
 
     private static bool IsAssistantLike(ParsedNode node) =>
         string.Equals(node.Role, "assistant", StringComparison.OrdinalIgnoreCase);
@@ -438,6 +449,7 @@ public sealed class ConversationParser
         public bool? EndTurn { get; set; }
         public string? ContentType { get; set; }
         public string? Recipient { get; set; }
+        public bool HasMessage { get; set; }
     }
 }
 
@@ -458,6 +470,13 @@ public sealed class ParseResult
     public double UpdateTime { get; set; }
     public bool SchemaMismatch { get; set; }
     public bool HasAlternateBranches { get; set; }
+    public int MappingNodeCount { get; set; }
+    public int AssistantLikeNodeCount { get; set; }
+    public int NodesWithModelMetadata { get; set; }
+    public int NodesMissingRole { get; set; }
     public List<UsageEvent> Events { get; } = [];
     public List<string> Diagnostics { get; } = [];
+
+    public bool LoadedWithoutAssistantUsage =>
+        !SchemaMismatch && Events.Count == 0 && MappingNodeCount > 0;
 }

@@ -138,28 +138,75 @@
   }
 
   function projectMessage(message) {
-    var result = pick(message, ["id", "create_time", "createTime", "end_turn", "recipient"]);
-    if (message.author) {
-      result.author = pick(message.author, ["role"]);
+    if (!message || typeof message !== "object") {
+      return {};
     }
-    if (message.content) {
+    var result = pick(message, ["id", "create_time", "createTime", "end_turn", "recipient"]);
+    if (message.author && typeof message.author === "object") {
+      result.author = pick(message.author, ["role"]);
+    } else if (typeof message.role === "string") {
+      result.author = { role: message.role };
+    }
+    if (message.content && typeof message.content === "object") {
       result.content = pick(message.content, ["content_type"]);
     }
-    if (message.metadata) {
+    if (message.metadata && typeof message.metadata === "object") {
       result.metadata = projectMetadata(message.metadata);
     }
     return result;
   }
 
+  function looksLikeDirectPaginatedMessage(node) {
+    if (!node || typeof node !== "object") {
+      return false;
+    }
+    if (node.message && typeof node.message === "object" && !Array.isArray(node.message)) {
+      return false;
+    }
+    return !!(
+      node.author ||
+      node.metadata ||
+      node.content ||
+      typeof node.role === "string" ||
+      node.message_id ||
+      Object.prototype.hasOwnProperty.call(node, "end_turn") ||
+      node.recipient
+    );
+  }
+
   function projectMappingNode(node) {
-    var result = pick(node, ["id", "parent", "parent_id", "create_time", "createTime"]);
+    if (!node || typeof node !== "object") {
+      return {};
+    }
+    if (looksLikeDirectPaginatedMessage(node)) {
+      return canonicalizeMappingNode(node, node);
+    }
+    var nested = node.message && typeof node.message === "object" && !Array.isArray(node.message)
+      ? node.message
+      : null;
+    return canonicalizeMappingNode(node, nested);
+  }
+
+  function canonicalizeMappingNode(node, messageSource) {
+    var result = {};
+    var id = node.id || node.message_id || (messageSource && messageSource.id);
+    var parent = node.parent || node.parent_id;
+    if (id) {
+      result.id = id;
+    }
+    if (parent) {
+      result.parent = parent;
+    }
     if (Array.isArray(node.children)) {
       result.children = node.children.filter(function (child) {
         return typeof child === "string";
       });
     }
-    if (node.message) {
-      result.message = projectMessage(node.message);
+    if (messageSource) {
+      result.message = projectMessage(messageSource);
+      if (id && !result.message.id) {
+        result.message.id = id;
+      }
     }
     return result;
   }

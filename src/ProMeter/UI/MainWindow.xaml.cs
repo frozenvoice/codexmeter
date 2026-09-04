@@ -16,9 +16,7 @@ public partial class MainWindow : Window
 
     public void Bind(QuotaSnapshot snapshot, IReadOnlyList<UsageEvent> events, IReadOnlyList<DailyTrendPoint> trend)
     {
-        Headline.Text = snapshot.UsesServerCount
-            ? $"GPT Pro usage: {snapshot.Used} / {snapshot.Limit}  (server · reconstructed {snapshot.ReconstructedUsed})"
-            : $"GPT Pro usage: {snapshot.Used} / {snapshot.Limit}";
+        Headline.Text = DisplayFormatting.Headline(snapshot);
         PeriodText.Text = snapshot.SolProDailyLimit is int sol && snapshot.CombinedDailyLimit is int combined
             ? $"Current period {snapshot.PeriodStart.ToLocalTime():MMM d} – {snapshot.PeriodEnd.ToLocalTime():MMM d}   ·   GPT-6 week {snapshot.Gpt6WeeklyUsed}   ·   Sol daily {snapshot.TodaySolPro}/{sol}   ·   Combined daily {snapshot.CombinedToday}/{combined}"
             : $"Current period {snapshot.PeriodStart.ToLocalTime():MMM d} – {snapshot.PeriodEnd.ToLocalTime():MMM d}   ·   Today {snapshot.TodayPro}";

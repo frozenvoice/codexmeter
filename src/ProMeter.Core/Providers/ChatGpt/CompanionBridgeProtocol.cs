@@ -227,7 +227,7 @@ public static class CompanionBridgeProtocol
 
 public static class OnboardingOutcomeMapper
 {
-    public static OnboardingPresentation From(AppSyncStatus status, int used, int limit, string? detail)
+    public static OnboardingPresentation From(AppSyncStatus status, int used, int limit, string? detail, bool usageUnavailable = false)
     {
         return status switch
         {
@@ -238,8 +238,10 @@ public static class OnboardingOutcomeMapper
                 AllowRetrySync: false,
                 AllowSignInAgain: false),
             AppSyncStatus.PartialData => new OnboardingPresentation(
-                $"Partial usage {used} / {limit}. Coverage is incomplete. You can inspect Coverage or retry.",
-                ShowCount: true,
+                usageUnavailable
+                    ? $"GPT Pro: ? / {limit}. Incomplete reconstruction."
+                    : $"Partial usage {used} / {limit}. Coverage is incomplete. You can inspect Coverage or retry.",
+                ShowCount: !usageUnavailable,
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
@@ -256,7 +258,9 @@ public static class OnboardingOutcomeMapper
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
             AppSyncStatus.ProviderSchemaMismatch => new OnboardingPresentation(
-                "Provider schema mismatch. A zero count is not a successful load.",
+                usageUnavailable
+                    ? $"GPT Pro: ? / {limit}. Incomplete reconstruction."
+                    : "Provider schema mismatch. A zero count is not a successful load.",
                 ShowCount: false,
                 AllowFinish: true,
                 AllowRetrySync: true,

@@ -52,6 +52,21 @@ public class OnboardingOutcomeTests
     }
 
     [Fact]
+    public void IncompleteZeroReconstruction_DoesNotPresentZeroAsSuccess()
+    {
+        var partial = OnboardingOutcomeMapper.From(AppSyncStatus.PartialData, 0, 50, null, usageUnavailable: true);
+        Assert.False(partial.ShowCount);
+        Assert.Contains("? / 50", partial.Message, StringComparison.Ordinal);
+        Assert.Contains("Incomplete reconstruction", partial.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("0 / 50", partial.Message, StringComparison.Ordinal);
+
+        var mismatch = OnboardingOutcomeMapper.From(AppSyncStatus.ProviderSchemaMismatch, 0, 50, null, usageUnavailable: true);
+        Assert.False(mismatch.ShowCount);
+        Assert.Contains("? / 50", mismatch.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("0 / 50", mismatch.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OfflineAndError_ShowActualFailure()
     {
         var offline = OnboardingOutcomeMapper.From(AppSyncStatus.Offline, 0, 50, "chatgpt.com unreachable");

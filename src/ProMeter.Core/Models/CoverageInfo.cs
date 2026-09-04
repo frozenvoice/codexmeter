@@ -13,6 +13,12 @@ public sealed class CoverageInfo
     public bool IndexIncomplete { get; set; }
     public bool ConversationIncomplete { get; set; }
     public int FailedConversations { get; set; }
+    public int LoadedConversations { get; set; }
+    public int ConversationsWithEvents { get; set; }
+    public int ZeroEventConversations { get; set; }
+    public int AssistantLikeNodes { get; set; }
+    public int NodesWithModelMetadata { get; set; }
+    public bool HistoryLoadedWithoutUsage { get; set; }
     public string? Notes { get; set; }
     public CoverageConfidence CountConfidence { get; set; } = CoverageConfidence.Estimated;
     public CoverageConfidence ResetConfidence { get; set; } = CoverageConfidence.Estimated;
