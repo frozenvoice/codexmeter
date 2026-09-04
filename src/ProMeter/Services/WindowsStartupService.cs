@@ -2,12 +2,12 @@ using Microsoft.Win32;
 
 namespace ProMeter.Services;
 
-public static class WindowsStartupService
+public sealed class WindowsStartupService : IWindowsStartup
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string ValueName = "ProMeter";
 
-    public static void Apply(bool enabled)
+    public void Apply(bool enabled)
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true)
                         ?? Registry.CurrentUser.CreateSubKey(RunKey);

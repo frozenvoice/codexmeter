@@ -78,4 +78,5 @@ public sealed class ProviderResponse
     public bool IsUnauthorized => Status is 401 or 403;
     public bool IsRateLimited => Status == 429;
     public bool IsServerError => Status is >= 500 and < 600;
+    public bool IsOffline => Status == 0 && !SchemaMismatch;
 }

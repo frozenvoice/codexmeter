@@ -72,7 +72,7 @@ public sealed class AppLog
         var text = value;
         text = System.Text.RegularExpressions.Regex.Replace(
             text,
-            "(?i)(authorization|cookie|session[-_ ]?token|access[-_ ]?token)\\s*[:=]\\s*[^\\s,;]+",
+            "(?i)(authorization|cookie|session[-_ ]?token|access[-_ ]?token)\\s*[:=]\\s*.+",
             "$1=[redacted]");
         text = System.Text.RegularExpressions.Regex.Replace(
             text,

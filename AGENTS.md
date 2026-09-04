@@ -24,9 +24,28 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 
 - Never extract Chrome/Edge/Whale cookie databases.
 - Never persist access tokens, session tokens, Authorization headers, or cookies.
+- Access tokens may be cached only in process memory and must never be persisted or logged.
 - Never store prompt or assistant response bodies.
 - Never write prompt/response bodies or secrets into logs.
 - No external telemetry or analytics.
+
+## Authentication and origin
+
+- Interactive OAuth navigation must never be interrupted by background probes.
+- External authentication origins such as Google, Microsoft, Apple, and auth.openai.com may be visited only during an explicit interactive sign-in.
+- ChatGPT backend fetches must execute only from the exact validated ChatGPT application origin, never from substring-matched or arbitrary origins.
+- Do not fetch `/api/auth/session` before every backend request.
+- Do not use host substring matching for origin validation.
+
+## Consent and disclosure
+
+- Start with Windows and automatic history synchronization require explicit user opt-in.
+- ChatGPT internal endpoints are unofficial and may change without notice.
+- The application must disclose that programmatic history access is unsupported and may carry account/terms risk.
+
+## Transport
+
+- Transport schema failures must never be reported as network offline errors.
 
 ## Architecture
 

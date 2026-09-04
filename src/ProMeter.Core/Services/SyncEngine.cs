@@ -10,6 +10,8 @@ public sealed class SyncEngine
     private int _consecutiveFailures;
     public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(2);
     public int RetryAttempts { get; set; } = 6;
+    private int _bodyFetchDelayMs = 250;
+    private bool _pacedBodyThisSync;
 
     public SyncEngine(SqliteStore store, ConversationParser parser, ModelNormalizer models, AppLog log)
     {
@@ -53,6 +55,8 @@ public sealed class SyncEngine
         var coverage = new CoverageInfo();
         var parsed = 0;
         var worst = AppSyncStatus.UpToDate;
+        _bodyFetchDelayMs = Math.Clamp(settings.BodyFetchDelayMilliseconds, 0, 5000);
+        _pacedBodyThisSync = false;
         try
         {
             Report("Detecting account...");
@@ -341,6 +345,7 @@ public sealed class SyncEngine
                 continue;
             }
 
+            await PaceBodyFetchAsync(cancellationToken);
             await _bodyLock.WaitAsync(cancellationToken);
             try
             {
@@ -477,6 +482,23 @@ public sealed class SyncEngine
         }
 
         return existing.LastSeenUpdateTime + 0.001 < item.UpdateTime;
+    }
+
+    private async Task PaceBodyFetchAsync(CancellationToken cancellationToken)
+    {
+        if (!_pacedBodyThisSync)
+        {
+            _pacedBodyThisSync = true;
+            return;
+        }
+
+        if (_bodyFetchDelayMs <= 0)
+        {
+            return;
+        }
+
+        var jitter = Random.Shared.Next(0, (_bodyFetchDelayMs / 2) + 1);
+        await Task.Delay(_bodyFetchDelayMs + jitter, cancellationToken);
     }
 
     private static bool IsFatalProviderError(ChatGptProviderException ex) =>

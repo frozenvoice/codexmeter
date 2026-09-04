@@ -18,9 +18,10 @@ public sealed class AppSettings
     public bool ResetAnchorConfigured { get; set; }
     public DisplayMode DisplayMode { get; set; } = DisplayMode.TrayOnly;
     public AppTheme Theme { get; set; } = AppTheme.System;
-    public bool AutoSync { get; set; } = true;
+    public bool AutoSync { get; set; }
     public int SyncIntervalMinutes { get; set; } = 15;
-    public bool StartWithWindows { get; set; } = true;
+    public int BodyFetchDelayMilliseconds { get; set; } = 250;
+    public bool StartWithWindows { get; set; }
     public bool FloatingWidgetEnabled { get; set; }
     public double WidgetLeft { get; set; } = 40;
     public double WidgetTop { get; set; } = 40;

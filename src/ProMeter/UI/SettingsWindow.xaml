@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ProMeter Settings"
         Width="520"
-        Height="640"
+        Height="760"
         WindowStartupLocation="CenterScreen"
         Style="{StaticResource AppWindow}">
     <ScrollViewer Padding="24">
@@ -37,6 +37,8 @@
             </Grid>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="RESET ANCHOR"/>
+            <TextBlock Text="Weekday and time are estimates unless you confirm them below. Saving other settings does not confirm this anchor."
+                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
             <DockPanel>
                 <ComboBox x:Name="WeekdayBox" Width="140">
                     <ComboBoxItem Content="Sunday"/><ComboBoxItem Content="Monday"/><ComboBoxItem Content="Tuesday"/>
@@ -45,9 +47,15 @@
                 </ComboBox>
                 <TextBox x:Name="ResetTimeBox" Width="80" Margin="8,0,0,0" Text="00:00"/>
             </DockPanel>
+            <CheckBox x:Name="ResetAnchorBox"
+                      Content="Use this reset anchor when the server reset time is unavailable"
+                      Foreground="{StaticResource TextBrush}"
+                      Margin="0,8,0,0"/>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="APP"/>
-            <CheckBox x:Name="AutoSyncBox" Content="Auto sync" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
+            <TextBlock Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
+                       Text="ProMeter uses unofficial ChatGPT web endpoints. They are not part of the public OpenAI API and may change. Programmatic history access is unsupported and may carry account or terms risk. Review current ChatGPT terms before enabling synchronization. Official ChatGPT Data Export import is the lower-risk fallback but is not real-time."/>
+            <CheckBox x:Name="AutoSyncBox" Content="Automatic history synchronization" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
             <DockPanel Margin="0,4,0,0">
                 <TextBlock Text="Sync interval (minutes)" VerticalAlignment="Center"/>
                 <TextBox x:Name="IntervalBox" Width="80" DockPanel.Dock="Right" HorizontalAlignment="Right"/>

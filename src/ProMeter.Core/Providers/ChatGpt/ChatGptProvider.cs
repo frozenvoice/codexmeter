@@ -308,6 +308,11 @@ public sealed class ChatGptProvider : IChatGptProvider
     private async Task<JsonNode?> GetJsonAsync(string method, string path, string? body = null, CancellationToken cancellationToken = default)
     {
         var response = await _transport.SendAsync(method, path, body, cancellationToken);
+        if (response.SchemaMismatch)
+        {
+            throw new ChatGptProviderException("Provider schema mismatch", response.Status, response.RetryAfter, schemaMismatch: true);
+        }
+
         if (response.IsUnauthorized)
         {
             throw new ChatGptProviderException("Authentication required.", response.Status, response.RetryAfter);

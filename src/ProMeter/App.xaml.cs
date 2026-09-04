@@ -63,7 +63,7 @@ public partial class App : Application
         _transport = new WebViewTransport(_log);
         _provider = new ChatGptProvider(_transport);
         _toasts = new ToastNotificationService(_settingsStore, _log);
-        WindowsStartupService.Apply(_settings.StartWithWindows);
+        StartupConsent.ApplyIfPermitted(new WindowsStartupService(), _settings);
         ApplyTheme(_settings.Theme);
 
         _tray = new TrayController();
@@ -79,7 +79,7 @@ public partial class App : Application
         _tray.StartupToggled += enabled =>
         {
             _settings.StartWithWindows = enabled;
-            WindowsStartupService.Apply(enabled);
+            StartupConsent.ApplyIfPermitted(new WindowsStartupService(), _settings);
             _settingsStore.Save(_settings);
         };
         _tray.ExitRequested += ExitApp;
@@ -99,7 +99,7 @@ public partial class App : Application
         {
             RunWelcome();
         }
-        else
+        else if (_settings.AutoSync)
         {
             _ = SyncAsync(true);
         }
@@ -113,11 +113,17 @@ public partial class App : Application
         welcome.SignInRequested += async () =>
         {
             welcome.SetBusy("Opening ChatGPT sign-in...");
-            await _transport.ShowLoginAsync();
+            var signedIn = await _transport.ShowLoginAsync();
+            if (!signedIn)
+            {
+                welcome.SetCancelled("Sign-in was cancelled. You can try again or close this window.");
+                return;
+            }
+
             welcome.SetBusy("Detecting account...");
-            _settings.ApplyPreset(welcome.SelectedPreset);
+            ApplyWelcomeChoices(welcome);
             _settingsStore.Save(_settings);
-            welcome.SetBusy("Loading model catalog...");
+            welcome.SetBusy("Loading current usage...");
             var outcome = await SyncAsync(true);
             welcome.SetReady($"GPT Pro usage: {_snapshot.Used} / {_snapshot.Limit}");
             _log.Info("welcome sync " + outcome.Status);
@@ -125,8 +131,9 @@ public partial class App : Application
         if (welcome.ShowDialog() == true)
         {
             _settings.FirstRunCompleted = true;
-            _settings.ApplyPreset(welcome.SelectedPreset);
+            ApplyWelcomeChoices(welcome);
             _settingsStore.Save(_settings);
+            StartupConsent.ApplyIfPermitted(new WindowsStartupService(), _settings);
         }
     }
 
@@ -197,7 +204,8 @@ public partial class App : Application
         _flyout.Show();
         _flyout.PlaceNearTaskbar();
         _flyout.Activate();
-        if (_snapshot.LastSync is null || DateTimeOffset.Now - _snapshot.LastSync > TimeSpan.FromMinutes(_settings.SyncIntervalMinutes))
+        if (_settings.AutoSync
+            && (_snapshot.LastSync is null || DateTimeOffset.Now - _snapshot.LastSync > TimeSpan.FromMinutes(_settings.SyncIntervalMinutes)))
         {
             _ = SyncAsync(false);
         }
@@ -232,7 +240,7 @@ public partial class App : Application
         {
             _settings = settings;
             _settingsStore.Save(settings);
-            WindowsStartupService.Apply(settings.StartWithWindows);
+            StartupConsent.ApplyIfPermitted(new WindowsStartupService(), settings);
             _timer.Interval = TimeSpan.FromMinutes(Math.Clamp(settings.SyncIntervalMinutes, 5, 180));
             ApplyTheme(settings.Theme);
             _tray.RebuildMenu(settings.StartWithWindows);
@@ -296,8 +304,19 @@ public partial class App : Application
 
     private async Task SignInAsync()
     {
-        await _transport.ShowLoginAsync();
+        if (!await _transport.ShowLoginAsync())
+        {
+            return;
+        }
+
         await SyncAsync(true);
+    }
+
+    private void ApplyWelcomeChoices(WelcomeWindow welcome)
+    {
+        _settings.ApplyPreset(welcome.SelectedPreset);
+        _settings.StartWithWindows = welcome.StartWithWindowsOptIn;
+        _settings.AutoSync = welcome.AutoSyncOptIn;
     }
 
     private void ShowAbout()

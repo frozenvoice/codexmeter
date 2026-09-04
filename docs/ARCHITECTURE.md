@@ -1,6 +1,6 @@
 # ProMeter architecture
 
-ProMeter reconstructs ChatGPT Pro usage from **account conversation history**, not from local request interception. That is what allows company PC, home PC, and mobile usage to share one meter.
+ProMeter reconstructs ChatGPT Pro usage from **account conversation history**, not from local request interception. History is the reconstruction input. Only a matching server quota counter is authoritative. That is what allows company PC, home PC, and mobile usage to share one meter.
 
 ```text
 WebView2 session  →  ChatGptProvider  →  SyncEngine  →  SQLite
@@ -31,7 +31,7 @@ Observed 2026 web paths (same-origin from chatgpt.com):
 - `GET /backend-api/gizmos/snorlax/sidebar`
 - `GET /backend-api/gizmos/{id}/conversations`
 
-These are unofficial internal endpoints the ChatGPT website itself uses. They can change.
+These are unofficial internal endpoints the ChatGPT website itself uses. They can change without notice. Programmatic history access is unsupported and may carry account or terms risk. Official ChatGPT Data Export remains the lower-risk, non-real-time fallback.
 
 ## Authentication
 

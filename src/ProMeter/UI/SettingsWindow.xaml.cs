@@ -21,6 +21,7 @@ public partial class SettingsWindow : Window
         ReasoningBox.Text = settings.ReasoningQuota?.ToString(CultureInfo.InvariantCulture) ?? "";
         WeekdayBox.SelectedIndex = (int)settings.ResetWeekday;
         ResetTimeBox.Text = settings.ResetTime.ToString(@"hh\:mm");
+        ResetAnchorBox.IsChecked = settings.ResetAnchorConfigured;
         AutoSyncBox.IsChecked = settings.AutoSync;
         IntervalBox.Text = settings.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture);
         StartupBox.IsChecked = settings.StartWithWindows;
@@ -59,34 +60,37 @@ public partial class SettingsWindow : Window
 
     private void OnSave(object sender, RoutedEventArgs e)
     {
-        _settings.PlanPreset = (SubscriptionPreset)PlanBox.SelectedIndex;
-        _settings.WeeklyProQuota = ParseInt(WeeklyBox.Text, 50);
-        _settings.DailyProQuota = ParseNullable(DailyBox.Text);
-        _settings.SolProDailyQuota = ParseNullable(SolDailyBox.Text);
-        _settings.CombinedDailyQuota = ParseNullable(CombinedBox.Text);
-        _settings.ReasoningQuota = ParseNullable(ReasoningBox.Text);
-        _settings.ResetWeekday = (DayOfWeek)WeekdayBox.SelectedIndex;
-        if (TimeSpan.TryParse(ResetTimeBox.Text, out var time))
+        var resetTime = _settings.ResetTime;
+        if (TimeSpan.TryParse(ResetTimeBox.Text, out var parsedTime))
         {
-            _settings.ResetTime = time;
+            resetTime = parsedTime;
         }
 
-        _settings.ResetAnchorConfigured = true;
-
-        _settings.AutoSync = AutoSyncBox.IsChecked == true;
-        _settings.SyncIntervalMinutes = Math.Clamp(ParseInt(IntervalBox.Text, 15), 5, 180);
-        _settings.StartWithWindows = StartupBox.IsChecked == true;
-        _settings.FloatingWidgetEnabled = WidgetBox.IsChecked == true;
-        _settings.DisplayMode = _settings.FloatingWidgetEnabled ? DisplayMode.TrayAndWidget : DisplayMode.TrayOnly;
-        _settings.Theme = (AppTheme)ThemeBox.SelectedIndex;
-        _settings.TrayIconStyle = (TrayIconStyle)IconBox.SelectedIndex;
-        _settings.FlyoutCloseOnDeactivate = FlyoutCloseBox.IsChecked == true;
-        _settings.NotifyAt20 = N20.IsChecked == true;
-        _settings.NotifyAt10 = N10.IsChecked == true;
-        _settings.NotifyExhausted = NEx.IsChecked == true;
-        _settings.NotifyReset = NReset.IsChecked == true;
-        _settings.NotifySyncError = NErr.IsChecked == true;
-        _settings.ImportHistoricalStatistics = HistoricalBox.IsChecked == true;
+        SettingsApplication.Apply(_settings, new SettingsEdit
+        {
+            PlanPreset = (SubscriptionPreset)PlanBox.SelectedIndex,
+            WeeklyProQuota = ParseInt(WeeklyBox.Text, 50),
+            DailyProQuota = ParseNullable(DailyBox.Text),
+            SolProDailyQuota = ParseNullable(SolDailyBox.Text),
+            CombinedDailyQuota = ParseNullable(CombinedBox.Text),
+            ReasoningQuota = ParseNullable(ReasoningBox.Text),
+            ResetWeekday = (DayOfWeek)WeekdayBox.SelectedIndex,
+            ResetTime = resetTime,
+            ResetAnchorConfigured = ResetAnchorBox.IsChecked == true,
+            AutoSync = AutoSyncBox.IsChecked == true,
+            SyncIntervalMinutes = ParseInt(IntervalBox.Text, 15),
+            StartWithWindows = StartupBox.IsChecked == true,
+            FloatingWidgetEnabled = WidgetBox.IsChecked == true,
+            Theme = (AppTheme)ThemeBox.SelectedIndex,
+            TrayIconStyle = (TrayIconStyle)IconBox.SelectedIndex,
+            FlyoutCloseOnDeactivate = FlyoutCloseBox.IsChecked == true,
+            NotifyAt20 = N20.IsChecked == true,
+            NotifyAt10 = N10.IsChecked == true,
+            NotifyExhausted = NEx.IsChecked == true,
+            NotifyReset = NReset.IsChecked == true,
+            NotifySyncError = NErr.IsChecked == true,
+            ImportHistoricalStatistics = HistoricalBox.IsChecked == true
+        });
         Saved?.Invoke(_settings);
         Close();
     }

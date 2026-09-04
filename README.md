@@ -2,7 +2,7 @@
 
 Windows tray monitor for ChatGPT Pro quota and model usage.
 
-ProMeter는 현재 PC에서 발생한 요청만 세지 않습니다. ChatGPT 계정에 저장된 conversation history를 읽어 회사 PC, 집 PC, Android 앱에서 사용한 **계정 단위 GPT Pro 사용량**을 재구성합니다.
+ProMeter는 현재 PC에서 발생한 요청만 세지 않습니다. ChatGPT 계정 conversation history를 **재구성 입력**으로 읽어 회사 PC, 집 PC, Android 앱에서 사용한 계정 단위 GPT Pro 사용량을 추정합니다. 일치하는 서버 quota counter만 Authoritative입니다.
 
 ```text
 GPT PRO
@@ -27,13 +27,21 @@ WebView2 Runtime이 필요합니다. Windows 11과 최신 Edge가 있으면 보�
 
 관리자 권한은 필요하지 않습니다.
 
+## 비공식 엔드포인트와 약관
+
+ProMeter는 ChatGPT 웹사이트가 쓰는 **비공식(unofficial) 내부 엔드포인트**를 사용합니다. 공개 OpenAI API가 아니며 예고 없이 바뀔 수 있습니다. 프로그래밍 방식 history 접근은 지원되지 않으며, 적용 중인 ChatGPT 약관과 충돌할 수 있습니다. 동기화를 켜기 전에 현재 약관을 확인하세요. 공식 ChatGPT Data Export import는 실시간은 아니지만 더 낮은 위험의 대안입니다. 수동 Sync now를 쓴다고 해서 이 연동이 공식 지원이거나 약관 준수로 바뀌지는 않습니다.
+
+Windows 시작 시 실행과 자동 history 동기화는 **명시적 opt-in**입니다. 새 설치에서는 둘 다 꺼져 있습니다.
+
 ## 최초 ChatGPT 로그인
 
 1. ProMeter를 실행하면 Welcome 창이 열립니다.
-2. **Sign in to ChatGPT**를 누르면 전용 WebView2 창이 열립니다.
-3. ChatGPT에 로그인합니다. 세션은 `%LOCALAPPDATA%\ProMeter\webview`에만 유지됩니다.
-4. Pro $100 / Pro $200 / Custom 중 플랜을 고릅니다.
-5. 현재 quota period history를 스캔합니다.
+2. 비공식 엔드포인트와 약관 안내를 확인합니다.
+3. **Sign in to ChatGPT**를 누르면 전용 WebView2 창이 열립니다.
+4. ChatGPT에 로그인합니다. 세션은 `%LOCALAPPDATA%\ProMeter\webview`에만 유지됩니다.
+5. Pro $100 / Pro $200 / Custom 중 플랜을 고릅니다.
+6. 원하는 경우에만 Start with Windows / Automatic synchronization을 켭니다.
+7. 로그인 후 수동으로 현재 quota period를 한 번 스캔할 수 있습니다.
 
 Chrome/Whale/Edge cookie DB를 읽거나 복호화하지 않습니다.
 
@@ -64,7 +72,7 @@ Chrome/Whale/Edge cookie DB를 읽거나 복호화하지 않습니다.
 
 ## 계정 history 재구성
 
-소스 오브 트루스는 ChatGPT 서버 history입니다.
+Conversation history는 재구성 입력입니다. 로컬 브라우저 요청 가로채기는 사용하지 않습니다. 서버 used + limit + reset이 일치할 때만 카운트를 Authoritative로 표시합니다.
 
 포함:
 
