@@ -202,6 +202,143 @@ public static class UiText
     public static string ExportJson => T("Export JSON", "JSON 내보내기");
     public static string ExportCsv => T("Export CSV", "CSV 내보내기");
     public static string RegisterNativeHost => T("Register Chrome/Edge native host", "Chrome/Edge 네이티브 호스트 등록");
+    public static string TestWebView2 => T("Test WebView2", "WebView2 연결 테스트");
+    public static string TestingWebView2 => T("Testing WebView2 connection...", "WebView2 연결 확인 중...");
+    public static string TechnicalDetail(string detail) => T($"Technical detail: {detail}", $"기술 세부 정보: {detail}");
+    public static string WebViewDiagnosticTechnical(string operation, int status = 0, string? reason = null)
+    {
+        var operationLabel = operation switch
+        {
+            "session" => T("session", "세션"),
+            "session-verification" => T("session verification", "세션 검증"),
+            "account-detection" => T("account detection", "계정 확인"),
+            "models" => T("models", "모델 목록"),
+            "conversation-index" => T("conversation index", "대화 목록"),
+            "interactive-login" => T("interactive sign-in", "대화형 로그인"),
+            _ => T("diagnostic", "진단")
+        };
+        var statusLabel = status > 0 ? $"HTTP {status}" : T("unavailable", "사용할 수 없음");
+        var reasonLabel = reason switch
+        {
+            "schema-mismatch" => T("schema mismatch", "응답 형식 불일치"),
+            "incomplete-metadata" => T("incomplete metadata", "메타데이터 불완전"),
+            "unsupported" => T("unsupported", "지원되지 않음"),
+            "busy" => T("another sync or diagnostic is running", "다른 동기화 또는 진단이 실행 중"),
+            "unavailable" => null,
+            _ when !string.IsNullOrWhiteSpace(reason) => T("unavailable", "사용할 수 없음"),
+            _ => null
+        };
+        return reasonLabel is null
+            ? $"{operationLabel}: {statusLabel}"
+            : $"{operationLabel}: {statusLabel}; {reasonLabel}";
+    }
+    public static string WebViewBaselineTechnical(bool sourceAvailable) => sourceAvailable
+        ? T(
+            "Browser Companion baseline: incomplete coverage or unconfirmed quota boundary",
+            "Browser Companion 기준값: 데이터가 불완전하거나 한도 기간이 확인되지 않음")
+        : T(
+            "Browser Companion baseline: unavailable",
+            "Browser Companion 기준값: 사용할 수 없음");
+    public static string WebViewVerificationStatusTechnical(AppSyncStatus status) => T(
+        $"WebView2 verification: {DisplayFormatting.StatusLabel(status)}",
+        $"WebView2 검증: {DisplayFormatting.StatusLabel(status)}");
+    public static string WebViewVerificationCountsDifferTechnical => T(
+        "Reconstructed counts differ",
+        "재구성 사용량이 다름");
+    public static string WebViewVerificationUnavailableTechnical => T(
+        "WebView2 verification: unavailable",
+        "WebView2 검증: 사용할 수 없음");
+    public static string WebViewVerificationBusyTechnical => T(
+        "WebView2 verification: another sync or diagnostic is running",
+        "WebView2 검증: 다른 동기화 또는 진단이 실행 중");
+    public static string WebViewDiagnosticPass => T(
+        "PASS\nWebView2 works on this PC/account.\nBrowser Companion can be removed after a full WebView2 verification sync succeeds.",
+        "PASS\nWebView2가 이 PC와 계정에서 정상 동작합니다.\n전체 검증 동기화가 성공하면 Browser Companion 없이 사용할 수 있습니다.");
+    public static string WebViewDiagnosticFailAuth => T(
+        "FAIL_AUTH\nWebView2 sign-in is not supported for this account/login method.",
+        "FAIL_AUTH\n이 계정의 로그인 방식은 WebView2에서 지원되지 않거나 로그인을 완료할 수 없습니다.");
+    public static string WebViewDiagnosticFailSession => T(
+        "FAIL_SESSION\nSign-in completed but the ChatGPT session could not be verified.",
+        "FAIL_SESSION\n로그인은 완료됐지만 ChatGPT 세션을 확인하지 못했습니다.");
+    public static string WebViewDiagnosticFailApi => T(
+        "FAIL_API\nWebView2 session works, but ChatGPT history endpoints are unavailable.",
+        "FAIL_API\nWebView2 세션은 정상이나 ChatGPT 기록 API를 사용할 수 없습니다.");
+    public static string WebViewDiagnosticForbidden => T(
+        "FORBIDDEN\nChatGPT rejected the WebView2 request. (HTTP 403)",
+        "FORBIDDEN\nChatGPT가 WebView2 요청을 거부했습니다. (HTTP 403)");
+    public static string WebViewDiagnosticCancelled => T(
+        "CANCELLED\nTest cancelled. Current connection settings were not changed.",
+        "CANCELLED\n테스트가 취소되었습니다. 현재 연결 설정은 변경되지 않았습니다.");
+    public static string WebViewDiagnosticMessage(WebViewDiagnosticStatus status) => status switch
+    {
+        WebViewDiagnosticStatus.Pass => WebViewDiagnosticPass,
+        WebViewDiagnosticStatus.FailAuth => WebViewDiagnosticFailAuth,
+        WebViewDiagnosticStatus.FailSession => WebViewDiagnosticFailSession,
+        WebViewDiagnosticStatus.Forbidden => WebViewDiagnosticForbidden,
+        WebViewDiagnosticStatus.Cancelled => WebViewDiagnosticCancelled,
+        _ => WebViewDiagnosticFailApi
+    };
+    public static string RunFullWebViewVerification => T(
+        "Run full WebView2 verification sync",
+        "WebView2 전체 검증 동기화");
+    public static string RunningFullWebViewVerification => T(
+        "Running full WebView2 verification sync...",
+        "WebView2 전체 검증 동기화 중...");
+    public static string BrowserCompanionCount(int count) => T(
+        $"Browser Companion count: {count}",
+        $"Browser Companion 사용량: {count}");
+    public static string WebViewCount(int count) => T(
+        $"WebView2 count: {count}",
+        $"WebView2 사용량: {count}");
+    public static string VerificationDifference(int difference) => T(
+        $"Difference: {difference}",
+        $"차이: {difference}");
+    public static string BrowserBaselineReconstructed(bool estimated) => estimated
+        ? T(
+            "Browser Companion baseline: reconstructed / estimated.",
+            "Browser Companion 기준값: 대화 기록 기반 / 추정.")
+        : T(
+            "Browser Companion baseline: reconstructed.",
+            "Browser Companion 기준값: 대화 기록 기반.");
+    public static string WebViewVerificationPassed => T(
+        "Verification passed. Counts agree and both reconstructions are complete for the same quota period.",
+        "검증을 통과했습니다. 같은 한도 기간의 두 재구성이 완전하며 사용량이 일치합니다.");
+    public static string WebViewVerificationCountsDiffer => T(
+        "Verification did not pass because the reconstructed counts differ.",
+        "재구성 사용량이 달라 검증을 통과하지 못했습니다.");
+    public static string WebViewVerificationIncompleteBaseline => T(
+        "A complete Browser Companion baseline with a confirmed quota-period boundary is required.",
+        "확인된 한도 기간을 사용하는 완전한 Browser Companion 기준값이 필요합니다.");
+    public static string WebViewVerificationIncompleteWebView => T(
+        "The WebView2 reconstruction was incomplete, so the comparison did not pass.",
+        "WebView2 재구성이 불완전하여 비교를 통과하지 못했습니다.");
+    public static string WebViewVerificationFailed => T(
+        "The full WebView2 verification failed. Production usage data was not changed.",
+        "WebView2 전체 검증에 실패했습니다. 운영 사용량 데이터는 변경되지 않았습니다.");
+    public static string WebViewVerificationCancelled => T(
+        "Verification cancelled. Production usage data was not changed.",
+        "검증이 취소되었습니다. 운영 사용량 데이터는 변경되지 않았습니다.");
+    public static string WebViewVerificationMessage(WebViewVerificationStatus status) => status switch
+    {
+        WebViewVerificationStatus.Passed => WebViewVerificationPassed,
+        WebViewVerificationStatus.CountsDiffer => WebViewVerificationCountsDiffer,
+        WebViewVerificationStatus.IncompleteBaseline => WebViewVerificationIncompleteBaseline,
+        WebViewVerificationStatus.IncompleteWebView => WebViewVerificationIncompleteWebView,
+        WebViewVerificationStatus.Cancelled => WebViewVerificationCancelled,
+        _ => WebViewVerificationFailed
+    };
+    public static string UseWebViewAsDefault => T(
+        "Use WebView2 as default connection",
+        "WebView2를 기본 연결로 사용");
+    public static string UseWebViewAsDefaultConfirmation => T(
+        "Use WebView2 as the default connection? Browser Companion will remain installed and unchanged.",
+        "WebView2를 기본 연결로 사용하시겠습니까? Browser Companion은 설치된 상태로 유지되며 변경되지 않습니다.");
+    public static string UseWebViewAsDefaultSucceeded => T(
+        "WebView2 is now the default connection. Browser Companion was not removed or changed.",
+        "WebView2가 기본 연결로 설정되었습니다. Browser Companion은 제거되거나 변경되지 않았습니다.");
+    public static string UseWebViewAsDefaultFailed => T(
+        "WebView2 was not selected. A passing full verification and explicit confirmation are required.",
+        "WebView2가 선택되지 않았습니다. 전체 검증 통과와 명시적 확인이 필요합니다.");
     public static string ResetAnchorHint => T(
         "Weekday and time are estimates unless you confirm them below. Saving other settings does not confirm this anchor.",
         "요일과 시각은 아래에서 확인하기 전까지 추정값입니다. 다른 설정을 저장해도 이 기준이 확정되지는 않습니다.");

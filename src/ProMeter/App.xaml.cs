@@ -36,6 +36,7 @@ public partial class App : Application
     private FloatingWidget? _widget;
     private QuotaSnapshot _snapshot = new();
     private bool _syncing;
+    private bool _webViewDiagnosticRunning;
 
     public bool IsExiting { get; private set; }
 
@@ -224,7 +225,7 @@ public partial class App : Application
 
     private async Task<SyncOutcome> SyncAsync(bool force)
     {
-        if (_syncing)
+        if (_syncing || _webViewDiagnosticRunning)
         {
             return new SyncOutcome(_snapshot.Status, "already running", 0);
         }
@@ -354,7 +355,112 @@ public partial class App : Application
         window.ImportRequested += ImportExport;
         window.ExportRequested += format => Export(format);
         window.OpenLogsRequested += OpenLogs;
+        window.WebViewDiagnosticRequested = RunWebViewDiagnosticAsync;
+        window.FullWebViewVerificationRequested = RunFullWebViewVerificationAsync;
+        window.UseWebViewDefaultRequested = ApplyVerifiedWebViewDefault;
         window.ShowDialog();
+    }
+
+    private async Task<WebViewDiagnosticResult> RunWebViewDiagnosticAsync(CancellationToken cancellationToken)
+    {
+        if (_syncing || _webViewDiagnosticRunning)
+        {
+            return new WebViewDiagnosticResult(
+                WebViewDiagnosticStatus.FailApi,
+                TechnicalDetail: UiText.WebViewDiagnosticTechnical("diagnostic", reason: "busy"));
+        }
+
+        _webViewDiagnosticRunning = true;
+        try
+        {
+            var diagnostic = new WebViewCompatibilityDiagnostic(_webViewTransport, _webViewTransport);
+            var result = await diagnostic.RunAsync(cancellationToken);
+            _log.Info($"webview diagnostic result={result.Status} status={result.HttpStatus?.ToString(CultureInfo.InvariantCulture) ?? "none"}");
+            return result;
+        }
+        finally
+        {
+            _webViewDiagnosticRunning = false;
+        }
+    }
+
+    private async Task<WebViewVerificationResult> RunFullWebViewVerificationAsync(CancellationToken cancellationToken)
+    {
+        if (_syncing || _webViewDiagnosticRunning)
+        {
+            return new WebViewVerificationResult(
+                WebViewVerificationStatus.Failed,
+                BrowserCompanionCount: 0,
+                WebViewCount: null,
+                Difference: null,
+                BrowserCompanionEstimated: true,
+                UsedIsolatedStore: false,
+                TechnicalDetail: UiText.WebViewVerificationBusyTechnical,
+                MetadataDifferences: []);
+        }
+
+        _webViewDiagnosticRunning = true;
+        try
+        {
+            var baseline = WebViewVerificationBaseline.Capture(
+                _store.GetUsageEvents(),
+                _settings,
+                _settings.AuthTransport,
+                _snapshot.Coverage,
+                _sync.LastStatus,
+                _sync.LastQuotaMetadata,
+                DateTimeOffset.Now);
+            var service = new WebViewFullVerificationService(_log);
+            var result = await service.RunAsync(
+                new ChatGptProvider(_webViewTransport),
+                _settings,
+                baseline,
+                cancellationToken);
+            _log.Info(
+                $"webview verification result={result.Status}" +
+                $" browserCount={result.BrowserCompanionCount}" +
+                $" webviewCount={result.WebViewCount?.ToString(CultureInfo.InvariantCulture) ?? "none"}" +
+                $" difference={result.Difference?.ToString(CultureInfo.InvariantCulture) ?? "none"}" +
+                $" isolated={result.UsedIsolatedStore}");
+            foreach (var difference in result.MetadataDifferences)
+            {
+                _log.Info(
+                    $"webview verification difference side={difference.Side}" +
+                    $" conversationId={SanitizeMetadata(difference.ConversationId)}" +
+                    $" model={SanitizeMetadata(difference.RawModel)}" +
+                    $" createdAt={difference.CreatedAt:O}");
+            }
+
+            return result;
+        }
+        finally
+        {
+            _webViewDiagnosticRunning = false;
+        }
+    }
+
+    private bool ApplyVerifiedWebViewDefault(WebViewVerificationResult verification, bool explicitlyConfirmed)
+    {
+        if (!WebViewDefaultConnectionSelection.TryApply(_settings, verification, explicitlyConfirmed))
+        {
+            return false;
+        }
+
+        _settingsStore.Save(_settings);
+        ApplyTransport();
+        RefreshSnapshot();
+        return true;
+    }
+
+    private static string SanitizeMetadata(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "none";
+        }
+
+        var compact = new string(value.Where(ch => !char.IsControl(ch)).Take(200).ToArray());
+        return AppLog.Sanitize(compact);
     }
 
     private void OpenLogs()
@@ -413,6 +519,11 @@ public partial class App : Application
 
     private async Task SignInAsync()
     {
+        if (_webViewDiagnosticRunning || _syncing)
+        {
+            return;
+        }
+
         if (_settings.AuthTransport == AuthTransportKind.DataExport)
         {
             return;

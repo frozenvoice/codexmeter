@@ -46,6 +46,16 @@ public sealed class SyncEngine
         bool force,
         CancellationToken cancellationToken = default)
     {
+        return await SyncAsync(provider, settings, force, new SyncRunOptions(), cancellationToken);
+    }
+
+    public async Task<SyncOutcome> SyncAsync(
+        IChatGptProvider provider,
+        AppSettings settings,
+        bool force,
+        SyncRunOptions options,
+        CancellationToken cancellationToken = default)
+    {
         if (!force && IsPaused && PauseUntil is DateTimeOffset until && until > _clock.UtcNow)
         {
             LastStatus = AppSyncStatus.RateLimited;
@@ -120,7 +130,8 @@ public sealed class SyncEngine
 
             var periodReference = _clock.UtcNow;
             var serverReset = LastQuotaMetadata?.WeeklyWindow(settings.PlanPreset)?.ResetAt;
-            var (periodStart, _) = QuotaPeriodCalculator.CurrentPeriod(settings, periodReference, serverReset);
+            var (calculatedPeriodStart, _) = QuotaPeriodCalculator.CurrentPeriod(settings, periodReference, serverReset);
+            var periodStart = options.PeriodStartOverride ?? calculatedPeriodStart;
             var minUpdate = periodStart.ToUnixTimeSeconds();
 
             LastStatus = AppSyncStatus.Syncing;
@@ -847,3 +858,8 @@ public sealed class SyncEngine
 }
 
 public sealed record SyncOutcome(AppSyncStatus Status, string? Detail, int ParsedEvents);
+
+public sealed class SyncRunOptions
+{
+    public DateTimeOffset? PeriodStartOverride { get; init; }
+}

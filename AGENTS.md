@@ -95,7 +95,10 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - WebView2 compatibility testing must use an isolated diagnostic flow.
 - A failed WebView2 test must leave Browser Companion and existing settings untouched.
 - Never delete or overwrite existing reconstructed usage data during a transport test.
-- Interactive OAuth may require user input and must never be automated by spoofing, credential injection, or identity-provider bypass.
+- Interactive OAuth may require user input and must never be automated by spoofing, credential injection, user-agent spoofing, or identity-provider bypass.
+- Lightweight WebView2 diagnostics must not perform a full history scan.
+- A compatibility test must distinguish sign-in failure from API incompatibility.
+- The existing Korean/English localization system must be reused. Do not create a second localization system.
 - Commit, push, verify remote SHA, and check CI as already required.
 - If page-bridge JS files change, increment `PAGE_BRIDGE_VERSION`.
 

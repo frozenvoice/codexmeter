@@ -13,7 +13,7 @@ public sealed class SqliteStore : IDisposable
     private readonly string _connectionString;
     private readonly object _gate = new();
 
-    public SqliteStore(string? path = null)
+    public SqliteStore(string? path = null, bool pooling = true)
     {
         var dbPath = path ?? AppPaths.Database;
         Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
@@ -21,7 +21,8 @@ public sealed class SqliteStore : IDisposable
         {
             DataSource = dbPath,
             Mode = SqliteOpenMode.ReadWriteCreate,
-            Cache = SqliteCacheMode.Shared
+            Cache = SqliteCacheMode.Shared,
+            Pooling = pooling
         }.ToString();
         Initialize();
     }

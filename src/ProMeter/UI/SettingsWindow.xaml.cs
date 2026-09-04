@@ -3,12 +3,17 @@ namespace ProMeter.UI;
 public partial class SettingsWindow : Window
 {
     private readonly AppSettings _settings;
+    private CancellationTokenSource? _webViewOperationCancellation;
+    private WebViewVerificationResult? _lastWebViewVerification;
 
     public event Action<AppSettings>? Saved;
     public event Action? ImportRequested;
     public event Action<string>? ExportRequested;
     public event Action? OpenLogsRequested;
     public event Action<string?, string?>? CompanionRegisterRequested;
+    public Func<CancellationToken, Task<WebViewDiagnosticResult>>? WebViewDiagnosticRequested { get; set; }
+    public Func<CancellationToken, Task<WebViewVerificationResult>>? FullWebViewVerificationRequested { get; set; }
+    public Func<WebViewVerificationResult, bool, bool>? UseWebViewDefaultRequested { get; set; }
 
     public SettingsWindow(AppSettings settings)
     {
@@ -42,6 +47,7 @@ public partial class SettingsWindow : Window
         NReset.IsChecked = settings.NotifyReset;
         NErr.IsChecked = settings.NotifySyncError;
         HistoricalBox.IsChecked = settings.ImportHistoricalStatistics;
+        Closed += (_, _) => CancelWebViewOperation();
     }
 
     private void OnPlanChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -110,6 +116,145 @@ public partial class SettingsWindow : Window
     private void OnRegisterCompanion(object sender, RoutedEventArgs e) =>
         CompanionRegisterRequested?.Invoke(TrimOrNull(ChromeExtensionIdBox.Text), TrimOrNull(EdgeExtensionIdBox.Text));
 
+    private async void OnTestWebView(object sender, RoutedEventArgs e)
+    {
+        if (WebViewDiagnosticRequested is null || _webViewOperationCancellation is not null)
+        {
+            return;
+        }
+
+        _lastWebViewVerification = null;
+        FullWebViewVerificationButton.Visibility = Visibility.Collapsed;
+        UseWebViewDefaultButton.Visibility = Visibility.Collapsed;
+        WebViewComparisonText.Visibility = Visibility.Collapsed;
+        SetTechnicalDetail(null);
+        _webViewOperationCancellation = new CancellationTokenSource();
+        TestWebViewButton.IsEnabled = false;
+        TestWebViewButton.Content = UiText.TestingWebView2;
+        WebViewResultText.Text = UiText.TestingWebView2;
+        WebViewResultText.Visibility = Visibility.Visible;
+        try
+        {
+            var result = await WebViewDiagnosticRequested(_webViewOperationCancellation.Token);
+            WebViewResultText.Text = UiText.WebViewDiagnosticMessage(result.Status);
+            SetTechnicalDetail(result.TechnicalDetail);
+            FullWebViewVerificationButton.Visibility = result.Passed ? Visibility.Visible : Visibility.Collapsed;
+        }
+        catch (OperationCanceledException)
+        {
+            WebViewResultText.Text = UiText.WebViewDiagnosticCancelled;
+            SetTechnicalDetail(null);
+        }
+        catch
+        {
+            WebViewResultText.Text = UiText.WebViewDiagnosticFailApi;
+            SetTechnicalDetail(UiText.WebViewDiagnosticTechnical("diagnostic", reason: "unavailable"));
+        }
+        finally
+        {
+            FinishWebViewOperation();
+            TestWebViewButton.Content = UiText.TestWebView2;
+        }
+    }
+
+    private async void OnFullWebViewVerification(object sender, RoutedEventArgs e)
+    {
+        if (FullWebViewVerificationRequested is null || _webViewOperationCancellation is not null)
+        {
+            return;
+        }
+
+        _webViewOperationCancellation = new CancellationTokenSource();
+        TestWebViewButton.IsEnabled = false;
+        FullWebViewVerificationButton.IsEnabled = false;
+        UseWebViewDefaultButton.Visibility = Visibility.Collapsed;
+        SetTechnicalDetail(null);
+        WebViewResultText.Text = UiText.RunningFullWebViewVerification;
+        WebViewResultText.Visibility = Visibility.Visible;
+        WebViewComparisonText.Visibility = Visibility.Collapsed;
+        try
+        {
+            var result = await FullWebViewVerificationRequested(_webViewOperationCancellation.Token);
+            _lastWebViewVerification = result;
+            WebViewResultText.Text = UiText.WebViewVerificationMessage(result.Status);
+            if (result.WebViewCount is int webViewCount && result.Difference is int difference)
+            {
+                WebViewComparisonText.Text = string.Join(
+                    Environment.NewLine,
+                    UiText.BrowserCompanionCount(result.BrowserCompanionCount),
+                    UiText.WebViewCount(webViewCount),
+                    UiText.VerificationDifference(difference),
+                    UiText.BrowserBaselineReconstructed(result.BrowserCompanionEstimated));
+                WebViewComparisonText.Visibility = Visibility.Visible;
+            }
+
+            SetTechnicalDetail(result.TechnicalDetail);
+            UseWebViewDefaultButton.Visibility = result.CanUseWebViewAsDefault
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+        catch (OperationCanceledException)
+        {
+            WebViewResultText.Text = UiText.WebViewVerificationCancelled;
+            SetTechnicalDetail(null);
+        }
+        catch
+        {
+            WebViewResultText.Text = UiText.WebViewVerificationFailed;
+            SetTechnicalDetail(UiText.WebViewVerificationUnavailableTechnical);
+        }
+        finally
+        {
+            FinishWebViewOperation();
+            FullWebViewVerificationButton.IsEnabled = true;
+        }
+    }
+
+    private void OnUseWebViewDefault(object sender, RoutedEventArgs e)
+    {
+        if (_lastWebViewVerification is null || UseWebViewDefaultRequested is null)
+        {
+            return;
+        }
+
+        var confirmed = MessageBox.Show(
+            UiText.UseWebViewAsDefaultConfirmation,
+            UiText.ProductName,
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question) == MessageBoxResult.Yes;
+        var applied = UseWebViewDefaultRequested(_lastWebViewVerification, confirmed);
+        if (applied)
+        {
+            TransportBox.SelectedIndex = (int)AuthTransportKind.WebView2;
+        }
+
+        MessageBox.Show(
+            applied ? UiText.UseWebViewAsDefaultSucceeded : UiText.UseWebViewAsDefaultFailed,
+            UiText.ProductName);
+    }
+
+    private void SetTechnicalDetail(string? detail)
+    {
+        WebViewTechnicalDetailText.Text = string.IsNullOrWhiteSpace(detail)
+            ? ""
+            : UiText.TechnicalDetail(detail);
+        WebViewTechnicalDetailText.Visibility = string.IsNullOrWhiteSpace(detail)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
+    private void FinishWebViewOperation()
+    {
+        _webViewOperationCancellation?.Dispose();
+        _webViewOperationCancellation = null;
+        TestWebViewButton.IsEnabled = true;
+    }
+
+    private void CancelWebViewOperation()
+    {
+        _webViewOperationCancellation?.Cancel();
+    }
+
     private void ApplyLocalizedTexts()
     {
         Title = UiText.SettingsTitle;
@@ -139,6 +284,9 @@ public partial class SettingsWindow : Window
         EdgeIdLabel.Text = UiText.EdgeExtensionId;
         PairingHint.Text = UiText.PairingTokenHint;
         RegisterButton.Content = UiText.RegisterNativeHost;
+        TestWebViewButton.Content = UiText.TestWebView2;
+        FullWebViewVerificationButton.Content = UiText.RunFullWebViewVerification;
+        UseWebViewDefaultButton.Content = UiText.UseWebViewAsDefault;
         AppTitle.Text = UiText.AppSection;
         AppHint.Text = UiText.AppRiskHint;
         AutoSyncBox.Content = UiText.AutomaticSync;

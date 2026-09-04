@@ -6,7 +6,7 @@ using ProMeter.Services;
 
 namespace ProMeter.WebView;
 
-public sealed class WebViewTransport : IChatGptTransport, IDisposable
+public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLogin, IDisposable
 {
     private static readonly TimeSpan NavigationTimeout = TimeSpan.FromSeconds(15);
 
@@ -99,6 +99,26 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
         {
             _login.Cancel();
             return false;
+        }
+    }
+
+    public async Task<WebViewInteractiveLoginResult> ShowInteractiveLoginAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await ShowLoginAsync(cancellationToken)
+                ? WebViewInteractiveLoginResult.SignedIn
+                : WebViewInteractiveLoginResult.Cancelled;
+        }
+        catch (OperationCanceledException)
+        {
+            return WebViewInteractiveLoginResult.Cancelled;
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("webview interactive login unavailable: " + ex.GetType().Name);
+            return WebViewInteractiveLoginResult.Unsupported;
         }
     }
 
