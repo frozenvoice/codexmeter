@@ -107,11 +107,14 @@ public static class NativeMessagingHost
 {
     public const string PipeName = "ProMeterCompanion";
 
+    public static bool ShouldRun(string[] args, CompanionPairingState pairing) =>
+        CompanionCallerOrigin.IsAllowed(args, pairing);
+
     public static void Run(string[]? args = null)
     {
         try
         {
-            if (!CompanionCallerOrigin.IsAllowed(args ?? Environment.GetCommandLineArgs()))
+            if (!ShouldRun(args ?? Environment.GetCommandLineArgs(), CompanionPairingStore.LoadOrCreate()))
             {
                 return;
             }
@@ -231,24 +234,98 @@ public static class NativeMessagingHost
 
 public static class CompanionCallerOrigin
 {
-    public static bool IsAllowed(string[] args)
+    public static bool IsAllowed(string[]? args, CompanionPairingState? pairing = null)
     {
-        var origin = args.Skip(1).FirstOrDefault(arg => arg.StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase));
-        if (string.IsNullOrWhiteSpace(origin))
+        if (!TryResolveExtensionId(args, out var extensionId))
         {
             return false;
         }
 
-        if (!Uri.TryCreate(origin.TrimEnd('/'), UriKind.Absolute, out var uri)
+        pairing ??= CompanionPairingStore.LoadOrCreate();
+        return IsRegisteredId(extensionId, pairing);
+    }
+
+    public static bool TryResolveExtensionId(string[]? args, out string extensionId)
+    {
+        extensionId = "";
+        if (args is null || args.Length == 0)
+        {
+            return false;
+        }
+
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var arg in args)
+        {
+            if (IsUnrelatedArgument(arg))
+            {
+                continue;
+            }
+
+            if (!TryParseChromeExtensionOrigin(arg, out var id))
+            {
+                continue;
+            }
+
+            ids.Add(id);
+            if (ids.Count > 1)
+            {
+                return false;
+            }
+        }
+
+        if (ids.Count != 1)
+        {
+            return false;
+        }
+
+        extensionId = ids.First();
+        return true;
+    }
+
+    public static bool TryParseChromeExtensionOrigin(string? value, out string extensionId)
+    {
+        extensionId = "";
+        if (string.IsNullOrWhiteSpace(value)
+            || !value.StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
             || !string.Equals(uri.Scheme, "chrome-extension", StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrEmpty(uri.UserInfo)
+            || !string.IsNullOrEmpty(uri.Query)
+            || !string.IsNullOrEmpty(uri.Fragment)
+            || (!string.IsNullOrEmpty(uri.AbsolutePath) && uri.AbsolutePath != "/")
+            || !uri.IsDefaultPort
             || !CompanionHostManifest.IsExtensionId(uri.Host))
         {
             return false;
         }
 
-        var pairing = CompanionPairingStore.LoadOrCreate();
-        return string.Equals(uri.Host, pairing.ChromeExtensionId, StringComparison.OrdinalIgnoreCase)
-               || string.Equals(uri.Host, pairing.EdgeExtensionId, StringComparison.OrdinalIgnoreCase)
-               || string.Equals(uri.Host, pairing.ExtensionId, StringComparison.OrdinalIgnoreCase);
+        extensionId = uri.Host;
+        return true;
+    }
+
+    private static bool IsRegisteredId(string extensionId, CompanionPairingState pairing) =>
+        string.Equals(extensionId, pairing.ChromeExtensionId, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(extensionId, pairing.EdgeExtensionId, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsUnrelatedArgument(string? arg)
+    {
+        if (string.IsNullOrWhiteSpace(arg))
+        {
+            return true;
+        }
+
+        if (arg.StartsWith("--", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return arg.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+               || (arg.Contains('\\', StringComparison.Ordinal)
+                   || (arg.Contains('/', StringComparison.Ordinal)
+                       && !arg.StartsWith("chrome-extension://", StringComparison.OrdinalIgnoreCase)));
     }
 }

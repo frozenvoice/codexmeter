@@ -2,10 +2,14 @@
 importScripts("canonical.js", "operations.js", "project.js", "auth.js");
 
 var NATIVE_HOST = "com.prometer.bridge";
-var MAX_BYTES = 1048576;
+var MAX_BYTES = ProMeterCanonical.MAX_NATIVE_MESSAGE_BYTES;
 var port = null;
 var connected = false;
 var lastError = "";
+
+function utf8ByteLength(text) {
+  return ProMeterCanonical.utf8ByteLength(text);
+}
 
 function setConnected(value, error) {
   connected = value === true;
@@ -47,7 +51,7 @@ function postResult(requestId, operation, payload) {
     port.postMessage({ type: "invokeResult", requestId: requestId, operation: operation, status: 0, schemaMismatch: true, error: "refusing to send access token" });
     return;
   }
-  if (json.length > MAX_BYTES) {
+  if (utf8ByteLength(json) > MAX_BYTES) {
     port.postMessage({ type: "invokeResult", requestId: requestId, operation: operation, payloadTooLarge: true, error: "PayloadTooLarge", schemaMismatch: true });
     return;
   }

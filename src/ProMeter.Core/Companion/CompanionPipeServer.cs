@@ -90,7 +90,14 @@ public sealed class CompanionPipeServer : IDisposable
                 return;
             }
 
-            writes.Writer.TryWrite(json);
+            if (!CompanionOutgoingQueue.TryWrite(writes.Writer, json))
+            {
+                if (string.Equals(message.Type, CompanionBridgeProtocol.Invoke, StringComparison.OrdinalIgnoreCase)
+                    && !string.IsNullOrWhiteSpace(message.RequestId))
+                {
+                    _hub.TryComplete(message.RequestId, CompanionBridgeProtocol.WriteFailureResponse(), generation);
+                }
+            }
         }
 
         void OnOutgoing(CompanionBridgeMessage message) => Enqueue(message);
@@ -179,19 +186,9 @@ public sealed class CompanionPipeServer : IDisposable
         }
 
         if (string.Equals(message.Type, CompanionBridgeProtocol.InvokeResult, StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(message.RequestId)
-            && Enum.TryParse<CompanionOperation>(message.Operation, ignoreCase: true, out var operation))
+            && !string.IsNullOrWhiteSpace(message.RequestId))
         {
-            var response = CompanionBridgeProtocol.ToProviderResponse(parsed, operation);
-            if (!string.IsNullOrWhiteSpace(message.Body) && ChatGptJson.ParseNode(message.Body) is JsonNode node)
-            {
-                if (!BridgeProjection.TryValidateProjected(operation, node, out var leak))
-                {
-                    response = new ProviderResponse { Status = 0, Error = leak, SchemaMismatch = true };
-                }
-            }
-
-            _hub.TryComplete(message.RequestId, response, generation);
+            _hub.TryCompleteInvokeResult(message.RequestId, parsed, generation);
         }
 
         return Task.CompletedTask;
@@ -203,4 +200,10 @@ public sealed class CompanionPipeServer : IDisposable
         _cts?.Dispose();
         _hub.FailAllPending(CompanionBridgeProtocol.DisconnectResponse());
     }
+}
+
+public static class CompanionOutgoingQueue
+{
+    public static bool TryWrite(ChannelWriter<string> writer, string json) =>
+        writer.TryWrite(json);
 }

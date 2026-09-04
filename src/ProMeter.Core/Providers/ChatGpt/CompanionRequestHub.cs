@@ -11,6 +11,8 @@ public interface ICompanionRequestHub
     void Disconnect(int generation);
     Task<ProviderResponse> RequestAsync(CompanionOperation operation, CompanionOperationArgs? args, CancellationToken cancellationToken);
     bool TryComplete(string requestId, ProviderResponse response, int generation);
+    bool TryGetPendingOperation(string requestId, int generation, out CompanionOperation operation);
+    bool TryCompleteInvokeResult(string requestId, CompanionParseResult parsed, int generation);
     void FailAllPending(ProviderResponse reason);
 }
 
@@ -109,7 +111,7 @@ public sealed class CompanionRequestHub : ICompanionRequestHub
         }
         catch
         {
-            TryComplete(id, new ProviderResponse { Status = 0, Error = "bridge write failed" }, generation);
+            TryComplete(id, CompanionBridgeProtocol.WriteFailureResponse(), generation);
         }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -154,6 +156,40 @@ public sealed class CompanionRequestHub : ICompanionRequestHub
         }
 
         return tcs.TrySetResult(response);
+    }
+
+    public bool TryGetPendingOperation(string requestId, int generation, out CompanionOperation operation)
+    {
+        lock (_gate)
+        {
+            if (_pending.TryGetValue(requestId, out var pending) && pending.Generation == generation)
+            {
+                operation = pending.Operation;
+                return true;
+            }
+        }
+
+        operation = default;
+        return false;
+    }
+
+    public bool TryCompleteInvokeResult(string requestId, CompanionParseResult parsed, int generation)
+    {
+        if (!TryGetPendingOperation(requestId, generation, out var pendingOperation))
+        {
+            return false;
+        }
+
+        var declared = parsed.Message?.Operation;
+        if (!Enum.TryParse<CompanionOperation>(declared, ignoreCase: true, out var resultOperation)
+            || !Enum.IsDefined(resultOperation)
+            || resultOperation != pendingOperation)
+        {
+            return TryComplete(requestId, CompanionBridgeProtocol.OperationMismatchResponse(), generation);
+        }
+
+        var response = CompanionBridgeProtocol.ToProviderResponse(parsed, pendingOperation);
+        return TryComplete(requestId, response, generation);
     }
 
     public void FailAllPending(ProviderResponse reason)

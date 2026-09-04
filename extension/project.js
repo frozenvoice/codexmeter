@@ -103,10 +103,7 @@
     if (gizmo && gizmo.gizmo) {
       return { gizmo: projectGizmo(gizmo.gizmo) };
     }
-    var result = pick(gizmo, ["id", "name", "title"]);
-    if (gizmo && gizmo.display) {
-      result.display = pick(gizmo.display, ["name"]);
-    }
+    var result = pick(gizmo, ["id"]);
     return result;
   }
 

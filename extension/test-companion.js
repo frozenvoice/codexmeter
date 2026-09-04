@@ -75,6 +75,31 @@ assert.ok(!projected.body.mapping.user.message.metadata.url);
 assert.strictEqual(projected.body.mapping.user.message.metadata.request_id, "req-synthetic");
 assert.strictEqual(project.containsPromptOrResponseText(projected.body), false);
 
+const projects = project.project("GetProjects", {
+  gizmos: [{
+    id: "proj-1",
+    gizmo: {
+      id: "proj-1",
+      name: "SYNTHETIC_PROJECT_NAME_DO_NOT_LEAVE",
+      title: "SYNTHETIC_PROJECT_TITLE",
+      display: { name: "SYNTHETIC_DISPLAY_NAME" }
+    }
+  }]
+});
+assert.strictEqual(projects.ok, true);
+const projectJson = JSON.stringify(projects.body);
+assert.ok(projectJson.indexOf("SYNTHETIC_PROJECT_NAME_DO_NOT_LEAVE") < 0);
+assert.ok(projectJson.indexOf("SYNTHETIC_PROJECT_TITLE") < 0);
+assert.ok(projectJson.indexOf("SYNTHETIC_DISPLAY_NAME") < 0);
+assert.strictEqual(projects.body.gizmos[0].gizmo.name, undefined);
+assert.strictEqual(projects.body.gizmos[0].gizmo.title, undefined);
+assert.strictEqual(projects.body.gizmos[0].gizmo.display, undefined);
+
+assert.strictEqual(canonical.MAX_NATIVE_MESSAGE_BYTES, 1048576);
+const korean = "한".repeat(400000);
+assert.ok(korean.length < canonical.MAX_NATIVE_MESSAGE_BYTES);
+assert.ok(canonical.utf8ByteLength(korean) > canonical.MAX_NATIVE_MESSAGE_BYTES);
+
 auth.applySession({ accessToken: "in-memory-only-token" });
 assert.strictEqual(auth.tokenSnapshot(), "in-memory-only-token");
 const nativeMessage = { type: "invokeResult", body: JSON.stringify(projected.body) };

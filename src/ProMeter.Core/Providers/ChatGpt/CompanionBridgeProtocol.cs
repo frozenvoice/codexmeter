@@ -217,6 +217,12 @@ public static class CompanionBridgeProtocol
 
     public static ProviderResponse DisconnectResponse() =>
         new() { Status = 0, Error = "browser companion disconnected" };
+
+    public static ProviderResponse WriteFailureResponse() =>
+        new() { Status = 0, Error = "bridge write failed" };
+
+    public static ProviderResponse OperationMismatchResponse() =>
+        new() { Status = 0, Error = "bridge result operation mismatch", SchemaMismatch = true };
 }
 
 public static class OnboardingOutcomeMapper

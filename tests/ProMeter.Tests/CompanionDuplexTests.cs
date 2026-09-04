@@ -76,14 +76,18 @@ public class CompanionDuplexTests
             var parsedFrame = CompanionBridgeProtocol.Parse(frame);
             Assert.True(parsedFrame.Accepted);
             Assert.StartsWith("{", frame, StringComparison.Ordinal);
+            var operation = parsedFrame.Message!.Operation;
+            var body = string.Equals(operation, "GetAccountCheck", StringComparison.Ordinal)
+                ? """{"accounts":{}}"""
+                : """{"id":"u1"}""";
             await WriteFramed(chromeInServer, CompanionBridgeProtocol.Serialize(new CompanionBridgeMessage
             {
                 Type = CompanionBridgeProtocol.InvokeResult,
                 RequestId = parsedFrame.Message!.RequestId,
-                Operation = parsedFrame.Message.Operation,
+                Operation = operation,
                 PairingToken = pairing.Token,
                 Status = 200,
-                Body = """{"ok":true}"""
+                Body = body
             }));
         }
 

@@ -116,13 +116,83 @@ public class SettingsMigrationTests
 
 public class CompanionCallerOriginTests
 {
+    private const string ChromeId = "abcdefghijklmnopabcdefghijklmnop";
+    private const string OtherId = "ponmlkjihgfedcbaponmlkjihgfedcba";
+    private static readonly CompanionPairingState Registered = new()
+    {
+        Token = "pairing-token-for-origin-tests-aa",
+        ChromeExtensionId = ChromeId
+    };
+
     [Fact]
-    public void MissingOrMalformedOrigin_IsRejected()
+    public void ProductionEntrypoint_AcceptsTopLevelChromeWindowsArgs()
+    {
+        string[] args = ["chrome-extension://" + ChromeId + "/", "--parent-window=1234"];
+        Assert.True(NativeMessagingHost.ShouldRun(args, Registered));
+        Assert.True(CompanionCallerOrigin.IsAllowed(args, Registered));
+    }
+
+    [Fact]
+    public void ProductionEntrypoint_AcceptsGetCommandLineArgsShape()
+    {
+        string[] args = ["prometer-companion-host.exe", "chrome-extension://" + ChromeId + "/", "--parent-window=1234"];
+        Assert.True(NativeMessagingHost.ShouldRun(args, Registered));
+        Assert.True(CompanionCallerOrigin.IsAllowed(args, Registered));
+    }
+
+    [Fact]
+    public void ProductionEntrypoint_RejectsInvalidArgsWithoutConnecting()
+    {
+        NativeMessagingHost.Run([]);
+        NativeMessagingHost.Run(["--parent-window=1234"]);
+        Assert.False(NativeMessagingHost.ShouldRun(["--parent-window=1234"], Registered));
+    }
+
+    [Fact]
+    public void UnregisteredValidId_IsRejected()
+    {
+        Assert.False(CompanionCallerOrigin.IsAllowed(
+            ["chrome-extension://" + OtherId + "/", "--parent-window=1"],
+            Registered));
+    }
+
+    [Fact]
+    public void MalformedId_IsRejected()
+    {
+        Assert.False(CompanionCallerOrigin.IsAllowed(
+            ["prometer-companion-host.exe", "chrome-extension://NOT-VALID/"],
+            Registered));
+    }
+
+    [Fact]
+    public void MissingOrigin_IsRejected()
     {
         Assert.False(CompanionCallerOrigin.IsAllowed([]));
         Assert.False(CompanionCallerOrigin.IsAllowed(["prometer-companion-host.exe"]));
-        Assert.False(CompanionCallerOrigin.IsAllowed(["prometer-companion-host.exe", "chrome-extension://NOT-VALID/"]));
-        Assert.False(CompanionCallerOrigin.IsAllowed(["prometer-companion-host.exe", "https://chatgpt.com/"]));
+        Assert.False(CompanionCallerOrigin.IsAllowed(["prometer-companion-host.exe", "--parent-window=9"], Registered));
+    }
+
+    [Fact]
+    public void TwoDifferentExtensionOrigins_AreRejected()
+    {
+        Assert.False(CompanionCallerOrigin.IsAllowed(
+            ["chrome-extension://" + ChromeId + "/", "chrome-extension://" + OtherId + "/"],
+            Registered));
+    }
+
+    [Fact]
+    public void QueryOrFragmentOnOrigin_IsRejected()
+    {
+        Assert.False(CompanionCallerOrigin.IsAllowed(["chrome-extension://" + ChromeId + "/?x=1"], Registered));
+        Assert.False(CompanionCallerOrigin.IsAllowed(["chrome-extension://" + ChromeId + "/#frag"], Registered));
+    }
+
+    [Fact]
+    public void HttpsUrl_IsRejected()
+    {
+        Assert.False(CompanionCallerOrigin.IsAllowed(
+            ["prometer-companion-host.exe", "https://chatgpt.com/"],
+            Registered));
     }
 }
 

@@ -6,6 +6,11 @@
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   var EXPECTED_ORIGIN = "https://chatgpt.com";
+  var MAX_NATIVE_MESSAGE_BYTES = 1048576;
+
+  function utf8ByteLength(text) {
+    return new TextEncoder().encode(String(text)).byteLength;
+  }
 
   function containsControl(value) {
     for (var i = 0; i < value.length; i++) {
@@ -86,5 +91,5 @@
     return { ok: true, canonical: url.pathname + url.search, origin: url.origin, pathname: url.pathname };
   }
 
-  return { tryValidate: tryValidate, EXPECTED_ORIGIN: EXPECTED_ORIGIN };
+  return { tryValidate: tryValidate, EXPECTED_ORIGIN: EXPECTED_ORIGIN, MAX_NATIVE_MESSAGE_BYTES: MAX_NATIVE_MESSAGE_BYTES, utf8ByteLength: utf8ByteLength };
 });

@@ -68,6 +68,13 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - An encoded or canonicalized path must never escape an approved route.
 - Browser companion setup must be completable from onboarding without first performing a failed sync.
 - Transport migrations must never silently change an existing user's selected transport.
+- Native-host caller-origin validation must use the actual argument shape received by the executable. Top-level C# `args` does not include the executable path.
+- Tests for native-host invocation must reproduce Chrome's real Windows argument order.
+- A bridge response operation must exactly match the pending request operation.
+- Native-side projected-shape validation must be an endpoint-specific structural allowlist, not only a search for known forbidden keys.
+- User-created project names and titles are not required for usage counting and must not cross the browser bridge.
+- Payload limits must be calculated in UTF-8 bytes on both JavaScript and .NET.
+- Do not claim companion connectivity from pump tests that bypass the production native-host entrypoint.
 
 ## Architecture
 
