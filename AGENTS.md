@@ -25,6 +25,10 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - The same conversation should not be unnecessarily body-fetched twice in the same sync.
 - Unknown denominators must use human-readable wording rather than a bare "Unknown".
 - Estimated reset anchors must never visually resemble confirmed server reset times.
+- NotifyIcon.Text must always satisfy the platform length limit.
+- User-visible localization must never make tray tooltip assignment capable of crashing startup.
+- Last successful/partial completed sync time must survive application restart.
+- Persisted last-sync state must not be confused with an in-progress or failed sync.
 
 ## Privacy and security
 
@@ -135,6 +139,8 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Do not report "complete", "pushed", or provide a commit for review until the remote SHA has been verified.
 - If push authentication or network access fails, report the exact failure and clearly state that the commit remains local.
 - A GitHub Actions run triggered by the pushed SHA should be reported as pending, passed, or failed when the GitHub CLI is available.
+- Startup/UI formatting regressions require tests.
+- Commit, push, remote SHA verification, and CI verification remain mandatory.
 
 ## Working style
 

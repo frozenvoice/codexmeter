@@ -23,7 +23,7 @@ public sealed class TrayController : IDisposable
         _icon = new NotifyIcon
         {
             Visible = true,
-            Text = "ProMeter"
+            Text = NotifyIconText.Safe(UiText.ProductName)
         };
         _icon.MouseClick += (_, e) =>
         {
@@ -57,7 +57,7 @@ public sealed class TrayController : IDisposable
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            _icon.Text = DisplayFormatting.Tooltip(snapshot);
+            _icon.Text = NotifyIconText.Safe(DisplayFormatting.TrayTooltip(snapshot));
             var next = TrayIconRenderer.Render(snapshot, style, 32);
             _icon.Icon = next;
             _current?.Dispose();

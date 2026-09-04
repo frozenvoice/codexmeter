@@ -180,6 +180,20 @@ public static class DisplayFormatting
             ? UiText.GptProUsageServer(UsageLabel(snapshot), snapshot.ReconstructedUsed)
             : UiText.GptProUsage(UsageLabel(snapshot));
 
+    public static string TrayTooltip(QuotaSnapshot snapshot)
+    {
+        var remaining = snapshot.DisplayUsageUnavailable
+            ? "?"
+            : snapshot.Remaining.ToString(CultureInfo.InvariantCulture);
+        var state = snapshot.IsSyncing
+            ? StatusLabel(snapshot)
+            : snapshot.LastSync is DateTimeOffset
+                ? $"{UiText.LastSync}: {LastSyncLabel(snapshot.LastSync)}"
+                : StatusLabel(snapshot);
+        return NotifyIconText.Safe(
+            $"{UiText.ProductName}\n{UiText.GptPro}: {UsageLabel(snapshot)} · {UiText.Remaining}: {remaining}\n{state}");
+    }
+
     public static string Tooltip(QuotaSnapshot snapshot)
     {
         var reset = ResetDisplay(snapshot);

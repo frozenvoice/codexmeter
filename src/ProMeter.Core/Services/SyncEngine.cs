@@ -4,6 +4,7 @@ public sealed class SyncEngine
 {
     public const string MissingAssistantUsageDiagnostic =
         "Conversation history loaded but no assistant usage metadata was reconstructed.";
+    public const string LastSyncCompletedStateKey = "last_sync_completed";
 
     private readonly SqliteStore _store;
     private readonly ConversationParser _parser;
@@ -27,6 +28,7 @@ public sealed class SyncEngine
         _models = models;
         _log = log;
         _clock = clock ?? SystemClock.Instance;
+        LastSyncCompleted = RestoreLastSyncCompleted();
     }
 
     public bool IsPaused { get; private set; }
@@ -202,9 +204,9 @@ public sealed class SyncEngine
                 _log.Warn("projects failed: " + AppLog.Sanitize(ex.Message));
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             _store.SetState("last_index_sync", periodReference.ToString("O"));
             ApplyZeroEventDiagnostics(coverage, value => worst = Worse(worst, value));
-            LastSyncCompleted = _clock.UtcNow;
             LastCoverage = coverage;
             LastStatus = coverage.Confidence == CoverageConfidence.Incomplete
                 ? Worse(worst, AppSyncStatus.PartialData)
@@ -237,6 +239,10 @@ public sealed class SyncEngine
                 $" Instant={FamilyCount(QuotaFamily.Instant)}" +
                 $" Unknown={FamilyCount(QuotaFamily.Unknown)}");
             Report(DisplayFormatting.StatusLabel(LastStatus), parsedEvents: parsed);
+            cancellationToken.ThrowIfCancellationRequested();
+            var completed = _clock.UtcNow.ToUniversalTime();
+            _store.SetState(LastSyncCompletedStateKey, completed.ToString("O", CultureInfo.InvariantCulture));
+            LastSyncCompleted = completed;
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.IsUnauthorized)
@@ -306,6 +312,28 @@ public sealed class SyncEngine
     public void RecordImportedEvents(int count)
     {
         _log.Info($"import events applied={count}");
+    }
+
+    private DateTimeOffset? RestoreLastSyncCompleted()
+    {
+        var stored = _store.GetState(LastSyncCompletedStateKey);
+        if (string.IsNullOrWhiteSpace(stored))
+        {
+            return null;
+        }
+
+        if (DateTimeOffset.TryParseExact(
+                stored,
+                "O",
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var restored))
+        {
+            return restored.ToUniversalTime();
+        }
+
+        _log.Warn("Ignoring malformed persisted last-sync completion timestamp.");
+        return null;
     }
 
     private async Task<int> SyncIndexAsync(
