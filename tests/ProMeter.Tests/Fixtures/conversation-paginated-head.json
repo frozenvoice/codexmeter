@@ -1,0 +1,25 @@
+{
+  "shape": "paginated-head",
+  "conversation_id": "conv-paged",
+  "update_time": 1777500670,
+  "current_node": "final",
+  "messages": [
+    {
+      "id": "final",
+      "parent": "older-user",
+      "message": {
+        "id": "final",
+        "author": { "role": "assistant" },
+        "create_time": 1777500670,
+        "end_turn": true,
+        "recipient": "all",
+        "content": { "content_type": "text", "parts": [] },
+        "metadata": { "request_id": "req-page-2", "model_slug": "gpt-5-6-pro" }
+      }
+    }
+  ],
+  "page_info": {
+    "has_previous_page": true,
+    "start_cursor": "cursor-older"
+  }
+}

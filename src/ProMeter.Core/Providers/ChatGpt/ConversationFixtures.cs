@@ -14,11 +14,13 @@ public static class ConversationFixtures
             mapping[nodeId] = node;
         }
 
+        var current = nodes.Length == 0 ? null : ChatGptJson.GetString(nodes[^1], "id");
         return new JsonObject
         {
             ["conversation_id"] = id,
             ["update_time"] = updateTime,
             ["create_time"] = updateTime - 10,
+            ["current_node"] = current,
             ["mapping"] = mapping
         };
     }
@@ -133,6 +135,86 @@ public static class ConversationFixtures
             Node("user-1", "user", null, time - 2, requestedModel: "gpt-future-omega", children: ["asst-1"]),
             Node("asst-1", "assistant", "user-1", time - 1, requestId: "req-unknown", modelSlug: "gpt-future-omega"));
     }
+
+    public static JsonObject Gpt6Pro(string conversationId = "conv-gpt6", double time = 1_777_500_640)
+    {
+        return Conversation(
+            conversationId,
+            time,
+            Node("root", "system", null, time - 3),
+            Node("user-1", "user", "root", time - 2, requestedModel: "gpt-6-pro", children: ["asst-1"]),
+            Node("asst-1", "assistant", "user-1", time - 1, requestId: "req-gpt6", modelSlug: "gpt-6-pro"));
+    }
+
+    public static JsonObject LongConversation(string conversationId = "conv-long", double time = 1_777_500_680, int turns = 24)
+    {
+        var nodes = new List<JsonObject>
+        {
+            Node("root", "system", null, time - turns * 2 - 1)
+        };
+        var parent = "root";
+        for (var i = 1; i <= turns; i++)
+        {
+            var userId = "user-" + i;
+            var asstId = "asst-" + i;
+            nodes.Add(Node(userId, "user", parent, time - (turns - i) * 2 - 1, requestedModel: "gpt-5-6-pro", children: [asstId]));
+            nodes.Add(Node(asstId, "assistant", userId, time - (turns - i) * 2, requestId: "req-long-" + i, modelSlug: "gpt-5-6-pro"));
+            parent = asstId;
+        }
+
+        return Conversation(conversationId, time, nodes.ToArray());
+    }
+
+    public static JsonObject MissingRequestIdFragments(string conversationId = "conv-noreq-cluster", double time = 1_777_500_650)
+    {
+        return Conversation(
+            conversationId,
+            time,
+            Node("user-1", "user", null, time - 4, requestedModel: "gpt-5-6-pro", children: ["hidden"]),
+            Node("hidden", "assistant", "user-1", time - 3, modelSlug: "gpt-5-6-pro", hidden: true, endTurn: false, children: ["tool"]),
+            Node("tool", "assistant", "hidden", time - 2, modelSlug: "gpt-5-6-pro", endTurn: false, recipient: "browser", children: ["final"]),
+            Node("final", "assistant", "tool", time - 1, modelSlug: "gpt-5-6-pro"));
+    }
+
+    public static JsonObject IncompleteMapping(string conversationId = "conv-incomplete", double time = 1_777_500_660)
+    {
+        var conversation = NormalPro(conversationId, time);
+        conversation.Remove("current_node");
+        return conversation;
+    }
+
+    public static JsonObject PaginatedHead(string conversationId = "conv-paged", double time = 1_777_500_670) =>
+        new()
+        {
+            ["conversation_id"] = conversationId,
+            ["update_time"] = time,
+            ["current_node"] = "final",
+            ["messages"] = new JsonArray
+            {
+                Node("final", "assistant", "older-user", time, modelSlug: "gpt-5-6-pro", requestId: "req-page-2")
+            },
+            ["page_info"] = new JsonObject
+            {
+                ["has_previous_page"] = true,
+                ["start_cursor"] = "cursor-older"
+            }
+        };
+
+    public static JsonObject PaginatedOlder(string conversationId = "conv-paged", double time = 1_777_500_670) =>
+        new()
+        {
+            ["conversation_id"] = conversationId,
+            ["messages"] = new JsonArray
+            {
+                Node("older-user", "user", null, time - 2, requestedModel: "gpt-5-6-pro", children: ["final"]),
+                Node("older-asst", "assistant", "older-user", time - 1, requestId: "req-page-1", modelSlug: "gpt-5-6-pro")
+            },
+            ["page_info"] = new JsonObject
+            {
+                ["has_previous_page"] = false,
+                ["start_cursor"] = "cursor-start"
+            }
+        };
 
     public static JsonObject MissingRequestId(string conversationId = "conv-noreq", double time = 1_777_500_600)
     {

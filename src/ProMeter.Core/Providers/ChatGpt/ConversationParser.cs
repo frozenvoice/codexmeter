@@ -50,27 +50,12 @@ public sealed class ConversationParser
 
         if (nodes.Count == 0)
         {
+            result.SchemaMismatch = true;
             result.Diagnostics.Add("mapping contained no nodes.");
             return result;
         }
 
-        var groups = new Dictionary<string, List<ParsedNode>>(StringComparer.OrdinalIgnoreCase);
-        foreach (var node in nodes.Values)
-        {
-            if (!IsAssistantLike(node))
-            {
-                continue;
-            }
-
-            var key = UsageEvent.BuildDedupeKey(conversationId, node.RequestId, FallbackMessageKey(node));
-            if (!groups.TryGetValue(key, out var list))
-            {
-                list = [];
-                groups[key] = list;
-            }
-
-            list.Add(node);
-        }
+        var groups = GroupAssistantNodes(conversationId, nodes);
 
         var now = DateTimeOffset.UtcNow;
         foreach (var (dedupeKey, group) in groups)
@@ -121,14 +106,109 @@ public sealed class ConversationParser
                 FirstSeenAt = now,
                 LastSeenAt = now,
                 QuotaFamily = family,
-                DedupeKey = dedupeKey
+                DedupeKey = dedupeKey,
+                DedupeConfidence = string.IsNullOrWhiteSpace(representative.RequestId)
+                    ? DedupeConfidence.Heuristic
+                    : DedupeConfidence.High
             });
         }
 
         result.ConversationId = conversationId;
-        result.UpdateTime = ChatGptJson.GetDouble(conversation, "update_time", "updateTime") ?? context.UpdateTime;
+        result.UpdateTime = TimestampParser.ToUnixSeconds(conversation, "update_time", "updateTime");
+        if (result.UpdateTime <= 0)
+        {
+            result.UpdateTime = context.UpdateTime;
+        }
+
         return result;
     }
+
+    private static Dictionary<string, List<ParsedNode>> GroupAssistantNodes(
+        string conversationId,
+        IReadOnlyDictionary<string, ParsedNode> nodes)
+    {
+        var assistants = nodes.Values.Where(IsAssistantLike).ToList();
+        var groups = new Dictionary<string, List<ParsedNode>>(StringComparer.OrdinalIgnoreCase);
+        var assigned = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var node in assistants.Where(n => !string.IsNullOrWhiteSpace(n.RequestId)))
+        {
+            AddGroup(groups, "req:" + node.RequestId!.Trim(), node);
+            assigned.Add(node.Id);
+        }
+
+        var remaining = assistants.Where(n => !assigned.Contains(n.Id)).ToList();
+        foreach (var family in remaining.GroupBy(n => FindUserAncestor(nodes, n) ?? n.ParentId ?? n.Id))
+        {
+            var members = family.ToList();
+            var finals = members.Where(IsVisibleFinal).OrderBy(n => n.CreatedAt).ToList();
+            var fragments = members.Where(n => !IsVisibleFinal(n)).ToList();
+            if (finals.Count <= 1)
+            {
+                var key = "turn:" + conversationId + ":" + family.Key;
+                foreach (var node in members)
+                {
+                    AddGroup(groups, key, node);
+                }
+
+                continue;
+            }
+
+            foreach (var final in finals)
+            {
+                AddGroup(groups, "turn:" + conversationId + ":" + family.Key + ":final:" + final.Id, final);
+            }
+
+            foreach (var fragment in fragments)
+            {
+                var nearest = finals
+                    .OrderBy(final => Math.Abs((final.CreatedAt - fragment.CreatedAt)?.TotalSeconds ?? double.MaxValue))
+                    .First();
+                AddGroup(groups, "turn:" + conversationId + ":" + family.Key + ":final:" + nearest.Id, fragment);
+            }
+        }
+
+        return groups;
+    }
+
+    private static void AddGroup(IDictionary<string, List<ParsedNode>> groups, string key, ParsedNode node)
+    {
+        if (!groups.TryGetValue(key, out var list))
+        {
+            list = [];
+            groups[key] = list;
+        }
+
+        list.Add(node);
+    }
+
+    private static string? FindUserAncestor(IReadOnlyDictionary<string, ParsedNode> nodes, ParsedNode node)
+    {
+        var cursor = node.ParentId;
+        var guard = 0;
+        while (!string.IsNullOrWhiteSpace(cursor) && guard++ < 64)
+        {
+            if (!nodes.TryGetValue(cursor, out var parent))
+            {
+                return cursor;
+            }
+
+            if (string.Equals(parent.Role, "user", StringComparison.OrdinalIgnoreCase))
+            {
+                return parent.Id;
+            }
+
+            cursor = parent.ParentId;
+        }
+
+        return null;
+    }
+
+    private static bool IsVisibleFinal(ParsedNode node) =>
+        !node.Hidden
+        && node.EndTurn != false
+        && (string.IsNullOrWhiteSpace(node.Recipient)
+            || string.Equals(node.Recipient, "all", StringComparison.OrdinalIgnoreCase));
 
     public static bool DetectAlternateBranches(JsonObject mapping)
     {
@@ -149,7 +229,8 @@ public sealed class ConversationParser
         var metadata = message?["metadata"] as JsonObject;
         var author = message?["author"] as JsonObject;
         var id = ChatGptJson.GetString(node, "id") ?? ChatGptJson.GetString(message, "id") ?? fallbackId;
-        var created = UnixToDate(ChatGptJson.GetDouble(message, "create_time") ?? ChatGptJson.GetDouble(node, "create_time"));
+        var created = TimestampParser.ToDateTimeOffset(message, "create_time", "createTime")
+                      ?? TimestampParser.ToDateTimeOffset(node, "create_time", "createTime");
         var role = ChatGptJson.GetString(author, "role") ?? "";
         var requestId = ChatGptJson.GetString(metadata, "request_id", "requestId");
         var modelSlug = ChatGptJson.GetString(metadata, "model_slug", "resolved_model_slug", "default_model_slug");
@@ -178,23 +259,8 @@ public sealed class ConversationParser
         };
     }
 
-    private static bool IsAssistantLike(ParsedNode node)
-    {
-        if (!string.Equals(node.Role, "assistant", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (string.Equals(node.Recipient, "all", StringComparison.OrdinalIgnoreCase)
-            || string.IsNullOrWhiteSpace(node.Recipient))
-        {
-            return true;
-        }
-
-        // Tool-bound assistant fragments still belong to a request, but
-        // they must not create extra events when request_id is absent.
-        return !string.IsNullOrWhiteSpace(node.RequestId);
-    }
+    private static bool IsAssistantLike(ParsedNode node) =>
+        string.Equals(node.Role, "assistant", StringComparison.OrdinalIgnoreCase);
 
     private static ParsedNode? SelectRepresentative(List<ParsedNode> group)
     {
@@ -219,16 +285,6 @@ public sealed class ConversationParser
         }
 
         return null;
-    }
-
-    private static string FallbackMessageKey(ParsedNode node)
-    {
-        if (!string.IsNullOrWhiteSpace(node.MessageId))
-        {
-            return node.MessageId;
-        }
-
-        return $"{node.ParentId}:{node.CreatedAt?.ToUnixTimeSeconds()}:{node.ModelSlug}";
     }
 
     private static QuotaFamily RefineFamily(QuotaFamily family, ReasoningEffort effort, string rawSlug)
@@ -256,23 +312,6 @@ public sealed class ConversationParser
         }
 
         return family;
-    }
-
-    private static DateTimeOffset? UnixToDate(double? unix)
-    {
-        if (unix is null or <= 0)
-        {
-            return null;
-        }
-
-        try
-        {
-            return DateTimeOffset.FromUnixTimeMilliseconds((long)(unix.Value * 1000d));
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     private static string? FirstNonEmpty(params string?[] values) =>

@@ -19,6 +19,7 @@ public sealed class UsageEvent
     public DateTimeOffset LastSeenAt { get; set; }
     public QuotaFamily QuotaFamily { get; set; } = QuotaFamily.Unknown;
     public string DedupeKey { get; set; } = "";
+    public DedupeConfidence DedupeConfidence { get; set; } = DedupeConfidence.High;
 
     public static string BuildDedupeKey(string conversationId, string? requestId, string? messageId)
     {

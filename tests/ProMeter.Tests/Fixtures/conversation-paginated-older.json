@@ -1,0 +1,34 @@
+{
+  "shape": "paginated-older",
+  "conversation_id": "conv-paged",
+  "messages": [
+    {
+      "id": "older-user",
+      "parent": null,
+      "children": ["final"],
+      "message": {
+        "id": "older-user",
+        "author": { "role": "user" },
+        "create_time": 1777500668,
+        "metadata": { "default_model_slug": "gpt-5-6-pro" }
+      }
+    },
+    {
+      "id": "older-asst",
+      "parent": "older-user",
+      "message": {
+        "id": "older-asst",
+        "author": { "role": "assistant" },
+        "create_time": 1777500669,
+        "end_turn": true,
+        "recipient": "all",
+        "content": { "content_type": "text", "parts": [] },
+        "metadata": { "request_id": "req-page-1", "model_slug": "gpt-5-6-pro" }
+      }
+    }
+  ],
+  "page_info": {
+    "has_previous_page": false,
+    "start_cursor": "cursor-start"
+  }
+}

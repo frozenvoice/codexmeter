@@ -121,8 +121,8 @@ public static class AccountParser
             {
                 Id = id,
                 Title = ChatGptJson.GetString(item, "title"),
-                CreateTime = ChatGptJson.GetDouble(item, "create_time", "createTime") ?? 0,
-                UpdateTime = ChatGptJson.GetDouble(item, "update_time", "updateTime") ?? 0,
+                CreateTime = TimestampParser.ToUnixSeconds(item, "create_time", "createTime"),
+                UpdateTime = TimestampParser.ToUnixSeconds(item, "update_time", "updateTime"),
                 Archived = archived || ChatGptJson.GetBool(item, "is_archived", "archived") == true,
                 ProjectId = projectId ?? ChatGptJson.GetString(item, "gizmo_id", "project_id"),
                 Source = source
@@ -170,7 +170,7 @@ public static class AccountParser
 
     public static QuotaMetadata ParseQuotaMetadata(JsonNode? root)
     {
-        var metadata = new QuotaMetadata { RawSummary = root?.ToJsonString() };
+        var metadata = new QuotaMetadata { RawSummary = SummarizeWithoutBodies(root) };
         if (root is null)
         {
             return metadata;
@@ -179,79 +179,88 @@ public static class AccountParser
         foreach (var item in ChatGptJson.Enumerate(root["limits_progress"]))
         {
             var feature = ChatGptJson.GetString(item, "feature_name", "name") ?? "";
-            if (!LooksLikeProLimit(feature))
+            if (!IsGptProAllowanceFeature(feature))
             {
                 continue;
             }
 
-            metadata.Found = true;
-            metadata.FeatureName = feature;
-            metadata.Used = (int?)ChatGptJson.GetDouble(item, "used");
-            var remaining = ChatGptJson.GetDouble(item, "remaining");
-            var limit = ChatGptJson.GetDouble(item, "limit");
-            if (limit is not null)
-            {
-                metadata.Limit = (int)limit.Value;
-            }
-            else if (remaining is not null && metadata.Used is not null)
-            {
-                metadata.Limit = metadata.Used + (int)remaining.Value;
-            }
-
-            metadata.ResetAt = ParseReset(item);
-            metadata.IsAuthoritative = metadata.ResetAt is not null || metadata.Limit is not null;
+            ApplyMatchedQuota(metadata, feature, item);
         }
 
         foreach (var item in ChatGptJson.Enumerate(root["model_limits"]))
         {
-            if (metadata.ResetAt is null)
+            var slug = ChatGptJson.GetString(item, "slug", "model", "model_slug", "name") ?? "";
+            if (!IsGptProAllowanceFeature(slug))
             {
-                metadata.ResetAt = ParseReset(item);
-                if (metadata.ResetAt is not null)
-                {
-                    metadata.Found = true;
-                    metadata.IsAuthoritative = true;
-                }
+                continue;
             }
-        }
 
-        metadata.ResetAt ??= ParseReset(root);
-        if (metadata.ResetAt is not null)
-        {
-            metadata.Found = true;
-            metadata.IsAuthoritative = true;
+            ApplyMatchedQuota(metadata, slug, item);
         }
 
         return metadata;
     }
 
-    private static bool LooksLikeProLimit(string feature)
+    public static bool IsGptProAllowanceFeature(string feature)
     {
-        var key = feature.ToLowerInvariant();
-        return key.Contains("pro") || key.Contains("gpt-6") || key.Contains("sol");
+        var key = NormalizeFeature(feature);
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        if (key.Contains("codex") || key.Contains("deepresearch") || key.Contains("voice")
+            || key.Contains("image") || key.Contains("plus") || key.Contains("goplan"))
+        {
+            return false;
+        }
+
+        if (key is "gpt6pro" or "gpt56pro" or "gpt56solpro" or "gptproweekly" or "chatgptgpt6pro")
+        {
+            return true;
+        }
+
+        var hasPro = key.Contains("pro");
+        var hasGpt6 = key.Contains("gpt6") || key.Contains("gpt-6");
+        var has56 = key.Contains("56") || key.Contains("5-6") || key.Contains("5.6");
+        var hasSol = key.Contains("sol");
+        return hasPro && (hasGpt6 || (has56 && (hasSol || key.Contains("gpt"))));
     }
 
-    private static DateTimeOffset? ParseReset(JsonNode? node)
+    private static void ApplyMatchedQuota(QuotaMetadata metadata, string feature, JsonNode item)
     {
-        var resetAfter = ChatGptJson.GetString(node, "reset_after", "resets_after", "reset_at", "resetAt");
-        if (DateTimeOffset.TryParse(resetAfter, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed))
+        metadata.Found = true;
+        metadata.FeatureName = feature;
+        metadata.Used = (int?)ChatGptJson.GetDouble(item, "used");
+        var remaining = ChatGptJson.GetDouble(item, "remaining");
+        var limit = ChatGptJson.GetDouble(item, "limit");
+        if (limit is not null)
         {
-            return parsed;
+            metadata.Limit = (int)limit.Value;
+        }
+        else if (remaining is not null && metadata.Used is not null)
+        {
+            metadata.Limit = metadata.Used + (int)remaining.Value;
         }
 
-        var unix = ChatGptJson.GetDouble(node, "reset_at", "resets_at", "resetAfterSeconds");
-        if (unix is > 1_000_000_000)
+        metadata.ResetAt = TimestampParser.ToDateTimeOffset(item, "reset_after", "resets_after", "reset_at", "resetAt", "resets_at");
+        metadata.IsAuthoritative = metadata.Used is not null && metadata.Limit is not null && metadata.ResetAt is not null;
+        metadata.MatchesGptProAllowance = true;
+    }
+
+    private static string NormalizeFeature(string feature) =>
+        new string(feature.Trim().ToLowerInvariant().Where(ch => char.IsLetterOrDigit(ch)).ToArray());
+
+    private static string? SummarizeWithoutBodies(JsonNode? root)
+    {
+        if (root is null)
         {
-            try
-            {
-                return DateTimeOffset.FromUnixTimeSeconds((long)unix.Value);
-            }
-            catch
-            {
-                return null;
-            }
+            return null;
         }
 
-        return null;
+        var clone = root.DeepClone();
+        ConversationDetailLoader.StripBodies(clone);
+        var text = clone.ToJsonString();
+        return text.Length > 2000 ? text[..2000] : text;
     }
 }

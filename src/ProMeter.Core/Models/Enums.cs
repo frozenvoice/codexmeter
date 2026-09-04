@@ -59,6 +59,12 @@ public enum CoverageConfidence
     Incomplete
 }
 
+public enum DedupeConfidence
+{
+    High,
+    Heuristic
+}
+
 public enum TrayIconStyle
 {
     RemainingNumber,

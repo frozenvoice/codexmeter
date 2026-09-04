@@ -18,7 +18,10 @@ public class FixtureCasesTests
             ("project conversation", ConversationFixtures.ProjectConversation(), 1),
             ("archived conversation", ConversationFixtures.ArchivedConversation(), 1),
             ("unknown model", ConversationFixtures.UnknownModel(), 1),
-            ("missing request_id", ConversationFixtures.MissingRequestId(), 1)
+            ("missing request_id", ConversationFixtures.MissingRequestId(), 1),
+            ("missing request_id fragments", ConversationFixtures.MissingRequestIdFragments(), 1),
+            ("gpt-6 pro", ConversationFixtures.Gpt6Pro(), 1),
+            ("long conversation", ConversationFixtures.LongConversation(), 24)
         };
 
         foreach (var (name, node, expected) in cases)

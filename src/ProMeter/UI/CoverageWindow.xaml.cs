@@ -10,6 +10,12 @@ public partial class CoverageWindow : Window
         ArchivedText.Text = $"Archived chats     {(coverage.ArchivedChats ? "✓" : "—")}";
         ProjectsText.Text = $"Projects           {(coverage.Projects ? "✓" : "—")}";
         ResetText.Text = $"Reset time         {(coverage.ResetTimeAuthoritative ? "server" : "estimated")}";
+        CountConfidenceText.Text = $"Count confidence   {coverage.CountConfidence}";
+        ResetConfidenceText.Text = $"Reset confidence   {coverage.ResetConfidence}";
+        BranchesText.Text = $"Branches included  {(coverage.BranchesIncluded ? "yes" : "unknown")}";
+        IncompleteText.Text = coverage.IndexIncomplete || coverage.ConversationIncomplete || coverage.FailedConversations > 0
+            ? $"Incomplete         index={coverage.IndexIncomplete} conversations={coverage.FailedConversations}"
+            : "Incomplete         no";
         NotesText.Text = coverage.Notes ?? "Temporary and deleted chats cannot be reconstructed from account history.";
     }
 

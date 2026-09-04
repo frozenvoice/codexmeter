@@ -128,11 +128,6 @@ public partial class App : Application
             _settings.ApplyPreset(welcome.SelectedPreset);
             _settingsStore.Save(_settings);
         }
-        else
-        {
-            _settings.FirstRunCompleted = true;
-            _settingsStore.Save(_settings);
-        }
     }
 
     private async Task<SyncOutcome> SyncAsync(bool force)
@@ -267,7 +262,10 @@ public partial class App : Application
         }
 
         var json = File.ReadAllText(dialog.FileName);
-        var (start, _) = QuotaPeriodCalculator.CurrentPeriod(_settings, DateTimeOffset.Now, _sync.LastQuotaMetadata?.ResetAt);
+        var importReset = _sync.LastQuotaMetadata is { MatchesGptProAllowance: true, ResetAt: not null }
+            ? _sync.LastQuotaMetadata.ResetAt
+            : null;
+        var (start, _) = QuotaPeriodCalculator.CurrentPeriod(_settings, DateTimeOffset.Now, importReset);
         var imported = _importer.Import(json, _settings.ImportHistoricalStatistics, start);
         if (imported.Error is not null)
         {

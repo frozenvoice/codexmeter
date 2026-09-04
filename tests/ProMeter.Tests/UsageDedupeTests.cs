@@ -45,4 +45,20 @@ public class UsageDedupeTests
         Assert.Single(result.Events);
         Assert.Equal("req-tool", result.Events[0].RequestId);
     }
+
+    [Fact]
+    public void HiddenReasoningToolAndFinal_WithoutRequestId_CountOnce()
+    {
+        var parser = new ConversationParser(new ModelNormalizer());
+        var result = parser.Parse(ConversationFixtures.MissingRequestIdFragments(), new ConversationParseContext
+        {
+            ConversationId = "conv-noreq-cluster"
+        });
+
+        Assert.False(result.SchemaMismatch);
+        Assert.Single(result.Events);
+        Assert.Equal(DedupeConfidence.Heuristic, result.Events[0].DedupeConfidence);
+        Assert.StartsWith("turn:", result.Events[0].DedupeKey);
+        Assert.Equal("final", result.Events[0].MessageId);
+    }
 }

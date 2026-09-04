@@ -35,6 +35,21 @@
                 <TextBlock Text="Remaining" Foreground="{StaticResource MutedBrush}"/>
                 <TextBlock x:Name="RemainingText" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{StaticResource TextBrush}"/>
             </DockPanel>
+            <TextBlock x:Name="CountSourceText" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,4,0,0"/>
+            <StackPanel x:Name="Pro200Panel" Visibility="Collapsed" Margin="0,8,0,0">
+                <DockPanel>
+                    <TextBlock Text="GPT-6 Pro week" Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock x:Name="Gpt6WeekText" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+                </DockPanel>
+                <DockPanel Margin="0,4,0,0">
+                    <TextBlock Text="Sol Pro daily" Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock x:Name="SolDailyText" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+                </DockPanel>
+                <DockPanel Margin="0,4,0,0">
+                    <TextBlock Text="Combined daily" Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock x:Name="CombinedDailyText" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
+                </DockPanel>
+            </StackPanel>
             <ItemsControl x:Name="ModelRows" Margin="0,8,0,0"/>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="SOL REASONING"/>

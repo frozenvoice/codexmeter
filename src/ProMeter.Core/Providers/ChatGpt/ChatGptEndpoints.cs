@@ -16,12 +16,26 @@ public static class ChatGptEndpoints
     public const string Models = "/backend-api/models";
     public const string Conversations = "/backend-api/conversations";
     public const string Conversation = "/backend-api/conversation/{id}";
+    public const string ConversationsPlural = "/backend-api/conversations/{id}";
+    public const string ConversationMessages = "/backend-api/conversations/{id}/messages";
     public const string ConversationInit = "/backend-api/conversation/init";
     public const string ProjectsSidebar = "/backend-api/gizmos/snorlax/sidebar";
     public const string ProjectConversations = "/backend-api/gizmos/{id}/conversations";
 
     public static string ConversationById(string id) =>
         Conversation.Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal);
+
+    public static string ConversationFull(string id) =>
+        ConversationById(id) + "?include_full_conversation=true";
+
+    public static string ConversationTurns(string id) =>
+        ConversationsPlural.Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal)
+        + "?include_has_versions=true&num_turns=100";
+
+    public static string ConversationOlderMessages(string id, string cursor) =>
+        ConversationMessages.Replace("{id}", Uri.EscapeDataString(id), StringComparison.Ordinal)
+        + "?before=" + Uri.EscapeDataString(cursor)
+        + "&include_has_versions=true&num_turns=100";
 
     public static string ProjectConversationsById(string id, string? cursor = null)
     {
@@ -34,6 +48,9 @@ public static class ChatGptEndpoints
     public static string ConversationsPage(int offset, int limit, bool archived) =>
         $"{Conversations}?offset={offset}&limit={limit}&order=updated&is_archived={archived.ToString().ToLowerInvariant()}";
 
-    public static string ProjectsSidebarQuery() =>
-        $"{ProjectsSidebar}?conversations_per_gizmo=0&owned_only=true";
+    public static string ProjectsSidebarQuery(string? cursor = null)
+    {
+        var path = $"{ProjectsSidebar}?conversations_per_gizmo=0&owned_only=true";
+        return string.IsNullOrWhiteSpace(cursor) ? path : path + "&cursor=" + Uri.EscapeDataString(cursor);
+    }
 }

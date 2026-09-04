@@ -19,6 +19,24 @@ public partial class FlyoutWindow : Window
         StatusText.Text = DisplayFormatting.StatusLabel(snapshot.Status);
         ProCountText.Text = $"{snapshot.Used} / {snapshot.Limit}";
         RemainingText.Text = snapshot.Remaining.ToString(CultureInfo.InvariantCulture);
+        CountSourceText.Text = snapshot.UsesServerCount
+            ? $"Server count · reconstructed {snapshot.ReconstructedUsed}"
+            : snapshot.Coverage.CountConfidence == CoverageConfidence.HighConfidence
+                ? "Reconstructed · high confidence"
+                : "Reconstructed · estimated";
+        var showPro200 = snapshot.SolProDailyLimit is not null || snapshot.CombinedDailyLimit is not null;
+        Pro200Panel.Visibility = showPro200 ? Visibility.Visible : Visibility.Collapsed;
+        if (showPro200)
+        {
+            Gpt6WeekText.Text = $"{snapshot.Gpt6WeeklyUsed} / {snapshot.Limit}  remaining {Math.Max(0, snapshot.Limit - snapshot.Gpt6WeeklyUsed)}";
+            SolDailyText.Text = snapshot.SolProDailyLimit is int sol
+                ? $"{snapshot.TodaySolPro} / {sol}  remaining {snapshot.SolProDailyRemaining}"
+                : "—";
+            CombinedDailyText.Text = snapshot.CombinedDailyLimit is int combined
+                ? $"{snapshot.CombinedToday} / {combined}  remaining {snapshot.CombinedDailyRemaining}"
+                : "—";
+        }
+
         ResetText.Text = DisplayFormatting.ResetLabel(snapshot);
         SyncText.Text = DisplayFormatting.LastSyncLabel(snapshot.LastSync);
         CoverageText.Text = $"{snapshot.Coverage.ApproximatePercent}% / {snapshot.Coverage.SummaryLabel}";
@@ -54,9 +72,15 @@ public partial class FlyoutWindow : Window
     public void PlaceNearTaskbar()
     {
         UpdateLayout();
-        var work = SystemParameters.WorkArea;
-        Left = work.Right - Width - 12;
-        Top = work.Bottom - ActualHeight - 12;
+        var cursor = System.Windows.Forms.Control.MousePosition;
+        var screen = System.Windows.Forms.Screen.FromPoint(cursor);
+        var area = screen.WorkingArea;
+        var source = PresentationSource.FromVisual(this);
+        var fromDevice = source?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+        var topLeft = fromDevice.Transform(new System.Windows.Point(area.Left, area.Top));
+        var bottomRight = fromDevice.Transform(new System.Windows.Point(area.Right, area.Bottom));
+        Left = Math.Max(topLeft.X + 8, bottomRight.X - Width - 12);
+        Top = Math.Max(topLeft.Y + 8, bottomRight.Y - ActualHeight - 12);
     }
 
     private void OnDeactivated(object sender, EventArgs e)

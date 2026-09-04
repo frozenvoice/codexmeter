@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
+using System.Runtime.InteropServices;
 using ProMeter.Models;
 using DrawingColor = System.Drawing.Color;
 using Font = System.Drawing.Font;
@@ -47,8 +48,19 @@ public static class TrayIconRenderer
         }
 
         var handle = bitmap.GetHicon();
-        return Icon.FromHandle(handle);
+        try
+        {
+            using var fromHandle = Icon.FromHandle(handle);
+            return (Icon)fromHandle.Clone();
+        }
+        finally
+        {
+            DestroyIcon(handle);
+        }
     }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 
     private static void DrawNumber(Graphics graphics, int remaining, int size, DrawingColor color)
     {

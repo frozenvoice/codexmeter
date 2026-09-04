@@ -1,0 +1,42 @@
+name: Windows
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build ProMeter.sln -c Release
+
+      - name: Test
+        run: dotnet test ProMeter.sln -c Release --no-build
+
+      - name: Publish win-x64
+        run: >
+          dotnet publish src/ProMeter/ProMeter.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish/win-x64
+
+      - name: Upload published folder
+        uses: actions/upload-artifact@v4
+        with:
+          name: prometer-win-x64
+          path: publish/win-x64

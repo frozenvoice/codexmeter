@@ -3,6 +3,7 @@ namespace ProMeter.Providers.ChatGpt;
 public sealed class ChatGptProvider : IChatGptProvider
 {
     private readonly IChatGptTransport _transport;
+    private readonly ConversationDetailLoader _loader = new();
 
     public ChatGptProvider(IChatGptTransport transport)
     {
@@ -41,53 +42,96 @@ public sealed class ChatGptProvider : IChatGptProvider
         return AccountParser.ParseModels(root);
     }
 
-    public Task<IReadOnlyList<ConversationIndexItem>> GetConversationIndexAsync(bool archived, double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
+    public Task<ConversationIndexResult> GetConversationIndexAsync(bool archived, double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
         FetchIndexAsync(archived, minUpdateTime, cancellationToken);
 
-    public Task<IReadOnlyList<ConversationIndexItem>> GetArchivedConversationIndexAsync(double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
+    public Task<ConversationIndexResult> GetArchivedConversationIndexAsync(double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
         FetchIndexAsync(true, minUpdateTime, cancellationToken);
 
-    public async Task<IReadOnlyList<ProjectInfo>> GetProjectsAsync(CancellationToken cancellationToken = default)
+    public async Task<ProjectListResult> GetProjectsAsync(CancellationToken cancellationToken = default)
     {
-        var root = await GetJsonAsync("GET", ChatGptEndpoints.ProjectsSidebarQuery(), cancellationToken: cancellationToken);
-        return AccountParser.ParseProjects(root);
+        var projects = new List<ProjectInfo>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        string? cursor = null;
+        var pages = 0;
+        var incomplete = false;
+        while (pages < ConversationIndexPager.MaxPages)
+        {
+            var root = await GetJsonAsync("GET", ChatGptEndpoints.ProjectsSidebarQuery(cursor), cancellationToken: cancellationToken);
+            var page = AccountParser.ParseProjects(root);
+            projects.AddRange(page);
+            pages++;
+            var info = ConversationIndexPager.ReadCursor(root);
+            if (!ConversationIndexPager.ShouldFetchNextCursor(cursor, info, seen))
+            {
+                if (info.HasMore == true && (string.IsNullOrWhiteSpace(info.NextCursor) || info.NextCursor == cursor))
+                {
+                    incomplete = true;
+                }
+
+                break;
+            }
+
+            cursor = info.NextCursor;
+        }
+
+        if (pages >= ConversationIndexPager.MaxPages)
+        {
+            incomplete = true;
+        }
+
+        return new ProjectListResult { Projects = projects, Incomplete = incomplete, Pages = pages };
     }
 
-    public async Task<IReadOnlyList<ConversationIndexItem>> GetProjectConversationsAsync(string projectId, double? minUpdateTime = null, CancellationToken cancellationToken = default)
+    public async Task<ConversationIndexResult> GetProjectConversationsAsync(string projectId, double? minUpdateTime = null, CancellationToken cancellationToken = default)
     {
         var items = new List<ConversationIndexItem>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         string? cursor = "0";
         var pages = 0;
-        while (!string.IsNullOrWhiteSpace(cursor) && pages < 50)
+        var incomplete = false;
+        var cutoff = false;
+        seen.Add("0");
+        while (pages < ConversationIndexPager.MaxPages)
         {
             var root = await GetJsonAsync("GET", ChatGptEndpoints.ProjectConversationsById(projectId, cursor), cancellationToken: cancellationToken);
             var page = AccountParser.ParseConversationIndex(root, archived: false, projectId, "project");
-            var stop = false;
             foreach (var item in page)
             {
                 if (minUpdateTime is double min && item.UpdateTime > 0 && item.UpdateTime < min)
                 {
-                    stop = true;
+                    cutoff = true;
                     break;
                 }
 
                 items.Add(item);
             }
 
-            if (stop || page.Count == 0 || ChatGptJson.GetBool(root, "has_more") != true)
+            pages++;
+            var info = ConversationIndexPager.ReadCursor(root);
+            if (cutoff || !ConversationIndexPager.ShouldFetchNextCursor(cursor, info, seen))
             {
+                if (!cutoff && info.HasMore == true && (string.IsNullOrWhiteSpace(info.NextCursor) || info.NextCursor == cursor))
+                {
+                    incomplete = true;
+                }
+
                 break;
             }
 
-            cursor = ChatGptJson.GetString(root, "next_cursor", "cursor");
-            pages++;
+            cursor = info.NextCursor;
         }
 
-        return items;
+        if (!cutoff && pages >= ConversationIndexPager.MaxPages)
+        {
+            incomplete = true;
+        }
+
+        return new ConversationIndexResult { Items = items, ReachedCutoff = cutoff, Incomplete = incomplete, Pages = pages };
     }
 
-    public async Task<JsonNode?> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default) =>
-        await GetJsonAsync("GET", ChatGptEndpoints.ConversationById(conversationId), cancellationToken: cancellationToken);
+    public Task<ConversationLoadResult> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default) =>
+        _loader.LoadAsync(_transport, conversationId, GetJsonAsync, cancellationToken);
 
     public async Task<QuotaMetadata> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default)
     {
@@ -124,41 +168,56 @@ public sealed class ChatGptProvider : IChatGptProvider
         return new QuotaMetadata();
     }
 
-    private async Task<IReadOnlyList<ConversationIndexItem>> FetchIndexAsync(bool archived, double? minUpdateTime, CancellationToken cancellationToken)
+    public async Task<ConversationIndexResult> FetchIndexAsync(bool archived, double? minUpdateTime, CancellationToken cancellationToken)
     {
         var items = new List<ConversationIndexItem>();
         var offset = 0;
-        const int limit = 100;
-        for (var page = 0; page < 40; page++)
+        var seenNext = new HashSet<int>();
+        var pages = 0;
+        var incomplete = false;
+        var cutoff = false;
+        while (pages < ConversationIndexPager.MaxPages)
         {
-            var root = await GetJsonAsync("GET", ChatGptEndpoints.ConversationsPage(offset, limit, archived), cancellationToken: cancellationToken);
+            var root = await GetJsonAsync("GET", ChatGptEndpoints.ConversationsPage(offset, ConversationIndexPager.RequestedLimit, archived), cancellationToken: cancellationToken);
             var pageItems = AccountParser.ParseConversationIndex(root, archived, source: archived ? "archived" : "chat");
-            if (pageItems.Count == 0)
-            {
-                break;
-            }
-
-            var stop = false;
             foreach (var item in pageItems)
             {
                 if (minUpdateTime is double min && item.UpdateTime > 0 && item.UpdateTime < min)
                 {
-                    stop = true;
+                    cutoff = true;
                     break;
                 }
 
                 items.Add(item);
             }
 
-            if (stop || pageItems.Count < limit)
+            var info = ConversationIndexPager.ReadPage(root, offset, ConversationIndexPager.RequestedLimit, pageItems.Count, cutoff);
+            pages++;
+            if (!ConversationIndexPager.ShouldFetchNext(info, offset, seenNext))
             {
+                if (!cutoff && info.HasMore == true && (info.NextOffset is null || info.NextOffset <= offset))
+                {
+                    incomplete = true;
+                }
+
                 break;
             }
 
-            offset += limit;
+            offset = info.NextOffset ?? (offset + Math.Max(pageItems.Count, 1));
         }
 
-        return items;
+        if (!cutoff && pages >= ConversationIndexPager.MaxPages)
+        {
+            incomplete = true;
+        }
+
+        return new ConversationIndexResult
+        {
+            Items = items,
+            ReachedCutoff = cutoff,
+            Incomplete = incomplete,
+            Pages = pages
+        };
     }
 
     private async Task<JsonNode?> GetJsonAsync(string method, string path, string? body = null, CancellationToken cancellationToken = default)

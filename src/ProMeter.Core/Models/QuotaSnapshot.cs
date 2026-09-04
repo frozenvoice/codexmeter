@@ -19,6 +19,13 @@ public sealed class QuotaSnapshot
     public int TodayPro { get; set; }
     public int TodaySolPro { get; set; }
     public int CombinedToday { get; set; }
+    public int Gpt6WeeklyUsed { get; set; }
+    public int ReconstructedUsed { get; set; }
+    public bool UsesServerCount { get; set; }
+    public int? SolProDailyLimit { get; set; }
+    public int? CombinedDailyLimit { get; set; }
+    public int SolProDailyRemaining => SolProDailyLimit is int limit ? Math.Max(0, limit - TodaySolPro) : 0;
+    public int CombinedDailyRemaining => CombinedDailyLimit is int limit ? Math.Max(0, limit - CombinedToday) : 0;
 }
 
 public sealed class ModelCount

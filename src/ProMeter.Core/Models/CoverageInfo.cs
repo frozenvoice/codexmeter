@@ -9,29 +9,24 @@ public sealed class CoverageInfo
     public bool DeletedChats { get; set; }
     public bool ResetTimeAuthoritative { get; set; }
     public bool QuotaMetadataAuthoritative { get; set; }
-    public bool BranchesIncluded { get; set; } = true;
+    public bool BranchesIncluded { get; set; }
+    public bool IndexIncomplete { get; set; }
+    public bool ConversationIncomplete { get; set; }
+    public int FailedConversations { get; set; }
     public string? Notes { get; set; }
+    public CoverageConfidence CountConfidence { get; set; } = CoverageConfidence.Estimated;
+    public CoverageConfidence ResetConfidence { get; set; } = CoverageConfidence.Estimated;
 
     public CoverageConfidence Confidence
     {
         get
         {
-            if (QuotaMetadataAuthoritative && ResetTimeAuthoritative && NormalChats && ArchivedChats && Projects)
+            if (IndexIncomplete || ConversationIncomplete || FailedConversations > 0)
             {
-                return CoverageConfidence.Authoritative;
+                return CoverageConfidence.Incomplete;
             }
 
-            if (NormalChats && (ArchivedChats || Projects))
-            {
-                return CoverageConfidence.HighConfidence;
-            }
-
-            if (NormalChats)
-            {
-                return CoverageConfidence.Estimated;
-            }
-
-            return CoverageConfidence.Incomplete;
+            return CountConfidence;
         }
     }
 
@@ -48,12 +43,14 @@ public sealed class CoverageInfo
         get
         {
             var score = 0;
-            if (NormalChats) score += 55;
+            if (NormalChats) score += 50;
             if (ArchivedChats) score += 15;
             if (Projects) score += 15;
             if (ResetTimeAuthoritative) score += 10;
-            if (QuotaMetadataAuthoritative) score += 5;
-            return Math.Min(100, score);
+            if (QuotaMetadataAuthoritative) score += 10;
+            if (IndexIncomplete || ConversationIncomplete) score -= 25;
+            if (FailedConversations > 0) score -= 10;
+            return Math.Clamp(score, 0, 100);
         }
     }
 }

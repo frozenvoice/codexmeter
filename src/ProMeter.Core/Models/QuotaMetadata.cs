@@ -9,4 +9,5 @@ public sealed class QuotaMetadata
     public string? FeatureName { get; set; }
     public string? RawSummary { get; set; }
     public bool IsAuthoritative { get; set; }
+    public bool MatchesGptProAllowance { get; set; }
 }

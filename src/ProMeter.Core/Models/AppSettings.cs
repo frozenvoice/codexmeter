@@ -38,6 +38,11 @@ public sealed class AppSettings
     public int LastNotifiedRemainingBucket { get; set; } = int.MaxValue;
     public bool LastNotifiedExhausted { get; set; }
     public string? LastResetNotifiedPeriod { get; set; }
+    public string LastNotifiedDailyKey { get; set; } = "";
+    public int LastNotifiedSolDailyBucket { get; set; } = int.MaxValue;
+    public bool LastNotifiedSolDailyExhausted { get; set; }
+    public int LastNotifiedCombinedDailyBucket { get; set; } = int.MaxValue;
+    public bool LastNotifiedCombinedDailyExhausted { get; set; }
 
     public static AppSettings CreateDefaults() => new();
 

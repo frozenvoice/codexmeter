@@ -12,7 +12,8 @@ public sealed class QuotaEngine
         AppSyncStatus status,
         string? statusDetail = null)
     {
-        var serverReset = serverQuota is { IsAuthoritative: true, ResetAt: not null } ? serverQuota.ResetAt : null;
+        var matched = serverQuota is { MatchesGptProAllowance: true };
+        var serverReset = matched && serverQuota?.ResetAt is not null ? serverQuota.ResetAt : null;
         var (start, end) = QuotaPeriodCalculator.CurrentPeriod(settings, now, serverReset);
         var todayStart = QuotaPeriodCalculator.LocalDayStart(now, settings);
         var periodEvents = events.Where(e => QuotaPeriodCalculator.InRange(e.CreatedAt, start, end)).ToList();
@@ -20,14 +21,35 @@ public sealed class QuotaEngine
         var proEvents = periodEvents.Where(e => e.QuotaFamily == QuotaFamily.GptPro).ToList();
         var reasoning = periodEvents.Where(e => e.QuotaFamily == QuotaFamily.SolReasoning).ToList();
         var todayReasoning = todayEvents.Where(e => e.QuotaFamily == QuotaFamily.SolReasoning).ToList();
+        var reconstructed = proEvents.Count;
+        var gpt6Weekly = proEvents.Count(IsGpt6Pro);
+        var todaySol = todayEvents.Count(IsSolPro);
+        var combinedToday = todayEvents.Count(e => e.QuotaFamily == QuotaFamily.GptPro);
+        var useServerCount = matched
+            && serverQuota?.Used is not null
+            && serverQuota.Limit is not null
+            && serverQuota.ResetAt is not null;
 
         coverage.ResetTimeAuthoritative = serverReset is not null;
-        coverage.QuotaMetadataAuthoritative = serverQuota?.IsAuthoritative == true;
+        coverage.QuotaMetadataAuthoritative = useServerCount;
+        coverage.CountConfidence = useServerCount
+            ? CoverageConfidence.Authoritative
+            : coverage is { NormalChats: true, IndexIncomplete: false, ConversationIncomplete: false, FailedConversations: 0 }
+                ? CoverageConfidence.HighConfidence
+                : CoverageConfidence.Estimated;
+        coverage.ResetConfidence = serverReset is not null
+            ? CoverageConfidence.Authoritative
+            : CoverageConfidence.Estimated;
+        coverage.TemporaryChats = false;
+        coverage.DeletedChats = false;
+
+        var used = useServerCount ? serverQuota!.Used!.Value : settings.PlanPreset == SubscriptionPreset.Pro200 ? gpt6Weekly : reconstructed;
+        var limit = useServerCount ? serverQuota!.Limit!.Value : Math.Max(1, settings.WeeklyProQuota);
 
         return new QuotaSnapshot
         {
-            Used = proEvents.Count,
-            Limit = Math.Max(1, settings.WeeklyProQuota),
+            Used = used,
+            Limit = limit,
             ModelBreakdown = proEvents
                 .GroupBy(e => e.NormalizedModel)
                 .Select(g => new ModelCount
@@ -41,14 +63,19 @@ public sealed class QuotaEngine
             PeriodStart = start,
             PeriodEnd = end,
             ResetAt = end,
-            ResetEstimated = serverReset is null,
+            ResetEstimated = coverage.ResetConfidence != CoverageConfidence.Authoritative,
             LastSync = lastSync,
             Status = status,
             StatusDetail = statusDetail,
             Coverage = coverage,
             TodayPro = todayEvents.Count(e => e.QuotaFamily == QuotaFamily.GptPro),
-            TodaySolPro = todayEvents.Count(IsSolPro),
-            CombinedToday = todayEvents.Count(e => e.QuotaFamily == QuotaFamily.GptPro),
+            TodaySolPro = todaySol,
+            CombinedToday = combinedToday,
+            Gpt6WeeklyUsed = gpt6Weekly,
+            ReconstructedUsed = reconstructed,
+            UsesServerCount = useServerCount,
+            SolProDailyLimit = settings.SolProDailyQuota,
+            CombinedDailyLimit = settings.CombinedDailyQuota,
             Reasoning = new ReasoningStats
             {
                 Today = todayReasoning.Count,
@@ -83,7 +110,30 @@ public sealed class QuotaEngine
         return days;
     }
 
-    private static bool IsSolPro(UsageEvent e) =>
-        e.QuotaFamily == QuotaFamily.GptPro
-        && e.NormalizedModel.Contains("5.6", StringComparison.OrdinalIgnoreCase);
+    public static bool IsSolPro(UsageEvent e)
+    {
+        if (e.QuotaFamily != QuotaFamily.GptPro)
+        {
+            return false;
+        }
+
+        return ContainsAny(e.NormalizedModel, "5.6", "5-6", "sol pro")
+               || ContainsAny(e.RawModel, "5-6-pro", "5.6-pro", "sol-pro");
+    }
+
+    public static bool IsGpt6Pro(UsageEvent e)
+    {
+        if (e.QuotaFamily != QuotaFamily.GptPro || IsSolPro(e))
+        {
+            return false;
+        }
+
+        var slug = ModelNormalizer.NormalizeSlug(e.RawModel);
+        return ContainsAny(e.NormalizedModel, "gpt-6", "gpt 6")
+               || slug.StartsWith("gpt-6", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsAny(string? value, params string[] needles) =>
+        !string.IsNullOrWhiteSpace(value)
+        && needles.Any(needle => value.Contains(needle, StringComparison.OrdinalIgnoreCase));
 }

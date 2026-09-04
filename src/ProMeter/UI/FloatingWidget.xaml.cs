@@ -16,7 +16,6 @@ public partial class FloatingWidget : Window
     public void Bind(QuotaSnapshot snapshot)
     {
         Label.Text = $"Pro {snapshot.Used}/{snapshot.Limit} | XH {snapshot.Reasoning.ExtraHigh}";
-        Opacity = 0.92;
     }
 
     public void Apply(AppSettings settings)

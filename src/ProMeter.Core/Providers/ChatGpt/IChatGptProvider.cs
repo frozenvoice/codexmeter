@@ -4,11 +4,11 @@ public interface IChatGptProvider
 {
     Task<AccountStatus> GetAccountStatusAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ModelCatalogEntry>> GetModelCatalogAsync(CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ConversationIndexItem>> GetConversationIndexAsync(bool archived, double? minUpdateTime = null, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ConversationIndexItem>> GetArchivedConversationIndexAsync(double? minUpdateTime = null, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ProjectInfo>> GetProjectsAsync(CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ConversationIndexItem>> GetProjectConversationsAsync(string projectId, double? minUpdateTime = null, CancellationToken cancellationToken = default);
-    Task<JsonNode?> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default);
+    Task<ConversationIndexResult> GetConversationIndexAsync(bool archived, double? minUpdateTime = null, CancellationToken cancellationToken = default);
+    Task<ConversationIndexResult> GetArchivedConversationIndexAsync(double? minUpdateTime = null, CancellationToken cancellationToken = default);
+    Task<ProjectListResult> GetProjectsAsync(CancellationToken cancellationToken = default);
+    Task<ConversationIndexResult> GetProjectConversationsAsync(string projectId, double? minUpdateTime = null, CancellationToken cancellationToken = default);
+    Task<ConversationLoadResult> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default);
     Task<QuotaMetadata> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default);
 }
 

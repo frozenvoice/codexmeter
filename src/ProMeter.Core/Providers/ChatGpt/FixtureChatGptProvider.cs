@@ -4,11 +4,15 @@ public sealed class FixtureChatGptProvider : IChatGptProvider
 {
     private readonly List<ConversationIndexItem> _index = [];
     private readonly Dictionary<string, JsonNode> _bodies = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ConversationLoadResult> _loadResults = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ProjectInfo> _projects = [];
     private readonly Dictionary<string, List<ConversationIndexItem>> _projectConversations = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<ModelCatalogEntry> _catalog = [];
     private readonly AccountStatus _account;
     private readonly QuotaMetadata _quota;
+
+    public bool IndexIncomplete { get; set; }
+    public Func<string, ConversationLoadResult>? LoadOverride { get; set; }
 
     public FixtureChatGptProvider(
         AccountStatus? account = null,
@@ -27,6 +31,18 @@ public sealed class FixtureChatGptProvider : IChatGptProvider
     {
         _index.Add(item);
         _bodies[item.Id] = body;
+        _loadResults[item.Id] = ConversationDetailLoader.FromFixture(body);
+    }
+
+    public void AddConversation(ConversationIndexItem item, ConversationLoadResult result)
+    {
+        _index.Add(item);
+        if (result.Conversation is not null)
+        {
+            _bodies[item.Id] = result.Conversation;
+        }
+
+        _loadResults[item.Id] = result;
     }
 
     public void AddProject(ProjectInfo project, IEnumerable<(ConversationIndexItem Item, JsonNode Body)> conversations)
@@ -39,6 +55,7 @@ public sealed class FixtureChatGptProvider : IChatGptProvider
             item.Source = "project";
             list.Add(item);
             _bodies[item.Id] = body;
+            _loadResults[item.Id] = ConversationDetailLoader.FromFixture(body);
         }
 
         _projectConversations[project.Id] = list;
@@ -50,34 +67,41 @@ public sealed class FixtureChatGptProvider : IChatGptProvider
     public Task<IReadOnlyList<ModelCatalogEntry>> GetModelCatalogAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<ModelCatalogEntry>>(_catalog);
 
-    public Task<IReadOnlyList<ConversationIndexItem>> GetConversationIndexAsync(bool archived, double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<ConversationIndexItem>>(Filter(_index.Where(i => i.Archived == archived), minUpdateTime));
+    public Task<ConversationIndexResult> GetConversationIndexAsync(bool archived, double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(ToIndex(Filter(_index.Where(i => i.Archived == archived), minUpdateTime)));
 
-    public Task<IReadOnlyList<ConversationIndexItem>> GetArchivedConversationIndexAsync(double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
+    public Task<ConversationIndexResult> GetArchivedConversationIndexAsync(double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
         GetConversationIndexAsync(true, minUpdateTime, cancellationToken);
 
-    public Task<IReadOnlyList<ProjectInfo>> GetProjectsAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<ProjectInfo>>(_projects);
+    public Task<ProjectListResult> GetProjectsAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ProjectListResult { Projects = _projects, Incomplete = IndexIncomplete });
 
-    public Task<IReadOnlyList<ConversationIndexItem>> GetProjectConversationsAsync(string projectId, double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<ConversationIndexItem>>(
+    public Task<ConversationIndexResult> GetProjectConversationsAsync(string projectId, double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(ToIndex(
             _projectConversations.TryGetValue(projectId, out var items)
                 ? Filter(items, minUpdateTime)
-                : []);
+                : []));
 
-    public Task<JsonNode?> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default) =>
-        Task.FromResult(_bodies.TryGetValue(conversationId, out var body) ? body : null);
+    public Task<ConversationLoadResult> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default)
+    {
+        if (LoadOverride is not null)
+        {
+            return Task.FromResult(LoadOverride(conversationId));
+        }
+
+        if (_loadResults.TryGetValue(conversationId, out var result))
+        {
+            return Task.FromResult(result);
+        }
+
+        return Task.FromResult(ConversationDetailLoader.FromFixture(null));
+    }
 
     public Task<QuotaMetadata> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult(_quota);
 
-    public int BodyFetchCount { get; private set; }
-
-    public Task<JsonNode?> TrackedGetConversationMessagesAsync(string conversationId)
-    {
-        BodyFetchCount++;
-        return GetConversationMessagesAsync(conversationId);
-    }
+    private ConversationIndexResult ToIndex(IReadOnlyList<ConversationIndexItem> items) =>
+        new() { Items = items, Incomplete = IndexIncomplete };
 
     private static List<ConversationIndexItem> Filter(IEnumerable<ConversationIndexItem> items, double? minUpdateTime)
     {

@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Toolkit.Uwp.Notifications;
 using ProMeter.Models;
 
@@ -29,22 +30,57 @@ public sealed class ToastNotificationService
             settings.LastNotifiedExhausted = false;
         }
 
-        var remainingPercent = snapshot.Limit <= 0 ? 100 : snapshot.Remaining * 100.0 / snapshot.Limit;
-        if (snapshot.Remaining <= 0 && settings.NotifyExhausted && !settings.LastNotifiedExhausted)
+        NotifyLimit(
+            remaining: snapshot.Remaining,
+            limit: snapshot.Limit,
+            settings: settings,
+            getBucket: () => settings.LastNotifiedRemainingBucket,
+            setBucket: value => settings.LastNotifiedRemainingBucket = value,
+            getExhausted: () => settings.LastNotifiedExhausted,
+            setExhausted: value => settings.LastNotifiedExhausted = value,
+            exhausted: "GPT Pro quota is exhausted.",
+            at10: "10% of GPT Pro quota remaining.",
+            at20: "20% of GPT Pro quota remaining.");
+
+        var dayKey = snapshot.PeriodStart.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                     + ":" + DateTimeOffset.Now.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (!string.Equals(settings.LastNotifiedDailyKey, dayKey, StringComparison.Ordinal))
         {
-            Show("ProMeter", "GPT Pro quota is exhausted.");
-            settings.LastNotifiedExhausted = true;
-            settings.LastNotifiedRemainingBucket = 0;
+            settings.LastNotifiedDailyKey = dayKey;
+            settings.LastNotifiedSolDailyBucket = int.MaxValue;
+            settings.LastNotifiedSolDailyExhausted = false;
+            settings.LastNotifiedCombinedDailyBucket = int.MaxValue;
+            settings.LastNotifiedCombinedDailyExhausted = false;
         }
-        else if (remainingPercent <= 10 && settings.NotifyAt10 && settings.LastNotifiedRemainingBucket > 10)
+
+        if (snapshot.SolProDailyLimit is int solLimit)
         {
-            Show("ProMeter", "10% of GPT Pro quota remaining.");
-            settings.LastNotifiedRemainingBucket = 10;
+            NotifyLimit(
+                remaining: snapshot.SolProDailyRemaining,
+                limit: solLimit,
+                settings: settings,
+                getBucket: () => settings.LastNotifiedSolDailyBucket,
+                setBucket: value => settings.LastNotifiedSolDailyBucket = value,
+                getExhausted: () => settings.LastNotifiedSolDailyExhausted,
+                setExhausted: value => settings.LastNotifiedSolDailyExhausted = value,
+                exhausted: "GPT-5.6 Sol Pro daily quota is exhausted.",
+                at10: "10% of Sol Pro daily quota remaining.",
+                at20: "20% of Sol Pro daily quota remaining.");
         }
-        else if (remainingPercent <= 20 && settings.NotifyAt20 && settings.LastNotifiedRemainingBucket > 20)
+
+        if (snapshot.CombinedDailyLimit is int combinedLimit)
         {
-            Show("ProMeter", "20% of GPT Pro quota remaining.");
-            settings.LastNotifiedRemainingBucket = 20;
+            NotifyLimit(
+                remaining: snapshot.CombinedDailyRemaining,
+                limit: combinedLimit,
+                settings: settings,
+                getBucket: () => settings.LastNotifiedCombinedDailyBucket,
+                setBucket: value => settings.LastNotifiedCombinedDailyBucket = value,
+                getExhausted: () => settings.LastNotifiedCombinedDailyExhausted,
+                setExhausted: value => settings.LastNotifiedCombinedDailyExhausted = value,
+                exhausted: "Combined Pro daily quota is exhausted.",
+                at10: "10% of combined Pro daily quota remaining.",
+                at20: "20% of combined Pro daily quota remaining.");
         }
 
         _settings.Save(settings);
@@ -74,6 +110,37 @@ public sealed class ToastNotificationService
         catch
         {
             Fallback?.Invoke(title, body);
+        }
+    }
+
+    private static void NotifyLimit(
+        int remaining,
+        int limit,
+        AppSettings settings,
+        Func<int> getBucket,
+        Action<int> setBucket,
+        Func<bool> getExhausted,
+        Action<bool> setExhausted,
+        string exhausted,
+        string at10,
+        string at20)
+    {
+        var remainingPercent = limit <= 0 ? 100 : remaining * 100.0 / limit;
+        if (remaining <= 0 && settings.NotifyExhausted && !getExhausted())
+        {
+            Show("ProMeter", exhausted);
+            setExhausted(true);
+            setBucket(0);
+        }
+        else if (remainingPercent <= 10 && settings.NotifyAt10 && getBucket() > 10)
+        {
+            Show("ProMeter", at10);
+            setBucket(10);
+        }
+        else if (remainingPercent <= 20 && settings.NotifyAt20 && getBucket() > 20)
+        {
+            Show("ProMeter", at20);
+            setBucket(20);
         }
     }
 }

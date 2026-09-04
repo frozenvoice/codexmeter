@@ -16,8 +16,12 @@ public partial class MainWindow : Window
 
     public void Bind(QuotaSnapshot snapshot, IReadOnlyList<UsageEvent> events, IReadOnlyList<DailyTrendPoint> trend)
     {
-        Headline.Text = $"GPT Pro usage: {snapshot.Used} / {snapshot.Limit}";
-        PeriodText.Text = $"Current period {snapshot.PeriodStart.ToLocalTime():MMM d} – {snapshot.PeriodEnd.ToLocalTime():MMM d}   ·   Today {snapshot.TodayPro}";
+        Headline.Text = snapshot.UsesServerCount
+            ? $"GPT Pro usage: {snapshot.Used} / {snapshot.Limit}  (server · reconstructed {snapshot.ReconstructedUsed})"
+            : $"GPT Pro usage: {snapshot.Used} / {snapshot.Limit}";
+        PeriodText.Text = snapshot.SolProDailyLimit is int sol && snapshot.CombinedDailyLimit is int combined
+            ? $"Current period {snapshot.PeriodStart.ToLocalTime():MMM d} – {snapshot.PeriodEnd.ToLocalTime():MMM d}   ·   GPT-6 week {snapshot.Gpt6WeeklyUsed}   ·   Sol daily {snapshot.TodaySolPro}/{sol}   ·   Combined daily {snapshot.CombinedToday}/{combined}"
+            : $"Current period {snapshot.PeriodStart.ToLocalTime():MMM d} – {snapshot.PeriodEnd.ToLocalTime():MMM d}   ·   Today {snapshot.TodayPro}";
         StatusText.Text = $"{DisplayFormatting.StatusLabel(snapshot.Status)}   ·   Reset {DisplayFormatting.ResetLabel(snapshot)}   ·   Coverage {snapshot.Coverage.SummaryLabel}";
         ReasonText.Text = $"Today {snapshot.Reasoning.Today}   This week {snapshot.Reasoning.ThisWeek}   Medium {snapshot.Reasoning.Medium}   High {snapshot.Reasoning.High}   Extra High {snapshot.Reasoning.ExtraHigh}   Limit {(snapshot.Reasoning.Limit?.ToString() ?? "Unknown")}";
         ModelList.Items.Clear();
@@ -59,21 +63,34 @@ public partial class MainWindow : Window
         ChartCanvas.UpdateLayout();
         var width = Math.Max(40, ChartCanvas.ActualWidth);
         var height = Math.Max(80, ChartCanvas.ActualHeight);
-        var max = Math.Max(1, trend.Max(p => p.ProCount + p.ReasoningCount));
+        var maxPro = Math.Max(1, trend.Max(p => p.ProCount));
+        var maxReasoning = Math.Max(1, trend.Max(p => p.ReasoningCount));
         var step = width / Math.Max(1, trend.Count);
+        var barWidth = Math.Max(3, (step - 8) / 2);
         for (var i = 0; i < trend.Count; i++)
         {
             var point = trend[i];
-            var barHeight = height * (point.ProCount / (double)max);
-            var bar = new System.Windows.Shapes.Rectangle
+            var proHeight = height * (point.ProCount / (double)maxPro);
+            var reasonHeight = height * (point.ReasoningCount / (double)maxReasoning);
+            var pro = new System.Windows.Shapes.Rectangle
             {
-                Width = Math.Max(4, step - 6),
-                Height = Math.Max(1, barHeight),
+                Width = barWidth,
+                Height = Math.Max(point.ProCount == 0 ? 0 : 1, proHeight),
                 Fill = (System.Windows.Media.Brush)FindResource("AccentBrush")
             };
-            Canvas.SetLeft(bar, i * step + 3);
-            Canvas.SetTop(bar, height - barHeight);
-            ChartCanvas.Children.Add(bar);
+            Canvas.SetLeft(pro, i * step + 2);
+            Canvas.SetTop(pro, height - proHeight);
+            ChartCanvas.Children.Add(pro);
+
+            var reason = new System.Windows.Shapes.Rectangle
+            {
+                Width = barWidth,
+                Height = Math.Max(point.ReasoningCount == 0 ? 0 : 1, reasonHeight),
+                Fill = new SolidColorBrush(Color.FromRgb(251, 191, 36))
+            };
+            Canvas.SetLeft(reason, i * step + 2 + barWidth + 2);
+            Canvas.SetTop(reason, height - reasonHeight);
+            ChartCanvas.Children.Add(reason);
         }
     }
 
