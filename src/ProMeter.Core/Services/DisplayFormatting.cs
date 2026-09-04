@@ -1,29 +1,58 @@
 namespace ProMeter.Services;
 
+public readonly record struct ResetDisplayInfo(
+    string TimeLabel,
+    string TimeValue,
+    string? EstimateLabel,
+    string? EstimateValue);
+
 public static class DisplayFormatting
 {
-    public static string ResetLabel(QuotaSnapshot snapshot)
+    public static string FormatStamp(DateTimeOffset value)
+    {
+        var local = value.ToLocalTime();
+        return UiText.IsKorean
+            ? local.ToString("M월 d일 HH:mm", CultureInfo.GetCultureInfo("ko-KR"))
+            : local.ToString("MMM d HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    public static string FormatDay(DateTimeOffset value)
+    {
+        var local = value.ToLocalTime();
+        return UiText.IsKorean
+            ? local.ToString("M월 d일", CultureInfo.GetCultureInfo("ko-KR"))
+            : local.ToString("MMM d", CultureInfo.InvariantCulture);
+    }
+
+    public static ResetDisplayInfo ResetDisplay(QuotaSnapshot snapshot)
     {
         if (snapshot.ResetAt is null)
         {
-            return "Unknown";
+            return new ResetDisplayInfo(UiText.ResetTime, UiText.NotConfirmed, null, null);
         }
 
-        var local = snapshot.ResetAt.Value.ToLocalTime();
-        var stamp = local.ToString("MMM d HH:mm", CultureInfo.InvariantCulture);
+        var stamp = FormatStamp(snapshot.ResetAt.Value);
         return snapshot.ResetAnchorSource switch
         {
-            ResetAnchorSource.Server => $"{stamp} (server reset)",
-            ResetAnchorSource.UserConfigured => $"{stamp} (user-configured reset)",
-            _ => $"{stamp} (estimated reset)"
+            ResetAnchorSource.Server => new ResetDisplayInfo(UiText.ResetTime, UiText.ResetServer(stamp), null, null),
+            ResetAnchorSource.UserConfigured => new ResetDisplayInfo(UiText.ResetTime, UiText.ResetUserConfigured(stamp), null, null),
+            _ => new ResetDisplayInfo(UiText.ResetTime, UiText.NotConfirmed, UiText.Estimate, stamp)
         };
+    }
+
+    public static string ResetLabel(QuotaSnapshot snapshot)
+    {
+        var display = ResetDisplay(snapshot);
+        return display.EstimateValue is null
+            ? display.TimeValue
+            : $"{display.TimeValue} · {display.EstimateLabel} {display.EstimateValue}";
     }
 
     public static string RemainingDuration(DateTimeOffset? reset, DateTimeOffset now)
     {
         if (reset is null || reset <= now)
         {
-            return "soon";
+            return UiText.Soon;
         }
 
         var span = reset.Value - now;
@@ -44,30 +73,33 @@ public static class DisplayFormatting
     {
         if (lastSync is null)
         {
-            return "Never";
+            return UiText.Never;
         }
 
         return lastSync.Value.ToLocalTime().ToString("HH:mm");
     }
 
+    public static string StatusLabel(QuotaSnapshot snapshot) =>
+        snapshot.IsSyncing ? UiText.SyncingEllipsis : StatusLabel(snapshot.Status);
+
     public static string StatusLabel(AppSyncStatus status) => status switch
     {
-        AppSyncStatus.SignedOut => "Signed out",
-        AppSyncStatus.AuthenticationRequired => "Authentication required",
-        AppSyncStatus.DetectingAccount => "Detecting account...",
-        AppSyncStatus.LoadingCatalog => "Loading model catalog...",
-        AppSyncStatus.Syncing => "Syncing",
-        AppSyncStatus.UpToDate => "Up to date",
-        AppSyncStatus.RateLimited => "Rate limited",
-        AppSyncStatus.ApiChanged => "API changed",
-        AppSyncStatus.ProviderSchemaMismatch => "Provider schema mismatch",
-        AppSyncStatus.PartialData => "Partial data",
-        AppSyncStatus.Offline => "Offline",
-        AppSyncStatus.Error => "Error",
-        AppSyncStatus.Forbidden => CompanionDiagnostics.Forbidden403,
-        AppSyncStatus.ChatGptTabRequired => CompanionDiagnostics.NoChatGptTab,
-        AppSyncStatus.PageBridgeUnavailable => CompanionDiagnostics.PageBridgeUnavailable,
-        _ => "Idle"
+        AppSyncStatus.SignedOut => UiText.SignedOut,
+        AppSyncStatus.AuthenticationRequired => UiText.AuthenticationRequired,
+        AppSyncStatus.DetectingAccount => UiText.DetectingAccount,
+        AppSyncStatus.LoadingCatalog => UiText.LoadingCatalog,
+        AppSyncStatus.Syncing => UiText.Syncing,
+        AppSyncStatus.UpToDate => UiText.UpToDate,
+        AppSyncStatus.RateLimited => UiText.RateLimited,
+        AppSyncStatus.ApiChanged => UiText.ApiChanged,
+        AppSyncStatus.ProviderSchemaMismatch => UiText.ProviderSchemaMismatch,
+        AppSyncStatus.PartialData => UiText.PartialData,
+        AppSyncStatus.Offline => UiText.Offline,
+        AppSyncStatus.Error => UiText.Error,
+        AppSyncStatus.Forbidden => UiText.Forbidden403,
+        AppSyncStatus.ChatGptTabRequired => UiText.NoChatGptTab,
+        AppSyncStatus.PageBridgeUnavailable => UiText.PageBridgeUnavailable,
+        _ => UiText.Idle
     };
 
     public static string UsageLabel(QuotaSnapshot snapshot)
@@ -92,34 +124,75 @@ public static class DisplayFormatting
 
     public static string CountSourceLabel(QuotaSnapshot snapshot)
     {
-        if (snapshot.DisplayUsageUnavailable)
-        {
-            return "Incomplete reconstruction";
-        }
-
-        if (snapshot.UsesServerCount)
-        {
-            return $"Server count · reconstructed {snapshot.ReconstructedUsed}";
-        }
-
-        return snapshot.Coverage.CountConfidence == CoverageConfidence.HighConfidence
-            ? "Reconstructed · high confidence"
-            : "Reconstructed · estimated";
+        var label = snapshot.DisplayUsageUnavailable
+            ? UiText.IncompleteReconstruction
+            : snapshot.UsesServerCount
+                ? UiText.ServerCount(snapshot.ReconstructedUsed)
+                : snapshot.Coverage.CountConfidence == CoverageConfidence.HighConfidence
+                    ? UiText.ReconstructedHigh
+                    : UiText.ReconstructedEstimated;
+        return snapshot.IsSyncing && snapshot.LastSync is not null
+            ? $"{UiText.PreviousData} · {label}"
+            : label;
     }
+
+    public static string OverallCollectionLabel(CoverageInfo coverage) => coverage.OverallState switch
+    {
+        CollectionState.Complete => UiText.Complete,
+        CollectionState.Partial => UiText.Partial,
+        CollectionState.Estimated => UiText.Estimated,
+        _ => UiText.Unavailable
+    };
+
+    public static string CollectionStateLabel(CollectionState state) => state switch
+    {
+        CollectionState.Complete => UiText.Complete,
+        CollectionState.Partial => UiText.Partial,
+        CollectionState.Failed => UiText.Failed,
+        CollectionState.Estimated => UiText.Estimated,
+        _ => UiText.Unavailable
+    };
+
+    public static string CoverageFlyoutValue(QuotaSnapshot snapshot)
+    {
+        if (snapshot.IsSyncing && snapshot.LastSync is null)
+        {
+            return UiText.SyncingEllipsis;
+        }
+
+        var label = OverallCollectionLabel(snapshot.Coverage);
+        return snapshot.IsSyncing ? $"{label} · {UiText.PreviousData}" : label;
+    }
+
+    public static string ReasoningLimitValue(int? limit) =>
+        limit is int value ? value.ToString(CultureInfo.InvariantCulture) : UiText.NotAvailable;
+
+    public static string CountConfidenceLabel(CoverageConfidence confidence) => confidence switch
+    {
+        CoverageConfidence.Authoritative => UiText.CountConfidenceAuthoritative,
+        CoverageConfidence.HighConfidence => UiText.CountConfidenceHigh,
+        CoverageConfidence.Estimated => UiText.CountConfidenceEstimated,
+        _ => UiText.CountConfidenceIncomplete
+    };
 
     public static string Headline(QuotaSnapshot snapshot) =>
         snapshot.UsesServerCount
-            ? $"GPT Pro usage: {UsageLabel(snapshot)}  (server · reconstructed {snapshot.ReconstructedUsed})"
-            : $"GPT Pro usage: {UsageLabel(snapshot)}";
+            ? UiText.GptProUsageServer(UsageLabel(snapshot), snapshot.ReconstructedUsed)
+            : UiText.GptProUsage(UsageLabel(snapshot));
 
     public static string Tooltip(QuotaSnapshot snapshot)
     {
+        var reset = ResetDisplay(snapshot);
+        var resetLine = reset.EstimateValue is null
+            ? $"{reset.TimeLabel}: {reset.TimeValue}"
+            : $"{reset.TimeLabel}: {reset.TimeValue}\n{reset.EstimateLabel}: {reset.EstimateValue}";
         return $"""
-            ProMeter
-            GPT Pro: {UsageLabel(snapshot)}
-            Remaining: {(snapshot.DisplayUsageUnavailable ? "?" : snapshot.Remaining.ToString(CultureInfo.InvariantCulture))}
-            Reset: {ResetLabel(snapshot)}
-            Last sync: {LastSyncLabel(snapshot.LastSync)}
+            {UiText.ProductName}
+            {UiText.GptPro}: {UsageLabel(snapshot)}
+            {UiText.Remaining}: {(snapshot.DisplayUsageUnavailable ? "?" : snapshot.Remaining.ToString(CultureInfo.InvariantCulture))}
+            {resetLine}
+            {UiText.LastSync}: {LastSyncLabel(snapshot.LastSync)}
+            {UiText.DataStatus}: {CoverageFlyoutValue(snapshot)}
             """;
     }
 }

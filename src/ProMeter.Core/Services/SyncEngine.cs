@@ -17,13 +17,16 @@ public sealed class SyncEngine
     private bool _pacedBodyThisSync;
     private ReconstructionTotals _reconstruction = new();
     private readonly List<DeferredZeroEventScan> _deferredZeroEvents = [];
+    private readonly Dictionary<string, ConversationWorkEntry> _work = new(StringComparer.Ordinal);
+    private readonly IClock _clock;
 
-    public SyncEngine(SqliteStore store, ConversationParser parser, ModelNormalizer models, AppLog log)
+    public SyncEngine(SqliteStore store, ConversationParser parser, ModelNormalizer models, AppLog log, IClock? clock = null)
     {
         _store = store;
         _parser = parser;
         _models = models;
         _log = log;
+        _clock = clock ?? SystemClock.Instance;
     }
 
     public bool IsPaused { get; private set; }
@@ -43,10 +46,10 @@ public sealed class SyncEngine
         bool force,
         CancellationToken cancellationToken = default)
     {
-        if (!force && IsPaused && PauseUntil is DateTimeOffset until && until > DateTimeOffset.UtcNow)
+        if (!force && IsPaused && PauseUntil is DateTimeOffset until && until > _clock.UtcNow)
         {
             LastStatus = AppSyncStatus.RateLimited;
-            LastStatusDetail = "Automatic sync paused after repeated failures.";
+            LastStatusDetail = UiText.AutoSyncPaused;
             return new SyncOutcome(LastStatus, LastStatusDetail, 0);
         }
 
@@ -64,21 +67,22 @@ public sealed class SyncEngine
         _pacedBodyThisSync = false;
         _reconstruction = new ReconstructionTotals();
         _deferredZeroEvents.Clear();
+        _work.Clear();
         try
         {
-            Report("Detecting account...");
+            Report(UiText.DetectingAccount);
             LastStatus = AppSyncStatus.DetectingAccount;
             var account = await ExecuteWithRetry(() => provider.GetAccountStatusAsync(cancellationToken), "account", cancellationToken);
             LastAccount = account;
             if (!account.IsSignedIn)
             {
                 LastStatus = AppSyncStatus.SignedOut;
-                LastStatusDetail = "ChatGPT tab is signed out.";
+                LastStatusDetail = UiText.ChatGptSignedOut;
                 LastCoverage = coverage;
                 return new SyncOutcome(LastStatus, LastStatusDetail, 0);
             }
 
-            Report("Loading model catalog...");
+            Report(UiText.LoadingCatalog);
             LastStatus = AppSyncStatus.LoadingCatalog;
             try
             {
@@ -114,13 +118,13 @@ public sealed class SyncEngine
                 LastQuotaMetadata = new QuotaMetadataSet();
             }
 
-            var now = DateTimeOffset.UtcNow;
+            var periodReference = _clock.UtcNow;
             var serverReset = LastQuotaMetadata?.WeeklyWindow(settings.PlanPreset)?.ResetAt;
-            var (periodStart, _) = QuotaPeriodCalculator.CurrentPeriod(settings, now, serverReset);
+            var (periodStart, _) = QuotaPeriodCalculator.CurrentPeriod(settings, periodReference, serverReset);
             var minUpdate = periodStart.ToUnixTimeSeconds();
 
             LastStatus = AppSyncStatus.Syncing;
-            Report("Scanning current quota period...");
+            Report(UiText.ScanningPeriod);
 
             parsed += await SyncIndexAsync(provider, false, minUpdate, "chat", UsageSource.ConversationSync, coverage, force, value => worst = Worse(worst, value), cancellationToken);
 
@@ -135,6 +139,8 @@ public sealed class SyncEngine
             catch (Exception ex)
             {
                 coverage.IndexIncomplete = true;
+                coverage.ArchivedIndexState = CollectionState.Failed;
+                coverage.ArchivedChats = false;
                 worst = Worse(worst, AppSyncStatus.PartialData);
                 _log.Warn("archived index failed: " + AppLog.Sanitize(ex.Message));
             }
@@ -145,12 +151,20 @@ public sealed class SyncEngine
                 if (projects.SchemaMismatch)
                 {
                     coverage.IndexIncomplete = true;
+                    coverage.ProjectsIndexState = CollectionState.Failed;
+                    coverage.Projects = false;
                     worst = Worse(worst, AppSyncStatus.ProviderSchemaMismatch);
                 }
                 else if (projects.Incomplete)
                 {
                     coverage.IndexIncomplete = true;
+                    coverage.ProjectsIndexState = CollectionState.Partial;
+                    coverage.Projects = false;
                     worst = Worse(worst, AppSyncStatus.PartialData);
+                }
+                else
+                {
+                    coverage.ProjectsIndexState = CollectionState.Complete;
                 }
 
                 _log.Info($"projects={projects.Projects.Count}");
@@ -171,13 +185,15 @@ public sealed class SyncEngine
             catch (Exception ex)
             {
                 coverage.IndexIncomplete = true;
+                coverage.ProjectsIndexState = CollectionState.Failed;
+                coverage.Projects = false;
                 worst = Worse(worst, AppSyncStatus.PartialData);
                 _log.Warn("projects failed: " + AppLog.Sanitize(ex.Message));
             }
 
-            _store.SetState("last_index_sync", now.ToString("O"));
+            _store.SetState("last_index_sync", periodReference.ToString("O"));
             ApplyZeroEventDiagnostics(coverage, value => worst = Worse(worst, value));
-            LastSyncCompleted = now;
+            LastSyncCompleted = _clock.UtcNow;
             LastCoverage = coverage;
             LastStatus = coverage.Confidence == CoverageConfidence.Incomplete
                 ? Worse(worst, AppSyncStatus.PartialData)
@@ -197,6 +213,10 @@ public sealed class SyncEngine
                 "sync diagnostics" +
                 $" loaded={_reconstruction.Loaded}" +
                 $" failed={_reconstruction.Failed}" +
+                $" scanAttempts={_reconstruction.ScanAttempts}" +
+                $" uniqueConversations={_reconstruction.UniqueConversations}" +
+                $" uniqueFailed={_reconstruction.Failed}" +
+                $" bodyFetches={_reconstruction.BodyFetches}" +
                 $" withEvents={_reconstruction.WithEvents}" +
                 $" zeroEvents={_reconstruction.ZeroEvents}" +
                 $" assistantNodes={_reconstruction.AssistantLikeNodes}" +
@@ -211,7 +231,7 @@ public sealed class SyncEngine
         catch (ChatGptProviderException ex) when (ex.IsUnauthorized)
         {
             LastStatus = AppSyncStatus.AuthenticationRequired;
-            LastStatusDetail = "ChatGPT session expired.";
+            LastStatusDetail = UiText.ChatGptSessionExpired;
             _log.Http("sync", ex.Status, "auth required");
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
@@ -239,7 +259,7 @@ public sealed class SyncEngine
         catch (ChatGptProviderException ex) when (ex.SchemaMismatch)
         {
             LastStatus = AppSyncStatus.ProviderSchemaMismatch;
-            LastStatusDetail = "Provider schema mismatch";
+            LastStatusDetail = UiText.SchemaMismatchStatus;
             _log.Error("Provider schema mismatch");
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
@@ -247,14 +267,14 @@ public sealed class SyncEngine
         {
             Pause(TimeSpan.FromMinutes(20));
             LastStatus = AppSyncStatus.RateLimited;
-            LastStatusDetail = "Rate limited. Automatic sync paused.";
+            LastStatusDetail = UiText.RateLimitedPaused;
             _log.Http("sync", 429, "paused");
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.IsOffline)
         {
             LastStatus = AppSyncStatus.Offline;
-            LastStatusDetail = "ChatGPT is unreachable.";
+            LastStatusDetail = UiText.ChatGptUnreachable;
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (Exception ex)
@@ -291,6 +311,11 @@ public sealed class SyncEngine
         var result = archived
             ? await ExecuteWithRetry(() => provider.GetArchivedConversationIndexAsync(minUpdate, cancellationToken), "archived-index", cancellationToken)
             : await ExecuteWithRetry(() => provider.GetConversationIndexAsync(false, minUpdate, cancellationToken), "index", cancellationToken);
+        var state = result.SchemaMismatch
+            ? CollectionState.Failed
+            : result.Incomplete || result.TimestampIncomplete
+                ? CollectionState.Partial
+                : CollectionState.Complete;
         if (result.SchemaMismatch)
         {
             coverage.IndexIncomplete = true;
@@ -309,11 +334,13 @@ public sealed class SyncEngine
 
         if (archived)
         {
-            coverage.ArchivedChats = !result.SchemaMismatch && !result.Incomplete;
+            coverage.ArchivedChats = state == CollectionState.Complete;
+            coverage.ArchivedIndexState = state;
         }
         else
         {
-            coverage.NormalChats = !result.SchemaMismatch && !result.Incomplete && !result.TimestampIncomplete;
+            coverage.NormalChats = state == CollectionState.Complete;
+            coverage.NormalIndexState = state;
         }
 
         _log.Info($"{source} index={result.Items.Count} pages={result.Pages} incomplete={result.Incomplete} mismatch={result.SchemaMismatch}");
@@ -341,6 +368,7 @@ public sealed class SyncEngine
         if (result.SchemaMismatch)
         {
             coverage.IndexIncomplete = true;
+            coverage.ProjectsIndexState = CollectionState.Failed;
             setWorst(AppSyncStatus.ProviderSchemaMismatch);
             return 0;
         }
@@ -348,6 +376,11 @@ public sealed class SyncEngine
         if (result.Incomplete || result.TimestampIncomplete)
         {
             coverage.IndexIncomplete = true;
+            if (coverage.ProjectsIndexState != CollectionState.Failed)
+            {
+                coverage.ProjectsIndexState = CollectionState.Partial;
+            }
+
             if (result.TimestampIncomplete)
             {
                 coverage.ConversationIncomplete = true;
@@ -384,10 +417,26 @@ public sealed class SyncEngine
         foreach (var item in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (_work.TryGetValue(item.Id, out var existing))
+            {
+                if (force || NeedsBody(item))
+                {
+                    _reconstruction.ScanAttempts++;
+                }
+
+                MergeAppearance(existing, item);
+                continue;
+            }
+
             if (!force && !NeedsBody(item))
             {
                 continue;
             }
+
+            _reconstruction.ScanAttempts++;
+            _reconstruction.UniqueConversations++;
+            var entry = new ConversationWorkEntry { First = item, UsageSource = usageSource };
+            _work[item.Id] = entry;
 
             await PaceBodyFetchAsync(cancellationToken);
             await _bodyLock.WaitAsync(cancellationToken);
@@ -396,10 +445,12 @@ public sealed class SyncEngine
                 ConversationLoadResult load;
                 try
                 {
+                    _reconstruction.BodyFetches++;
                     load = await ExecuteWithRetry(
                         () => provider.GetConversationMessagesAsync(item.Id, cancellationToken),
                         "conversation",
                         cancellationToken);
+                    entry.BodyFetched = true;
                 }
                 catch (ChatGptProviderException ex) when (IsFatalProviderError(ex))
                 {
@@ -407,31 +458,23 @@ public sealed class SyncEngine
                 }
                 catch (Exception ex)
                 {
-                    _reconstruction.Failed++;
-                    coverage.FailedConversations++;
-                    coverage.ConversationIncomplete = true;
-                    setWorst(AppSyncStatus.PartialData);
+                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData);
                     _store.RecordConversationFailure(_store.GetConversation(item.Id), item, ConversationScanStatus.FetchFailed, AppLog.Sanitize(ex.Message));
-                    _log.Warn($"fetch failed conversation={item.Id}");
+                    var (category, status) = SyncFailureClassifier.Classify(ex);
+                    LogConversationFailure(item.Id, category, status);
                     continue;
                 }
 
                 if (!load.Complete || load.SchemaMismatch || load.Conversation is null)
                 {
-                    var status = load.SchemaMismatch ? ConversationScanStatus.SchemaMismatch : ConversationScanStatus.Incomplete;
-                    _reconstruction.Failed++;
-                    coverage.FailedConversations++;
-                    coverage.ConversationIncomplete = true;
-                    setWorst(load.SchemaMismatch ? AppSyncStatus.ProviderSchemaMismatch : AppSyncStatus.PartialData);
+                    var scanStatus = load.SchemaMismatch ? ConversationScanStatus.SchemaMismatch : ConversationScanStatus.Incomplete;
+                    var worst = load.SchemaMismatch ? AppSyncStatus.ProviderSchemaMismatch : AppSyncStatus.PartialData;
+                    MarkUniqueFailure(coverage, entry, setWorst, worst);
                     coverage.Notes = load.SchemaMismatch
                         ? "Provider schema mismatch on at least one conversation."
                         : "At least one conversation was incomplete.";
-                    _store.RecordConversationFailure(_store.GetConversation(item.Id), item, status, string.Join("; ", load.Diagnostics));
-                    foreach (var diagnostic in load.Diagnostics)
-                    {
-                        _log.Warn(diagnostic);
-                    }
-
+                    _store.RecordConversationFailure(_store.GetConversation(item.Id), item, scanStatus, string.Join("; ", load.Diagnostics));
+                    LogConversationFailure(item.Id, SyncFailureClassifier.ClassifyLoad(load), 0);
                     continue;
                 }
 
@@ -449,17 +492,10 @@ public sealed class SyncEngine
 
                 if (result.SchemaMismatch)
                 {
-                    _reconstruction.Failed++;
-                    coverage.FailedConversations++;
-                    coverage.ConversationIncomplete = true;
-                    setWorst(AppSyncStatus.ProviderSchemaMismatch);
+                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.ProviderSchemaMismatch);
                     coverage.Notes = "Provider schema mismatch on at least one conversation.";
                     _store.RecordConversationFailure(_store.GetConversation(item.Id), item, ConversationScanStatus.SchemaMismatch, string.Join("; ", result.Diagnostics));
-                    foreach (var diagnostic in result.Diagnostics)
-                    {
-                        _log.Warn(diagnostic);
-                    }
-
+                    LogConversationFailure(item.Id, "SchemaMismatch", 0);
                     continue;
                 }
 
@@ -467,6 +503,7 @@ public sealed class SyncEngine
                 if (result.Events.Count == 0)
                 {
                     _reconstruction.ZeroEvents++;
+                    entry.DeferredZero = true;
                     _deferredZeroEvents.Add(new DeferredZeroEventScan
                     {
                         Item = item,
@@ -474,13 +511,14 @@ public sealed class SyncEngine
                         Source = source
                     });
                     processed++;
-                    Report("Scanning conversations...", items.Count, changed, processed, parsed);
+                    Report(UiText.ScanningConversations, items.Count, changed, processed, parsed);
                     continue;
                 }
 
                 parsed += CommitSuccessfulParse(item, result, source, coverage, setWorst);
+                entry.Succeeded = true;
                 processed++;
-                Report("Scanning conversations...", items.Count, changed, processed, parsed);
+                Report(UiText.ScanningConversations, items.Count, changed, processed, parsed);
             }
             finally
             {
@@ -489,6 +527,49 @@ public sealed class SyncEngine
         }
 
         return parsed;
+    }
+
+    private void MergeAppearance(ConversationWorkEntry existing, ConversationIndexItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.ProjectId))
+        {
+            existing.First.ProjectId ??= item.ProjectId;
+        }
+
+        if (item.Archived)
+        {
+            existing.First.Archived = true;
+        }
+
+        if (string.Equals(item.Source, "project", StringComparison.Ordinal))
+        {
+            existing.First.Source = item.Source;
+            existing.UsageSource = UsageSource.ProjectSync;
+        }
+
+        _store.MergeConversationMetadata(item.Id, item.ProjectId, item.Archived, item.Source);
+    }
+
+    private void MarkUniqueFailure(
+        CoverageInfo coverage,
+        ConversationWorkEntry entry,
+        Action<AppSyncStatus> setWorst,
+        AppSyncStatus status)
+    {
+        if (!entry.Failed)
+        {
+            entry.Failed = true;
+            _reconstruction.Failed++;
+            coverage.FailedConversations++;
+        }
+
+        coverage.ConversationIncomplete = true;
+        setWorst(status);
+    }
+
+    private void LogConversationFailure(string conversationId, string category, int status)
+    {
+        _log.Warn($"conversation fetch failed id={conversationId} category={category} status={status}");
     }
 
     private void ObserveParse(ParseResult result)
@@ -527,7 +608,7 @@ public sealed class SyncEngine
             }
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = _clock.UtcNow;
         var trusted = item.UpdateTime > 0;
         _store.ReconcileConversation(new ConversationRecord
         {
@@ -559,6 +640,9 @@ public sealed class SyncEngine
         coverage.ZeroEventConversations = _reconstruction.ZeroEvents;
         coverage.AssistantLikeNodes = _reconstruction.AssistantLikeNodes;
         coverage.NodesWithModelMetadata = _reconstruction.NodesWithModelMetadata;
+        coverage.ScanAttempts = _reconstruction.ScanAttempts;
+        coverage.UniqueConversations = _reconstruction.UniqueConversations;
+        coverage.BodyFetches = _reconstruction.BodyFetches;
 
         var suspect = _reconstruction.IndexedConversations > 0
                       && _reconstruction.Loaded >= 2
@@ -571,7 +655,21 @@ public sealed class SyncEngine
             setWorst(AppSyncStatus.ProviderSchemaMismatch);
             foreach (var deferred in _deferredZeroEvents)
             {
-                coverage.FailedConversations++;
+                if (_work.TryGetValue(deferred.Item.Id, out var entry) && entry.Failed)
+                {
+                    continue;
+                }
+
+                if (_work.TryGetValue(deferred.Item.Id, out var work))
+                {
+                    MarkUniqueFailure(coverage, work, setWorst, AppSyncStatus.ProviderSchemaMismatch);
+                }
+                else
+                {
+                    coverage.FailedConversations++;
+                    _reconstruction.Failed++;
+                }
+
                 _store.RecordConversationFailure(
                     _store.GetConversation(deferred.Item.Id),
                     deferred.Item,
@@ -694,7 +792,7 @@ public sealed class SyncEngine
     private void Pause(TimeSpan duration)
     {
         IsPaused = true;
-        PauseUntil = DateTimeOffset.UtcNow.Add(duration);
+        PauseUntil = _clock.UtcNow.Add(duration);
     }
 
     private void Report(string phase, int index = 0, int changed = 0, int processed = 0, int parsedEvents = 0)
@@ -714,6 +812,9 @@ public sealed class SyncEngine
         public int IndexedConversations { get; set; }
         public int Loaded { get; set; }
         public int Failed { get; set; }
+        public int ScanAttempts { get; set; }
+        public int UniqueConversations { get; set; }
+        public int BodyFetches { get; set; }
         public int WithEvents { get; set; }
         public int ZeroEvents { get; set; }
         public int AssistantLikeNodes { get; set; }
@@ -732,6 +833,16 @@ public sealed class SyncEngine
         public required ConversationIndexItem Item { get; init; }
         public required ParseResult Result { get; init; }
         public required string Source { get; init; }
+    }
+
+    private sealed class ConversationWorkEntry
+    {
+        public required ConversationIndexItem First { get; init; }
+        public UsageSource UsageSource { get; set; }
+        public bool BodyFetched { get; set; }
+        public bool Failed { get; set; }
+        public bool Succeeded { get; set; }
+        public bool DeferredZero { get; set; }
     }
 }
 

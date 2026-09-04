@@ -10,14 +10,14 @@
     <StackPanel Margin="24">
         <TextBlock Text="ProMeter" FontSize="22" FontWeight="SemiBold"/>
         <TextBlock x:Name="VersionText" Margin="0,8,0,0"/>
-        <TextBlock Text="Windows tray monitor for ChatGPT Pro quota and model usage."
+        <TextBlock x:Name="SubtitleText" Text="Windows tray monitor for ChatGPT Pro quota and model usage."
                    Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
         <TextBlock Margin="0,16,0,0">
-            <Hyperlink NavigateUri="https://github.com/prometer/prometer" RequestNavigate="OnLink">
+            <Hyperlink x:Name="GitHubLink" NavigateUri="https://github.com/prometer/prometer" RequestNavigate="OnLink">
                 GitHub repository
             </Hyperlink>
         </TextBlock>
         <TextBlock x:Name="SourceText" Margin="0,12,0,0" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap"/>
-        <Button Style="{StaticResource GhostButton}" Content="Close" Margin="0,20,0,0" HorizontalAlignment="Right" Click="OnClose"/>
+        <Button x:Name="CloseButton" Style="{StaticResource GhostButton}" Content="Close" Margin="0,20,0,0" HorizontalAlignment="Right" Click="OnClose"/>
     </StackPanel>
 </Window>

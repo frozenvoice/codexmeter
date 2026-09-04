@@ -19,6 +19,12 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Ambiguous quota metadata must remain diagnostic-only.
 - Reconstructed counts must never be labeled Authoritative.
 - Count confidence must include confidence in the quota-period boundary. Untouched default Monday 00:00 local is not a confirmed reset.
+- Last sync means completion time, not scan start/reference time.
+- Coverage must describe concrete collection state, not imply a probabilistic accuracy percentage.
+- The same conversation encountered through multiple indexes in one sync must not be counted as multiple unique failures.
+- The same conversation should not be unnecessarily body-fetched twice in the same sync.
+- Unknown denominators must use human-readable wording rather than a bare "Unknown".
+- Estimated reset anchors must never visually resemble confirmed server reset times.
 
 ## Privacy and security
 
@@ -83,6 +89,16 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Payload limits must be calculated in UTF-8 bytes on both JavaScript and .NET.
 - Do not claim companion connectivity from pump tests that bypass the production native-host entrypoint.
 
+## Diagnostic safety
+
+- Diagnostic tests must never silently change the user's selected transport.
+- WebView2 compatibility testing must use an isolated diagnostic flow.
+- A failed WebView2 test must leave Browser Companion and existing settings untouched.
+- Never delete or overwrite existing reconstructed usage data during a transport test.
+- Interactive OAuth may require user input and must never be automated by spoofing, credential injection, or identity-provider bypass.
+- Commit, push, verify remote SHA, and check CI as already required.
+- If page-bridge JS files change, increment `PAGE_BRIDGE_VERSION`.
+
 ## Architecture
 
 - All ChatGPT internal API paths stay behind the provider/transport abstraction. UI must not hard-code backend endpoints.
@@ -96,6 +112,10 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Dark and light theme controls must never rely on Windows/WPF default foreground/background colors.
 - Every visible TextBlock, TextBox, ComboBox, TabControl, DataGrid and context UI must be readable in Dark, Light and System themes.
 - An incomplete reconstruction must not present "0 / quota" as though zero were a trustworthy usage measurement.
+- User-visible UI strings must go through localization resources.
+- Korean and English are supported UI languages.
+- Model names, raw model slugs and product names are not translated.
+- If Windows UI culture is Korean on a new install, default UI language to Korean; otherwise English.
 
 ## Testing and completion
 

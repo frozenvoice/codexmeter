@@ -12,16 +12,38 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        ApplyLocalizedTexts();
+    }
+
+    public void ApplyLocalizedTexts()
+    {
+        SyncButton.Content = UiText.SyncNow;
+        SettingsButton.Content = UiText.Settings;
+        OverviewTab.Header = UiText.Overview;
+        TrendsTab.Header = UiText.Trends;
+        BreakdownTab.Header = UiText.Breakdown;
+        ReasoningSectionTitle.Text = UiText.SolReasoning;
+        StatusSectionTitle.Text = UiText.Status;
+        TimeColumn.Header = UiText.TimeColumn;
+        ModelColumn.Header = UiText.ModelColumn;
+        RawColumn.Header = UiText.RawColumn;
+        EffortColumn.Header = UiText.EffortColumn;
+        FamilyColumn.Header = UiText.FamilyColumn;
+        SourceColumn.Header = UiText.SourceColumn;
     }
 
     public void Bind(QuotaSnapshot snapshot, IReadOnlyList<UsageEvent> events, IReadOnlyList<DailyTrendPoint> trend)
     {
+        ApplyLocalizedTexts();
         Headline.Text = DisplayFormatting.Headline(snapshot);
+        var reset = DisplayFormatting.ResetDisplay(snapshot);
         PeriodText.Text = snapshot.SolProDailyLimit is int sol && snapshot.CombinedDailyLimit is int combined
-            ? $"Current period {snapshot.PeriodStart.ToLocalTime():MMM d} – {snapshot.PeriodEnd.ToLocalTime():MMM d}   ·   GPT-6 week {snapshot.Gpt6WeeklyUsed}   ·   Sol daily {snapshot.TodaySolPro}/{sol}   ·   Combined daily {snapshot.CombinedToday}/{combined}"
-            : $"Current period {snapshot.PeriodStart.ToLocalTime():MMM d} – {snapshot.PeriodEnd.ToLocalTime():MMM d}   ·   Today {snapshot.TodayPro}";
-        StatusText.Text = $"{DisplayFormatting.StatusLabel(snapshot.Status)}   ·   Reset {DisplayFormatting.ResetLabel(snapshot)}   ·   Coverage {snapshot.Coverage.SummaryLabel}";
-        ReasonText.Text = $"Today {snapshot.Reasoning.Today}   This week {snapshot.Reasoning.ThisWeek}   Medium {snapshot.Reasoning.Medium}   High {snapshot.Reasoning.High}   Extra High {snapshot.Reasoning.ExtraHigh}   Limit {(snapshot.Reasoning.Limit?.ToString() ?? "Unknown")}";
+            ? $"{UiText.CurrentPeriod(DisplayFormatting.FormatDay(snapshot.PeriodStart), DisplayFormatting.FormatDay(snapshot.PeriodEnd))}   ·   {UiText.Gpt6Pro} {snapshot.Gpt6WeeklyUsed}   ·   {UiText.SolPro} {snapshot.TodaySolPro}/{sol}   ·   {UiText.CombinedDaily} {snapshot.CombinedToday}/{combined}"
+            : $"{UiText.CurrentPeriod(DisplayFormatting.FormatDay(snapshot.PeriodStart), DisplayFormatting.FormatDay(snapshot.PeriodEnd))}   ·   {UiText.Today} {snapshot.TodayPro}";
+        StatusText.Text = $"{DisplayFormatting.StatusLabel(snapshot)}   ·   {reset.TimeLabel} {reset.TimeValue}{(reset.EstimateValue is null ? "" : $"   ·   {reset.EstimateLabel} {reset.EstimateValue}")}   ·   {UiText.DataStatus} {DisplayFormatting.CoverageFlyoutValue(snapshot)}";
+        ReasonText.Text = snapshot.Reasoning.Limit is int limit
+            ? $"{UiText.Today} {snapshot.Reasoning.Today}   {UiText.ThisWeek} {snapshot.Reasoning.ThisWeek}   {UiText.Medium} {snapshot.Reasoning.Medium}   {UiText.High} {snapshot.Reasoning.High}   {UiText.ExtraHigh} {snapshot.Reasoning.ExtraHigh}   {UiText.LimitInfo} {limit}   ·   {UiText.ReasoningReconstructedNote}"
+            : $"{UiText.Today} {snapshot.Reasoning.Today}   {UiText.ThisWeek} {snapshot.Reasoning.ThisWeek}   {UiText.Medium} {snapshot.Reasoning.Medium}   {UiText.High} {snapshot.Reasoning.High}   {UiText.ExtraHigh} {snapshot.Reasoning.ExtraHigh}   {UiText.LimitInfo} {UiText.NotAvailable}   ·   {UiText.ReasoningReconstructedNote}";
         ModelList.Items.Clear();
         foreach (var model in snapshot.ModelBreakdown)
         {

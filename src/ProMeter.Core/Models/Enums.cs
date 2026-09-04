@@ -102,3 +102,18 @@ public enum DisplayMode
     TrayOnly,
     TrayAndWidget
 }
+
+public enum UiLanguage
+{
+    English,
+    Korean
+}
+
+public enum CollectionState
+{
+    Unavailable,
+    Failed,
+    Partial,
+    Complete,
+    Estimated
+}

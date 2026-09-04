@@ -10,39 +10,39 @@
         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,16">
             <TextBlock Text="ProMeter" FontSize="22" FontWeight="SemiBold"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Style="{StaticResource GhostButton}" Content="Sync now" Click="OnSync" Margin="0,0,8,0"/>
-                <Button Style="{StaticResource GhostButton}" Content="Settings" Click="OnSettings"/>
+                <Button x:Name="SyncButton" Style="{StaticResource GhostButton}" Content="Sync now" Click="OnSync" Margin="0,0,8,0"/>
+                <Button x:Name="SettingsButton" Style="{StaticResource GhostButton}" Content="Settings" Click="OnSettings"/>
             </StackPanel>
         </DockPanel>
         <TextBlock x:Name="Headline" DockPanel.Dock="Top" FontSize="16" Margin="0,0,0,12"/>
-        <TabControl Background="Transparent" BorderThickness="0">
-            <TabItem Header="Overview">
+        <TabControl x:Name="MainTabs" Background="Transparent" BorderThickness="0">
+            <TabItem x:Name="OverviewTab" Header="Overview">
                 <ScrollViewer>
                     <StackPanel Margin="0,12,0,0">
                         <TextBlock x:Name="PeriodText" Foreground="{DynamicResource MutedBrush}"/>
                         <ItemsControl x:Name="ModelList" Margin="0,12,0,0"/>
-                        <TextBlock Style="{StaticResource SectionTitle}" Text="SOL REASONING"/>
+                        <TextBlock x:Name="ReasoningSectionTitle" Style="{StaticResource SectionTitle}" Text="SOL REASONING"/>
                         <TextBlock x:Name="ReasonText"/>
-                        <TextBlock Style="{StaticResource SectionTitle}" Text="STATUS"/>
+                        <TextBlock x:Name="StatusSectionTitle" Style="{StaticResource SectionTitle}" Text="STATUS"/>
                         <TextBlock x:Name="StatusText"/>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
-            <TabItem Header="Trends">
+            <TabItem x:Name="TrendsTab" Header="Trends">
                 <Grid Margin="0,12,0,0">
                     <Canvas x:Name="ChartCanvas" Height="280" Background="{DynamicResource ControlBrush}"/>
                 </Grid>
             </TabItem>
-            <TabItem Header="Breakdown">
+            <TabItem x:Name="BreakdownTab" Header="Breakdown">
                 <DataGrid x:Name="EventGrid" Margin="0,12,0,0" AutoGenerateColumns="False" IsReadOnly="True"
                           HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
                     <DataGrid.Columns>
-                        <DataGridTextColumn Header="Time" Binding="{Binding CreatedAt}" Width="160"/>
-                        <DataGridTextColumn Header="Model" Binding="{Binding NormalizedModel}" Width="160"/>
-                        <DataGridTextColumn Header="Raw" Binding="{Binding RawModel}" Width="140"/>
-                        <DataGridTextColumn Header="Effort" Binding="{Binding ReasoningEffort}" Width="100"/>
-                        <DataGridTextColumn Header="Family" Binding="{Binding QuotaFamily}" Width="110"/>
-                        <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="*"/>
+                        <DataGridTextColumn x:Name="TimeColumn" Header="Time" Binding="{Binding CreatedAt}" Width="160"/>
+                        <DataGridTextColumn x:Name="ModelColumn" Header="Model" Binding="{Binding NormalizedModel}" Width="160"/>
+                        <DataGridTextColumn x:Name="RawColumn" Header="Raw" Binding="{Binding RawModel}" Width="140"/>
+                        <DataGridTextColumn x:Name="EffortColumn" Header="Effort" Binding="{Binding ReasoningEffort}" Width="100"/>
+                        <DataGridTextColumn x:Name="FamilyColumn" Header="Family" Binding="{Binding QuotaFamily}" Width="110"/>
+                        <DataGridTextColumn x:Name="SourceColumn" Header="Source" Binding="{Binding Source}" Width="*"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </TabItem>

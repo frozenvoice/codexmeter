@@ -60,13 +60,13 @@ public sealed class WelcomeCompanionConnectionAdapter
             var registered = _isRegistered();
             if (connected)
             {
-                _setState("Connected", true, true);
+                _setState(UiText.CompanionConnected, true, true);
                 return;
             }
 
             if (registered)
             {
-                _setState("Disconnected", true, false);
+                _setState(UiText.CompanionDisconnected, true, false);
             }
         }
         catch (InvalidOperationException)

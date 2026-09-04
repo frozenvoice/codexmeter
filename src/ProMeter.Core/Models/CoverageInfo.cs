@@ -23,6 +23,12 @@ public sealed class CoverageInfo
     public CoverageConfidence CountConfidence { get; set; } = CoverageConfidence.Estimated;
     public CoverageConfidence ResetConfidence { get; set; } = CoverageConfidence.Estimated;
     public ResetAnchorSource ResetAnchorSource { get; set; } = ResetAnchorSource.Default;
+    public CollectionState NormalIndexState { get; set; } = CollectionState.Unavailable;
+    public CollectionState ArchivedIndexState { get; set; } = CollectionState.Unavailable;
+    public CollectionState ProjectsIndexState { get; set; } = CollectionState.Unavailable;
+    public int ScanAttempts { get; set; }
+    public int UniqueConversations { get; set; }
+    public int BodyFetches { get; set; }
 
     public CoverageConfidence Confidence
     {
@@ -37,12 +43,47 @@ public sealed class CoverageInfo
         }
     }
 
-    public string SummaryLabel => Confidence switch
+    public CollectionState OverallState
     {
-        CoverageConfidence.Authoritative => "Authoritative",
-        CoverageConfidence.HighConfidence => "Good",
-        CoverageConfidence.Estimated => "Estimated",
-        _ => "Incomplete"
+        get
+        {
+            if (HistoryLoadedWithoutUsage)
+            {
+                return CollectionState.Unavailable;
+            }
+
+            var indexes = new[] { NormalIndexState, ArchivedIndexState, ProjectsIndexState };
+            if (indexes.All(state => state == CollectionState.Unavailable)
+                && LoadedConversations == 0
+                && FailedConversations == 0)
+            {
+                return CollectionState.Unavailable;
+            }
+
+            if (FailedConversations > 0
+                || IndexIncomplete
+                || ConversationIncomplete
+                || indexes.Any(state => state is CollectionState.Partial or CollectionState.Failed))
+            {
+                return CollectionState.Partial;
+            }
+
+            if (CountConfidence is CoverageConfidence.Estimated
+                || ResetConfidence is CoverageConfidence.Estimated)
+            {
+                return CollectionState.Estimated;
+            }
+
+            return CollectionState.Complete;
+        }
+    }
+
+    public string SummaryLabel => OverallState switch
+    {
+        CollectionState.Complete => "Complete",
+        CollectionState.Partial => "Partial",
+        CollectionState.Estimated => "Estimated",
+        _ => "Unavailable"
     };
 
     public int ApproximatePercent

@@ -12,11 +12,13 @@ public partial class FlyoutWindow : Window
     public FlyoutWindow()
     {
         InitializeComponent();
+        ApplyLocalizedTexts();
     }
 
     public void Bind(QuotaSnapshot snapshot, AppSettings settings)
     {
-        StatusText.Text = DisplayFormatting.StatusLabel(snapshot.Status);
+        ApplyLocalizedTexts();
+        StatusText.Text = DisplayFormatting.StatusLabel(snapshot);
         ProCountText.Text = DisplayFormatting.UsageLabel(snapshot);
         RemainingText.Text = snapshot.DisplayUsageUnavailable
             ? "?"
@@ -26,24 +28,45 @@ public partial class FlyoutWindow : Window
         Pro200Panel.Visibility = showPro200 ? Visibility.Visible : Visibility.Collapsed;
         if (showPro200)
         {
-            Gpt6WeekText.Text = $"{snapshot.Gpt6WeeklyUsed} / {snapshot.Limit}  remaining {Math.Max(0, snapshot.Limit - snapshot.Gpt6WeeklyUsed)}";
+            Gpt6WeekText.Text = $"{snapshot.Gpt6WeeklyUsed} / {snapshot.Limit}{UiText.RemainingWithCount(Math.Max(0, snapshot.Limit - snapshot.Gpt6WeeklyUsed).ToString(CultureInfo.InvariantCulture))}";
             SolDailyText.Text = snapshot.SolProDailyLimit is int sol
-                ? $"{snapshot.TodaySolPro} / {sol}  remaining {snapshot.SolProDailyRemaining}"
+                ? $"{snapshot.TodaySolPro} / {sol}{UiText.RemainingWithCount(snapshot.SolProDailyRemaining.ToString(CultureInfo.InvariantCulture))}"
                 : "—";
             CombinedDailyText.Text = snapshot.CombinedDailyLimit is int combined
-                ? $"{snapshot.CombinedToday} / {combined}  remaining {snapshot.CombinedDailyRemaining}"
+                ? $"{snapshot.CombinedToday} / {combined}{UiText.RemainingWithCount(snapshot.CombinedDailyRemaining.ToString(CultureInfo.InvariantCulture))}"
                 : "—";
         }
 
-        ResetText.Text = DisplayFormatting.ResetLabel(snapshot);
+        var reset = DisplayFormatting.ResetDisplay(snapshot);
+        ResetTimeLabel.Text = reset.TimeLabel;
+        ResetText.Text = reset.TimeValue;
+        if (reset.EstimateValue is null)
+        {
+            ResetEstimatePanel.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ResetEstimatePanel.Visibility = Visibility.Visible;
+            ResetEstimateLabel.Text = reset.EstimateLabel;
+            ResetEstimateText.Text = reset.EstimateValue;
+        }
+
         SyncText.Text = DisplayFormatting.LastSyncLabel(snapshot.LastSync);
-        CoverageText.Text = $"{snapshot.Coverage.ApproximatePercent}% / {snapshot.Coverage.SummaryLabel}";
+        CoverageText.Text = DisplayFormatting.CoverageFlyoutValue(snapshot);
         ReasonToday.Text = snapshot.Reasoning.Today.ToString(CultureInfo.InvariantCulture);
         ReasonWeek.Text = snapshot.Reasoning.ThisWeek.ToString(CultureInfo.InvariantCulture);
         ReasonMedium.Text = snapshot.Reasoning.Medium.ToString(CultureInfo.InvariantCulture);
         ReasonHigh.Text = snapshot.Reasoning.High.ToString(CultureInfo.InvariantCulture);
         ReasonExtra.Text = snapshot.Reasoning.ExtraHigh.ToString(CultureInfo.InvariantCulture);
-        ReasonLimit.Text = snapshot.Reasoning.Limit is int limit ? limit.ToString(CultureInfo.InvariantCulture) : "Unknown";
+        if (snapshot.Reasoning.Limit is int limit)
+        {
+            ReasonLimitPanel.Visibility = Visibility.Visible;
+            ReasonLimit.Text = limit.ToString(CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            ReasonLimitPanel.Visibility = Visibility.Collapsed;
+        }
 
         Dispatcher.BeginInvoke(() =>
         {
@@ -66,6 +89,25 @@ public partial class FlyoutWindow : Window
             row.Children.Add(count);
             ModelRows.Items.Add(row);
         }
+    }
+
+    public void ApplyLocalizedTexts()
+    {
+        RemainingLabel.Text = UiText.Remaining;
+        Gpt6WeekLabel.Text = UiText.Gpt6ProWeek;
+        SolDailyLabel.Text = UiText.SolProDaily;
+        CombinedDailyLabel.Text = UiText.CombinedDaily;
+        ReasoningSectionTitle.Text = UiText.SolReasoning;
+        ReasonTodayLabel.Text = UiText.Today;
+        ReasonWeekLabel.Text = UiText.ThisWeek;
+        ReasonMediumLabel.Text = UiText.Medium;
+        ReasonHighLabel.Text = UiText.High;
+        ReasonExtraLabel.Text = UiText.ExtraHigh;
+        ReasonLimitLabel.Text = UiText.LimitInfo;
+        ReasoningNoteText.Text = UiText.ReasoningReconstructedNote;
+        StatusSectionTitle.Text = UiText.Status;
+        LastSyncLabel.Text = UiText.LastSync;
+        CoverageLabel.Text = UiText.DataStatus;
     }
 
     public void PlaceNearTaskbar()

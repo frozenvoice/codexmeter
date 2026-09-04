@@ -5,18 +5,23 @@ public partial class CoverageWindow : Window
     public CoverageWindow(CoverageInfo coverage)
     {
         InitializeComponent();
-        Headline.Text = $"Coverage: {coverage.SummaryLabel} ({coverage.Confidence})";
-        NormalText.Text = $"Normal chats       {(coverage.NormalChats ? "✓" : "—")}";
-        ArchivedText.Text = $"Archived chats     {(coverage.ArchivedChats ? "✓" : "—")}";
-        ProjectsText.Text = $"Projects           {(coverage.Projects ? "✓" : "—")}";
-        ResetText.Text = $"Reset time         {coverage.ResetAnchorSource switch { ResetAnchorSource.Server => "Server reset", ResetAnchorSource.UserConfigured => "User-configured reset", _ => "Estimated reset" }}";
-        CountConfidenceText.Text = $"Count confidence   {coverage.CountConfidence}";
-        ResetConfidenceText.Text = $"Reset confidence   {coverage.ResetConfidence}";
-        BranchesText.Text = $"Branches included  {(coverage.BranchesIncluded ? "yes" : "unknown")}";
-        IncompleteText.Text = coverage.IndexIncomplete || coverage.ConversationIncomplete || coverage.FailedConversations > 0
-            ? $"Incomplete         index={coverage.IndexIncomplete} conversations={coverage.FailedConversations}"
-            : "Incomplete         no";
-        NotesText.Text = coverage.Notes ?? "Temporary and deleted chats cannot be reconstructed from account history.";
+        Title = UiText.DataStatus;
+        Headline.Text = $"{UiText.DataStatus}: {DisplayFormatting.OverallCollectionLabel(coverage)}";
+        DisclaimerText.Text = UiText.CoverageDisclaimer;
+        NormalText.Text = $"{UiText.NormalChats}    {DisplayFormatting.CollectionStateLabel(coverage.NormalIndexState)}";
+        ArchivedText.Text = $"{UiText.ArchivedChats}    {DisplayFormatting.CollectionStateLabel(coverage.ArchivedIndexState)}";
+        ProjectsText.Text = $"{UiText.Projects}    {DisplayFormatting.CollectionStateLabel(coverage.ProjectsIndexState)}";
+        BodiesText.Text = $"{UiText.ConversationBodies}    {coverage.LoadedConversations} {UiText.Successful}, {coverage.FailedConversations} {UiText.UniqueFailed}";
+        TemporaryText.Text = $"{UiText.TemporaryChats}    {UiText.CannotReconstruct}";
+        DeletedText.Text = $"{UiText.DeletedChats}    {UiText.CannotReconstruct}";
+        CountBasisText.Text = $"{UiText.CountBasis}    {(coverage.QuotaMetadataAuthoritative ? UiText.CountBasisServer : UiText.CountBasisReconstructed)}";
+        CountConfidenceText.Text = $"{UiText.CountConfidence}    {DisplayFormatting.CountConfidenceLabel(coverage.CountConfidence)}";
+        ResetBasisText.Text = $"{UiText.ResetBasis}    {coverage.ResetAnchorSource switch { ResetAnchorSource.Server => UiText.ResetBasisServer, ResetAnchorSource.UserConfigured => UiText.ResetBasisUser, _ => UiText.ResetBasisEstimated }}";
+        BranchesText.Text = $"{UiText.BranchCoverage}    {(coverage.BranchesIncluded ? UiText.BranchIncluded : UiText.BranchUnknown)}";
+        NotesText.Text = coverage.Notes == SyncEngine.MissingAssistantUsageDiagnostic
+            ? UiText.HistoryLoadedWithoutUsage
+            : coverage.Notes ?? UiText.TemporaryDeletedNote;
+        CloseButton.Content = UiText.Close;
     }
 
     private void OnClose(object sender, RoutedEventArgs e) => Close();

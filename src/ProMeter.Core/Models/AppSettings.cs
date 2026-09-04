@@ -33,6 +33,7 @@ public sealed class AppSettings
     public double WidgetOpacity { get; set; } = 0.92;
     public bool WidgetAlwaysOnTop { get; set; } = true;
     public bool WidgetClickThrough { get; set; }
+    public UiLanguage UiLanguage { get; set; } = UiLanguage.English;
     public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.RemainingNumber;
     public bool FlyoutCloseOnDeactivate { get; set; } = true;
     public bool NotifyAt20 { get; set; } = true;
@@ -52,6 +53,19 @@ public sealed class AppSettings
     public bool LastNotifiedCombinedDailyExhausted { get; set; }
 
     public static AppSettings CreateDefaults() => new();
+
+    public static AppSettings CreateNewInstall(CultureInfo? uiCulture = null)
+    {
+        var settings = CreateDefaults();
+        var culture = uiCulture ?? CultureInfo.CurrentUICulture;
+        if (culture.TwoLetterISOLanguageName.Equals("ko", StringComparison.OrdinalIgnoreCase)
+            || culture.Name.StartsWith("ko", StringComparison.OrdinalIgnoreCase))
+        {
+            settings.UiLanguage = UiLanguage.Korean;
+        }
+
+        return settings;
+    }
 
     public void ApplyPreset(SubscriptionPreset preset)
     {

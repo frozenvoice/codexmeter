@@ -28,6 +28,51 @@ public partial class WelcomeWindow : Window
     public WelcomeWindow()
     {
         InitializeComponent();
+        ApplyLocalizedTexts();
+    }
+
+    private void ApplyLocalizedTexts()
+    {
+        Title = UiText.WelcomeTitle;
+        TitleText.Text = UiText.WelcomeTitle;
+        SubtitleText.Text = UiText.WelcomeSubtitle;
+        Step1Title.Text = UiText.WelcomeStep1;
+        Step1Body.Text = UiText.WelcomeStep1Body;
+        Step2Title.Text = UiText.WelcomeStep2;
+        SetCombo(TransportBox, UiText.WelcomeTransportCompanion, UiText.WelcomeTransportWebView, UiText.WelcomeTransportExport);
+        SocialHint.Text = UiText.WelcomeSocialHint;
+        CompanionHint.Text = UiText.WelcomeCompanionHint;
+        OpenExtensionButton.Content = UiText.OpenExtensionFolder;
+        ChromeIdLabel.Text = UiText.WelcomeChromeId;
+        EdgeIdLabel.Text = UiText.WelcomeEdgeId;
+        RegisterCompanionButton.Content = UiText.RegisterSelectedHost;
+        CompanionStateText.Text = UiText.CompanionNotInstalled;
+        OpenChatGptButton.Content = UiText.OpenChatGpt;
+        Step3Title.Text = UiText.WelcomeStep3;
+        SetCombo(PlanBox, UiText.Plan100, UiText.Plan200, UiText.PlanCustom);
+        Step4Title.Text = UiText.WelcomeStep4;
+        OptInHint.Text = UiText.WelcomeOptInHint;
+        StartupBox.Content = UiText.StartWithWindows;
+        AutoSyncBox.Content = UiText.AutomaticSync;
+        Step5Title.Text = UiText.WelcomeStep5;
+        ProgressText.Text = UiText.WelcomeSignInHint;
+        FinishButton.Content = UiText.Finish;
+        SyncButton.Content = UiText.RunFirstManualSync;
+        SignInButton.Content = UiText.SignInConnect;
+    }
+
+    private static void SetCombo(System.Windows.Controls.ComboBox box, params string[] items)
+    {
+        var selected = box.SelectedIndex;
+        for (var i = 0; i < items.Length && i < box.Items.Count; i++)
+        {
+            if (box.Items[i] is System.Windows.Controls.ComboBoxItem item)
+            {
+                item.Content = items[i];
+            }
+        }
+
+        box.SelectedIndex = selected;
     }
 
     public event Action? SignInRequested;
@@ -52,7 +97,7 @@ public partial class WelcomeWindow : Window
         FinishButton.IsEnabled = presentation.AllowFinish || CompanionRegistered;
         if (presentation.AllowSignInAgain)
         {
-            SignInButton.Content = "Sign in again";
+            SignInButton.Content = UiText.SignInAgain;
         }
     }
 
@@ -82,7 +127,7 @@ public partial class WelcomeWindow : Window
         FinishButton.IsEnabled = registered || SelectedTransport != AuthTransportKind.BrowserCompanion;
         if (connected)
         {
-            ProgressText.Text = "Companion connected. Run first manual sync when you are ready, or Finish to configure later.";
+            ProgressText.Text = UiText.CompanionConnectedReady;
         }
     }
 

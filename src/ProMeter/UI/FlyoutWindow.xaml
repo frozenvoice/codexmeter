@@ -38,40 +38,48 @@
                 </Border>
             </DockPanel>
             <DockPanel Margin="0,8,0,0">
-                <TextBlock Text="Remaining" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBlock x:Name="RemainingLabel" Text="Remaining" Foreground="{DynamicResource MutedBrush}"/>
                 <TextBlock x:Name="RemainingText" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{DynamicResource TextBrush}"/>
             </DockPanel>
             <TextBlock x:Name="CountSourceText" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,4,0,0"/>
             <StackPanel x:Name="Pro200Panel" Visibility="Collapsed" Margin="0,8,0,0">
                 <DockPanel>
-                    <TextBlock Text="GPT-6 Pro week" Foreground="{DynamicResource MutedBrush}"/>
+                    <TextBlock x:Name="Gpt6WeekLabel" Text="GPT-6 Pro week" Foreground="{DynamicResource MutedBrush}"/>
                     <TextBlock x:Name="Gpt6WeekText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
                 </DockPanel>
                 <DockPanel Margin="0,4,0,0">
-                    <TextBlock Text="Sol Pro daily" Foreground="{DynamicResource MutedBrush}"/>
+                    <TextBlock x:Name="SolDailyLabel" Text="Sol Pro daily" Foreground="{DynamicResource MutedBrush}"/>
                     <TextBlock x:Name="SolDailyText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
                 </DockPanel>
                 <DockPanel Margin="0,4,0,0">
-                    <TextBlock Text="Combined daily" Foreground="{DynamicResource MutedBrush}"/>
+                    <TextBlock x:Name="CombinedDailyLabel" Text="Combined daily" Foreground="{DynamicResource MutedBrush}"/>
                     <TextBlock x:Name="CombinedDailyText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
                 </DockPanel>
             </StackPanel>
             <ItemsControl x:Name="ModelRows" Margin="0,8,0,0"/>
 
-            <TextBlock Style="{StaticResource SectionTitle}" Text="SOL REASONING"/>
-            <DockPanel><TextBlock Text="Today" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonToday" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="This week" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonWeek" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="Medium" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonMedium" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="High" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonHigh" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="Extra High" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonExtra" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="Limit" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonLimit" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <TextBlock x:Name="ReasoningSectionTitle" Style="{StaticResource SectionTitle}" Text="SOL REASONING"/>
+            <DockPanel><TextBlock x:Name="ReasonTodayLabel" Text="Today" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonToday" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock x:Name="ReasonWeekLabel" Text="This week" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonWeek" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock x:Name="ReasonMediumLabel" Text="Medium" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonMedium" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock x:Name="ReasonHighLabel" Text="High" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonHigh" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock x:Name="ReasonExtraLabel" Text="Extra High" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonExtra" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel x:Name="ReasonLimitPanel" Margin="0,4,0,0" Visibility="Collapsed">
+                <TextBlock x:Name="ReasonLimitLabel" Text="Limit" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBlock x:Name="ReasonLimit" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
+            </DockPanel>
+            <TextBlock x:Name="ReasoningNoteText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
 
-            <TextBlock Style="{StaticResource SectionTitle}" Text="STATUS"/>
-            <DockPanel><TextBlock Text="Reset" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ResetText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
-            <DockPanel Margin="0,4,0,0"><TextBlock Text="Last sync" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="SyncText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <TextBlock x:Name="StatusSectionTitle" Style="{StaticResource SectionTitle}" Text="STATUS"/>
+            <DockPanel><TextBlock x:Name="ResetTimeLabel" Text="Reset time" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ResetText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
+            <DockPanel x:Name="ResetEstimatePanel" Margin="0,4,0,0" Visibility="Collapsed">
+                <TextBlock x:Name="ResetEstimateLabel" Text="Estimate" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBlock x:Name="ResetEstimateText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
+            </DockPanel>
+            <DockPanel Margin="0,4,0,0"><TextBlock x:Name="LastSyncLabel" Text="Last sync" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="SyncText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
             <Button Click="OnCoverageClick" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" Cursor="Hand" Margin="0,4,0,0">
                 <DockPanel>
-                    <TextBlock Text="Coverage" Foreground="{DynamicResource MutedBrush}"/>
+                    <TextBlock x:Name="CoverageLabel" Text="Coverage" Foreground="{DynamicResource MutedBrush}"/>
                     <TextBlock x:Name="CoverageText" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{DynamicResource AccentBrush}"/>
                 </DockPanel>
             </Button>

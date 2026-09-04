@@ -1,4 +1,5 @@
 using System.Text;
+using ProMeter.Services;
 
 namespace ProMeter.Providers.ChatGpt;
 
@@ -239,65 +240,65 @@ public static class OnboardingOutcomeMapper
         return status switch
         {
             AppSyncStatus.UpToDate => new OnboardingPresentation(
-                $"GPT Pro usage: {used} / {limit}",
+                UiText.OnboardingUpToDate(used, limit),
                 ShowCount: true,
                 AllowFinish: true,
                 AllowRetrySync: false,
                 AllowSignInAgain: false),
             AppSyncStatus.PartialData => new OnboardingPresentation(
                 usageUnavailable
-                    ? $"GPT Pro: ? / {limit}. Incomplete reconstruction."
-                    : $"Partial usage {used} / {limit}. Coverage is incomplete. You can inspect Coverage or retry.",
+                    ? UiText.OnboardingIncompleteCount(limit)
+                    : UiText.OnboardingPartial(used, limit),
                 ShowCount: !usageUnavailable,
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
             AppSyncStatus.AuthenticationRequired => new OnboardingPresentation(
-                "Authentication required. Sign in again before a history scan.",
+                UiText.OnboardingAuthRequired,
                 ShowCount: false,
                 AllowFinish: false,
                 AllowRetrySync: false,
                 AllowSignInAgain: true),
             AppSyncStatus.RateLimited => new OnboardingPresentation(
-                "Rate limited. Wait and retry the first manual sync later.",
+                UiText.OnboardingRateLimited,
                 ShowCount: false,
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
             AppSyncStatus.ProviderSchemaMismatch => new OnboardingPresentation(
                 usageUnavailable
-                    ? $"GPT Pro: ? / {limit}. Incomplete reconstruction."
-                    : "Provider schema mismatch. A zero count is not a successful load.",
+                    ? UiText.OnboardingIncompleteCount(limit)
+                    : UiText.OnboardingSchemaMismatch,
                 ShowCount: false,
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
             AppSyncStatus.Offline => new OnboardingPresentation(
-                detail ?? "ChatGPT is unreachable.",
+                detail ?? UiText.ChatGptUnreachable,
                 ShowCount: false,
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
             AppSyncStatus.Forbidden => new OnboardingPresentation(
-                CompanionDiagnostics.Forbidden403,
+                UiText.Forbidden403,
                 ShowCount: false,
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
             AppSyncStatus.ChatGptTabRequired => new OnboardingPresentation(
-                CompanionDiagnostics.NoChatGptTab,
+                UiText.NoChatGptTab,
                 ShowCount: false,
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: true),
             AppSyncStatus.PageBridgeUnavailable => new OnboardingPresentation(
-                CompanionDiagnostics.PageBridgeUnavailable,
+                UiText.PageBridgeUnavailable,
                 ShowCount: false,
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
             AppSyncStatus.SignedOut => new OnboardingPresentation(
-                "ChatGPT tab is signed out.",
+                UiText.ChatGptSignedOut,
                 ShowCount: false,
                 AllowFinish: false,
                 AllowRetrySync: true,

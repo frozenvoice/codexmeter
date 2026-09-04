@@ -22,7 +22,7 @@ public sealed class ToastNotificationService
         {
             if (settings.NotifyReset && !string.IsNullOrWhiteSpace(settings.LastNotifiedPeriodKey))
             {
-                Show("ProMeter", "A new GPT Pro quota period has started.");
+                Show(UiText.ProductName, UiText.ToastNewPeriod);
             }
 
             settings.LastNotifiedPeriodKey = periodKey;
@@ -38,9 +38,9 @@ public sealed class ToastNotificationService
             setBucket: value => settings.LastNotifiedRemainingBucket = value,
             getExhausted: () => settings.LastNotifiedExhausted,
             setExhausted: value => settings.LastNotifiedExhausted = value,
-            exhausted: "GPT Pro quota is exhausted.",
-            at10: "10% of GPT Pro quota remaining.",
-            at20: "20% of GPT Pro quota remaining.");
+            exhausted: UiText.ToastGptProExhausted,
+            at10: UiText.ToastGptPro10,
+            at20: UiText.ToastGptPro20);
 
         var dayKey = snapshot.PeriodStart.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
                      + ":" + DateTimeOffset.Now.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -63,9 +63,9 @@ public sealed class ToastNotificationService
                 setBucket: value => settings.LastNotifiedSolDailyBucket = value,
                 getExhausted: () => settings.LastNotifiedSolDailyExhausted,
                 setExhausted: value => settings.LastNotifiedSolDailyExhausted = value,
-                exhausted: "GPT-5.6 Sol Pro daily quota is exhausted.",
-                at10: "10% of Sol Pro daily quota remaining.",
-                at20: "20% of Sol Pro daily quota remaining.");
+                exhausted: UiText.ToastSolExhausted,
+                at10: UiText.ToastSol10,
+                at20: UiText.ToastSol20);
         }
 
         if (snapshot.CombinedDailyLimit is int combinedLimit)
@@ -78,9 +78,9 @@ public sealed class ToastNotificationService
                 setBucket: value => settings.LastNotifiedCombinedDailyBucket = value,
                 getExhausted: () => settings.LastNotifiedCombinedDailyExhausted,
                 setExhausted: value => settings.LastNotifiedCombinedDailyExhausted = value,
-                exhausted: "Combined Pro daily quota is exhausted.",
-                at10: "10% of combined Pro daily quota remaining.",
-                at20: "20% of combined Pro daily quota remaining.");
+                exhausted: UiText.ToastCombinedExhausted,
+                at10: UiText.ToastCombined10,
+                at20: UiText.ToastCombined20);
         }
 
         _settings.Save(settings);
@@ -93,7 +93,7 @@ public sealed class ToastNotificationService
             return;
         }
 
-        Show("ProMeter sync", message);
+        Show(UiText.ToastSyncTitle, message);
     }
 
     public static Action<string, string>? Fallback { get; set; }
@@ -128,7 +128,7 @@ public sealed class ToastNotificationService
         var remainingPercent = limit <= 0 ? 100 : remaining * 100.0 / limit;
         if (remaining <= 0 && settings.NotifyExhausted && !getExhausted())
         {
-            Show("ProMeter", exhausted);
+            Show(UiText.ProductName, exhausted);
             setExhausted(true);
             setBucket(0);
         }

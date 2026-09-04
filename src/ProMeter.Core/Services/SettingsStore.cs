@@ -16,7 +16,7 @@ public sealed class SettingsStore
         {
             if (!File.Exists(_path))
             {
-                return AppSettings.CreateDefaults();
+                return AppSettings.CreateNewInstall();
             }
 
             try

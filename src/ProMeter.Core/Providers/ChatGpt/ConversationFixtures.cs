@@ -85,6 +85,18 @@ public static class ConversationFixtures
             Node("asst-1", "assistant", "user-1", time - 1, requestId: "req-normal", modelSlug: "gpt-5-6-pro"));
     }
 
+    public static JsonObject TwoProTurns(string conversationId, double oldTime, double newTime)
+    {
+        return Conversation(
+            conversationId,
+            newTime,
+            Node("root", "system", null, oldTime - 3, children: ["user-old"]),
+            Node("user-old", "user", "root", oldTime - 2, requestedModel: "gpt-5-6-pro", children: ["asst-old"]),
+            Node("asst-old", "assistant", "user-old", oldTime - 1, requestId: "req-old", modelSlug: "gpt-5-6-pro", children: ["user-new"]),
+            Node("user-new", "user", "asst-old", newTime - 2, requestedModel: "gpt-5-6-pro", children: ["asst-new"]),
+            Node("asst-new", "assistant", "user-new", newTime - 1, requestId: "req-new", modelSlug: "gpt-5-6-pro"));
+    }
+
     public static JsonObject MultiAssistantSameRequest(string conversationId = "conv-multi", double time = 1_777_500_100)
     {
         return Conversation(

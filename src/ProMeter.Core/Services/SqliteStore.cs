@@ -178,6 +178,60 @@ public sealed class SqliteStore : IDisposable
         UpsertConversation(record);
     }
 
+    public void MergeConversationMetadata(string conversationId, string? projectId, bool archived, string? source)
+    {
+        lock (_gate)
+        {
+            var record = GetConversation(conversationId);
+            if (record is null)
+            {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(projectId) && string.IsNullOrWhiteSpace(record.ProjectId))
+            {
+                record.ProjectId = projectId;
+            }
+
+            if (archived)
+            {
+                record.Archived = true;
+            }
+
+            if (string.Equals(source, "project", StringComparison.Ordinal)
+                && !string.Equals(record.Source, "project", StringComparison.Ordinal))
+            {
+                record.Source = "project";
+            }
+
+            using var connection = Open();
+            using var tx = connection.BeginTransaction();
+            using var upsert = connection.CreateCommand();
+            upsert.Transaction = tx;
+            BindConversation(upsert, record);
+            upsert.ExecuteNonQuery();
+            if (!string.IsNullOrWhiteSpace(projectId) || archived)
+            {
+                using var update = connection.CreateCommand();
+                update.Transaction = tx;
+                update.CommandText = """
+                    UPDATE usage_events
+                    SET project_id=COALESCE(project_id, $project),
+                        is_archived=CASE WHEN $archived=1 THEN 1 ELSE is_archived END,
+                        source=CASE WHEN $source='project' AND source IN ('ConversationSync','ArchivedSync') THEN 'ProjectSync' ELSE source END
+                    WHERE conversation_id=$id
+                    """;
+                update.Parameters.AddWithValue("$project", (object?)projectId ?? DBNull.Value);
+                update.Parameters.AddWithValue("$archived", archived ? 1 : 0);
+                update.Parameters.AddWithValue("$source", (object?)source ?? DBNull.Value);
+                update.Parameters.AddWithValue("$id", conversationId);
+                update.ExecuteNonQuery();
+            }
+
+            tx.Commit();
+        }
+    }
+
     public void ReconcileConversation(ConversationRecord record, IReadOnlyList<UsageEvent> events)
     {
         lock (_gate)

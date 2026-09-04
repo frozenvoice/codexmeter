@@ -38,18 +38,18 @@ public sealed class TrayController : IDisposable
     public void RebuildMenu(bool startWithWindows)
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Open ProMeter", null, (_, _) => OpenRequested?.Invoke());
-        menu.Items.Add("Sync now", null, (_, _) => SyncRequested?.Invoke());
-        menu.Items.Add("Open Login", null, (_, _) => LoginRequested?.Invoke());
-        menu.Items.Add("Settings", null, (_, _) => SettingsRequested?.Invoke());
-        menu.Items.Add("Open logs", null, (_, _) => OpenLogsRequested?.Invoke());
-        menu.Items.Add("View statistics", null, (_, _) => StatisticsRequested?.Invoke());
-        var startup = new ToolStripMenuItem("Start with Windows") { Checked = startWithWindows, CheckOnClick = true };
+        menu.Items.Add(UiText.OpenProMeter, null, (_, _) => OpenRequested?.Invoke());
+        menu.Items.Add(UiText.SyncNow, null, (_, _) => SyncRequested?.Invoke());
+        menu.Items.Add(UiText.OpenLogin, null, (_, _) => LoginRequested?.Invoke());
+        menu.Items.Add(UiText.Settings, null, (_, _) => SettingsRequested?.Invoke());
+        menu.Items.Add(UiText.OpenLogs, null, (_, _) => OpenLogsRequested?.Invoke());
+        menu.Items.Add(UiText.ViewStatistics, null, (_, _) => StatisticsRequested?.Invoke());
+        var startup = new ToolStripMenuItem(UiText.StartWithWindows) { Checked = startWithWindows, CheckOnClick = true };
         startup.CheckedChanged += (_, _) => StartupToggled?.Invoke(startup.Checked);
         menu.Items.Add(startup);
-        menu.Items.Add("About", null, (_, _) => AboutRequested?.Invoke());
+        menu.Items.Add(UiText.About, null, (_, _) => AboutRequested?.Invoke());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => ExitRequested?.Invoke());
+        menu.Items.Add(UiText.Exit, null, (_, _) => ExitRequested?.Invoke());
         _icon.ContextMenuStrip = menu;
     }
 

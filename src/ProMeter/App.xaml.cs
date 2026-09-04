@@ -57,12 +57,14 @@ public partial class App : Application
 
         _settingsStore = new SettingsStore();
         _settings = _settingsStore.Load();
+        UiText.SetLanguage(_settings.UiLanguage);
         _store = new SqliteStore();
         _log = new AppLog();
         _models = new ModelNormalizer();
         _parser = new ConversationParser(_models);
         _quota = new QuotaEngine();
         _sync = new SyncEngine(_store, _parser, _models, _log);
+        _sync.ProgressChanged += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
         _importer = new ConversationExportImporter(_parser, _models);
         _companionHub = new CompanionRequestHub();
         _webViewTransport = new WebViewTransport(_log);
@@ -149,12 +151,12 @@ public partial class App : Application
             var error = RegisterCompanionHost(chromeId, edgeId);
             if (error is not null)
             {
-                welcome.SetCompanionState("Not installed: " + error, registered: false, connected: false);
+                welcome.SetCompanionState(UiText.CompanionNotInstalledPrefix + error, registered: false, connected: false);
                 return;
             }
 
             welcome.SetCompanionState(
-                _companionHub.IsConnected ? "Connected" : "Registered. Waiting for extension",
+                _companionHub.IsConnected ? UiText.CompanionConnected : UiText.CompanionRegisteredWaiting,
                 registered: true,
                 connected: _companionHub.IsConnected);
         };
@@ -170,7 +172,7 @@ public partial class App : Application
             ApplyTransport();
             if (_settings.AuthTransport == AuthTransportKind.DataExport)
             {
-                welcome.MarkSignedIn("Data Export selected. Import conversations.json from Settings. No ChatGPT scan will run.");
+                welcome.MarkSignedIn(UiText.DataExportSelected);
                 return;
             }
 
@@ -178,21 +180,21 @@ public partial class App : Application
             {
                 Process.Start(new ProcessStartInfo { FileName = ChatGptEndpoints.LoginUrl, UseShellExecute = true });
                 welcome.SetCompanionState(
-                    _companionHub.IsConnected ? "Connected" : (welcome.CompanionRegistered ? "Waiting for extension" : "Not installed"),
+                    _companionHub.IsConnected ? UiText.CompanionConnected : (welcome.CompanionRegistered ? UiText.CompanionWaiting : UiText.CompanionNotInstalled),
                     welcome.CompanionRegistered,
                     _companionHub.IsConnected);
                 return;
             }
 
-            welcome.SetBusy("Opening WebView2 sign-in...");
+            welcome.SetBusy(UiText.OpeningWebViewSignIn);
             var signedIn = await _webViewTransport.ShowLoginAsync();
             if (!signedIn)
             {
-                welcome.SetCancelled("Sign-in was cancelled. Google/Microsoft/Apple WebView login is unsupported.");
+                welcome.SetCancelled(UiText.SignInCancelled);
                 return;
             }
 
-            welcome.MarkSignedIn("Signed in. Use Run first manual sync to scan history.");
+            welcome.MarkSignedIn(UiText.SignedInRunSync);
         };
         welcome.SyncRequested += async () =>
         {
@@ -201,11 +203,11 @@ public partial class App : Application
             ApplyTransport();
             if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion && !_companionHub.IsConnected)
             {
-                welcome.SetCompanionState("Waiting for extension", welcome.CompanionRegistered, false);
+                welcome.SetCompanionState(UiText.CompanionWaiting, welcome.CompanionRegistered, false);
                 return;
             }
 
-            welcome.SetBusy("Running first manual sync...");
+            welcome.SetBusy(UiText.RunningFirstSync);
             var outcome = await SyncAsync(true);
             welcome.ApplyOutcome(OnboardingOutcomeMapper.From(outcome.Status, _snapshot.Used, _snapshot.Limit, outcome.Detail, _snapshot.DisplayUsageUnavailable));
             _log.Info("welcome sync " + outcome.Status);
@@ -228,10 +230,10 @@ public partial class App : Application
         }
 
         _syncing = true;
+        RefreshSnapshot();
         try
         {
             var outcome = await _sync.SyncAsync(_provider, _settings, force);
-            RefreshSnapshot();
             if (outcome.Status is AppSyncStatus.AuthenticationRequired or AppSyncStatus.SignedOut
                 or AppSyncStatus.Error or AppSyncStatus.Offline or AppSyncStatus.Forbidden
                 or AppSyncStatus.ChatGptTabRequired or AppSyncStatus.PageBridgeUnavailable)
@@ -244,6 +246,7 @@ public partial class App : Application
         finally
         {
             _syncing = false;
+            RefreshSnapshot();
         }
     }
 
@@ -259,6 +262,11 @@ public partial class App : Application
             _sync.LastQuotaMetadata,
             _sync.LastStatus,
             _sync.LastStatusDetail);
+        _snapshot.IsSyncing = _syncing;
+        if (_syncing)
+        {
+            _snapshot.Status = AppSyncStatus.Syncing;
+        }
         _tray.Update(_snapshot, _settings.TrayIconStyle);
         _toasts.Evaluate(_snapshot, _settings);
         _flyout?.Bind(_snapshot, _settings);
@@ -325,11 +333,14 @@ public partial class App : Application
         {
             _settings = settings;
             _settingsStore.Save(settings);
+            UiText.SetLanguage(settings.UiLanguage);
             ApplyTransport();
             StartupConsent.ApplyIfPermitted(new WindowsStartupService(), settings);
             _timer.Interval = TimeSpan.FromMinutes(Math.Clamp(settings.SyncIntervalMinutes, 5, 180));
             ApplyTheme(settings.Theme);
             _tray.RebuildMenu(settings.StartWithWindows);
+            _flyout?.ApplyLocalizedTexts();
+            _main?.ApplyLocalizedTexts();
             ApplyWidget();
             RefreshSnapshot();
         };
@@ -337,8 +348,8 @@ public partial class App : Application
         {
             var error = RegisterCompanionHost(chromeId, edgeId);
             MessageBox.Show(
-                error ?? ("Registered the official Chrome/Edge native hosts.\n\n" + CompanionRegistration.WhaleInstructions),
-                "ProMeter");
+                error ?? (UiText.RegisteredNativeHosts + CompanionRegistration.WhaleInstructions),
+                UiText.ProductName);
         };
         window.ImportRequested += ImportExport;
         window.ExportRequested += format => Export(format);
@@ -360,7 +371,7 @@ public partial class App : Application
         var dialog = new OpenFileDialog
         {
             Filter = "ChatGPT export|*.json|All files|*.*",
-            Title = "Import official ChatGPT conversations.json"
+            Title = UiText.ImportTitle
         };
         if (dialog.ShowDialog() != true)
         {
@@ -373,14 +384,14 @@ public partial class App : Application
         var imported = _importer.Import(json, _settings.ImportHistoricalStatistics, start);
         if (imported.Error is not null)
         {
-            System.Windows.MessageBox.Show(imported.Error, "ProMeter");
+            System.Windows.MessageBox.Show(imported.Error, UiText.ProductName);
             return;
         }
 
         _store.UpsertUsageEvents(imported.Events);
         _sync.RecordImportedEvents(imported.Events.Count);
         RefreshSnapshot();
-        System.Windows.MessageBox.Show($"Imported {imported.Events.Count} usage events.", "ProMeter");
+        System.Windows.MessageBox.Show(UiText.ImportedEvents(imported.Events.Count), UiText.ProductName);
     }
 
     private void Export(string format)
@@ -445,7 +456,7 @@ public partial class App : Application
         var result = CompanionRegistration.Register(exe, chromeId, edgeId);
         if (!result.Ok)
         {
-            return result.Error ?? "native-host registration failed";
+            return result.Error ?? UiText.NativeHostFailed;
         }
 
         _settings.ChromeExtensionId = chromeId;

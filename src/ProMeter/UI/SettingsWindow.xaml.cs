@@ -14,6 +14,7 @@ public partial class SettingsWindow : Window
     {
         InitializeComponent();
         _settings = settings;
+        ApplyLocalizedTexts();
         PlanBox.SelectedIndex = (int)settings.PlanPreset;
         WeeklyBox.Text = settings.WeeklyProQuota.ToString(CultureInfo.InvariantCulture);
         DailyBox.Text = settings.DailyProQuota?.ToString(CultureInfo.InvariantCulture) ?? "";
@@ -32,6 +33,7 @@ public partial class SettingsWindow : Window
         StartupBox.IsChecked = settings.StartWithWindows;
         WidgetBox.IsChecked = settings.FloatingWidgetEnabled;
         ThemeBox.SelectedIndex = (int)settings.Theme;
+        LanguageBox.SelectedIndex = settings.UiLanguage == UiLanguage.Korean ? 0 : 1;
         IconBox.SelectedIndex = (int)settings.TrayIconStyle;
         FlyoutCloseBox.IsChecked = settings.FlyoutCloseOnDeactivate;
         N20.IsChecked = settings.NotifyAt20;
@@ -92,6 +94,7 @@ public partial class SettingsWindow : Window
             FloatingWidgetEnabled = WidgetBox.IsChecked == true,
             Theme = (AppTheme)ThemeBox.SelectedIndex,
             TrayIconStyle = (TrayIconStyle)IconBox.SelectedIndex,
+            UiLanguage = LanguageBox.SelectedIndex == 0 ? UiLanguage.Korean : UiLanguage.English,
             FlyoutCloseOnDeactivate = FlyoutCloseBox.IsChecked == true,
             NotifyAt20 = N20.IsChecked == true,
             NotifyAt10 = N10.IsChecked == true,
@@ -106,6 +109,75 @@ public partial class SettingsWindow : Window
 
     private void OnRegisterCompanion(object sender, RoutedEventArgs e) =>
         CompanionRegisterRequested?.Invoke(TrimOrNull(ChromeExtensionIdBox.Text), TrimOrNull(EdgeExtensionIdBox.Text));
+
+    private void ApplyLocalizedTexts()
+    {
+        Title = UiText.SettingsTitle;
+        TitleText.Text = UiText.Settings;
+        PlanTitle.Text = UiText.Plan;
+        SetCombo(PlanBox, UiText.Plan100Short, UiText.Plan200Short, UiText.PlanCustomShort);
+        WeeklyLabel.Text = UiText.WeeklyProQuota;
+        DailyLabel.Text = UiText.DailyProQuota;
+        SolDailyLabel.Text = UiText.SolProDailyQuota;
+        CombinedLabel.Text = UiText.CombinedDailyQuota;
+        ReasoningLabel.Text = UiText.ReasoningQuota;
+        ResetTitle.Text = UiText.ResetAnchor;
+        ResetHint.Text = UiText.ResetAnchorHint;
+        SetCombo(WeekdayBox,
+            UiText.Weekday(DayOfWeek.Sunday),
+            UiText.Weekday(DayOfWeek.Monday),
+            UiText.Weekday(DayOfWeek.Tuesday),
+            UiText.Weekday(DayOfWeek.Wednesday),
+            UiText.Weekday(DayOfWeek.Thursday),
+            UiText.Weekday(DayOfWeek.Friday),
+            UiText.Weekday(DayOfWeek.Saturday));
+        ResetAnchorBox.Content = UiText.ResetAnchorCheck;
+        ConnectionTitle.Text = UiText.Connection;
+        ConnectionHint.Text = UiText.ConnectionHint;
+        SetCombo(TransportBox, UiText.TransportCompanion, UiText.TransportWebView, UiText.TransportExport);
+        ChromeIdLabel.Text = UiText.ChromeExtensionId;
+        EdgeIdLabel.Text = UiText.EdgeExtensionId;
+        PairingHint.Text = UiText.PairingTokenHint;
+        RegisterButton.Content = UiText.RegisterNativeHost;
+        AppTitle.Text = UiText.AppSection;
+        AppHint.Text = UiText.AppRiskHint;
+        AutoSyncBox.Content = UiText.AutomaticSync;
+        IntervalLabel.Text = UiText.SyncInterval;
+        StartupBox.Content = UiText.StartWithWindows;
+        WidgetBox.Content = UiText.FloatingWidget;
+        LanguageLabel.Text = UiText.LanguageCaption;
+        SetCombo(LanguageBox, UiText.Korean, UiText.English);
+        SetCombo(ThemeBox, UiText.ThemeSystem, UiText.ThemeLight, UiText.ThemeDark);
+        SetCombo(IconBox, UiText.TrayRemainingNumber, UiText.TrayProgressRing);
+        FlyoutCloseBox.Content = UiText.CloseFlyoutOnDeactivate;
+        NotificationsTitle.Text = UiText.Notifications;
+        N20.Content = UiText.Notify20;
+        N10.Content = UiText.Notify10;
+        NEx.Content = UiText.NotifyExhausted;
+        NReset.Content = UiText.NotifyReset;
+        NErr.Content = UiText.NotifySyncError;
+        DataTitle.Text = UiText.Data;
+        ImportButton.Content = UiText.ImportConversations;
+        ExportJsonButton.Content = UiText.ExportJson;
+        ExportCsvButton.Content = UiText.ExportCsv;
+        OpenLogsButton.Content = UiText.OpenLogs;
+        HistoricalBox.Content = UiText.ImportOlder;
+        SaveButton.Content = UiText.Save;
+    }
+
+    private static void SetCombo(System.Windows.Controls.ComboBox box, params string[] items)
+    {
+        var selected = box.SelectedIndex;
+        for (var i = 0; i < items.Length && i < box.Items.Count; i++)
+        {
+            if (box.Items[i] is System.Windows.Controls.ComboBoxItem item)
+            {
+                item.Content = items[i];
+            }
+        }
+
+        box.SelectedIndex = selected;
+    }
 
     private static string? TrimOrNull(string? text) =>
         string.IsNullOrWhiteSpace(text) ? null : text.Trim();
