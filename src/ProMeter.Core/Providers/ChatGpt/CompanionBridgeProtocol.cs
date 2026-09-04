@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace ProMeter.Providers.ChatGpt;
 
 public enum AuthTransportKind
@@ -12,13 +14,15 @@ public sealed class CompanionBridgeMessage
     public string? Type { get; set; }
     public string? PairingToken { get; set; }
     public string? RequestId { get; set; }
-    public string? Method { get; set; }
-    public string? Path { get; set; }
-    public string? Body { get; set; }
+    public string? Operation { get; set; }
+    public CompanionOperationArgs? Args { get; set; }
     public int? Status { get; set; }
     public string? RetryAfter { get; set; }
+    public string? Body { get; set; }
     public string? Error { get; set; }
     public bool SchemaMismatch { get; set; }
+    public bool PayloadTooLarge { get; set; }
+    public bool Accepted { get; set; }
 }
 
 public sealed class CompanionParseResult
@@ -40,8 +44,13 @@ public static class CompanionBridgeProtocol
 {
     public const string NativeHostName = "com.prometer.bridge";
     public const string Hello = "hello";
-    public const string Fetch = "fetch";
-    public const string FetchResult = "fetchResult";
+    public const string HelloAck = "helloAck";
+    public const string Invoke = "invoke";
+    public const string InvokeResult = "invokeResult";
+    public const string ErrorType = "error";
+    public const int MaxNativeMessageBytes = 1_048_576;
+    public const int MaxCommandBytes = 16_384;
+    public static readonly TimeSpan DefaultRequestTimeout = TimeSpan.FromSeconds(60);
 
     public static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -52,11 +61,16 @@ public static class CompanionBridgeProtocol
     public static string Serialize(CompanionBridgeMessage message) =>
         JsonSerializer.Serialize(message, JsonOptions);
 
-    public static CompanionParseResult Parse(string? json)
+    public static CompanionParseResult Parse(string? json, int maxBytes = MaxNativeMessageBytes)
     {
         if (string.IsNullOrWhiteSpace(json))
         {
             return CompanionParseResult.Reject("empty bridge message");
+        }
+
+        if (Encoding.UTF8.GetByteCount(json) > maxBytes)
+        {
+            return CompanionParseResult.Reject("PayloadTooLarge", schemaMismatch: false);
         }
 
         var node = ChatGptJson.ParseNode(json);
@@ -71,35 +85,65 @@ public static class CompanionBridgeProtocol
             return CompanionParseResult.Reject("bridge message type missing");
         }
 
+        if (string.Equals(type, "fetch", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(type, "fetchResult", StringComparison.OrdinalIgnoreCase))
+        {
+            return CompanionParseResult.Reject("generic fetch is forbidden");
+        }
+
         var message = new CompanionBridgeMessage
         {
             Type = type,
             PairingToken = ChatGptJson.GetString(node, "pairingToken", "pairing_token"),
             RequestId = ChatGptJson.GetString(node, "requestId", "request_id"),
-            Method = ChatGptJson.GetString(node, "method"),
-            Path = ChatGptJson.GetString(node, "path"),
-            Body = ChatGptJson.GetString(node, "body"),
+            Operation = ChatGptJson.GetString(node, "operation"),
             Status = (int?)ChatGptJson.GetDouble(node, "status"),
             RetryAfter = ChatGptJson.GetString(node, "retryAfter", "retry_after"),
+            Body = ChatGptJson.GetString(node, "body"),
             Error = ChatGptJson.GetString(node, "error"),
-            SchemaMismatch = ChatGptJson.GetBool(node, "schemaMismatch", "schema_mismatch") == true
+            SchemaMismatch = ChatGptJson.GetBool(node, "schemaMismatch", "schema_mismatch") == true,
+            PayloadTooLarge = ChatGptJson.GetBool(node, "payloadTooLarge", "payload_too_large") == true,
+            Accepted = ChatGptJson.GetBool(node, "accepted") == true
         };
 
-        if (string.Equals(type, Fetch, StringComparison.OrdinalIgnoreCase))
+        if (node["args"] is JsonObject argsNode)
         {
-            if (!BackendTargetPolicy.TryValidate(message.Path, out var safe, out var error))
+            message.Args = new CompanionOperationArgs
+            {
+                ConversationId = ChatGptJson.GetString(argsNode, "conversationId", "conversation_id"),
+                ProjectId = ChatGptJson.GetString(argsNode, "projectId", "project_id"),
+                Cursor = ChatGptJson.GetString(argsNode, "cursor"),
+                Offset = (int?)ChatGptJson.GetDouble(argsNode, "offset"),
+                Limit = (int?)ChatGptJson.GetDouble(argsNode, "limit"),
+                Archived = ChatGptJson.GetBool(argsNode, "archived"),
+                Body = ChatGptJson.GetString(argsNode, "body")
+            };
+        }
+
+        if (string.Equals(type, Invoke, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!Enum.TryParse<CompanionOperation>(message.Operation, ignoreCase: true, out var operation)
+                || !Enum.IsDefined(operation))
+            {
+                return CompanionParseResult.Reject("unknown operation");
+            }
+
+            if (!CompanionOperationRouter.TryBuild(operation, message.Args, out _, out _, out _, out var error))
             {
                 return CompanionParseResult.Reject(error);
             }
-
-            message.Path = safe;
         }
 
         return new CompanionParseResult { Accepted = true, Message = message };
     }
 
-    public static ProviderResponse ToProviderResponse(CompanionParseResult parsed)
+    public static ProviderResponse ToProviderResponse(CompanionParseResult parsed, CompanionOperation? operation = null)
     {
+        if (parsed.Error == "PayloadTooLarge")
+        {
+            return new ProviderResponse { Status = 0, Error = "PayloadTooLarge", SchemaMismatch = true };
+        }
+
         if (!parsed.Accepted || parsed.Message is null)
         {
             return new ProviderResponse
@@ -111,6 +155,23 @@ public static class CompanionBridgeProtocol
         }
 
         var message = parsed.Message;
+        if (message.PayloadTooLarge)
+        {
+            return new ProviderResponse { Status = 0, Error = "PayloadTooLarge", SchemaMismatch = true };
+        }
+
+        if (message.Status is 401 or 403 or 429 || message.Status is >= 500 and < 600)
+        {
+            return new ProviderResponse
+            {
+                Status = message.Status.Value,
+                RetryAfter = message.RetryAfter,
+                Body = message.Body ?? "",
+                Error = message.Error,
+                SchemaMismatch = message.SchemaMismatch
+            };
+        }
+
         if (message.SchemaMismatch || message.Status is null)
         {
             return new ProviderResponse
@@ -123,6 +184,25 @@ public static class CompanionBridgeProtocol
             };
         }
 
+        if (operation is CompanionOperation op && !string.IsNullOrWhiteSpace(message.Body))
+        {
+            var node = ChatGptJson.ParseNode(message.Body);
+            if (node is null && message.Status is >= 200 and < 300)
+            {
+                return new ProviderResponse
+                {
+                    Status = 0,
+                    Error = "projected body was not JSON",
+                    SchemaMismatch = true
+                };
+            }
+
+            if (node is not null && !BridgeProjection.TryValidateProjected(op, node, out var leak))
+            {
+                return new ProviderResponse { Status = 0, Error = leak, SchemaMismatch = true };
+            }
+        }
+
         return new ProviderResponse
         {
             Status = message.Status.Value,
@@ -131,76 +211,12 @@ public static class CompanionBridgeProtocol
             Error = message.Error
         };
     }
-}
 
-public static class BrowserResponseSanitizer
-{
-    public static JsonNode? Sanitize(JsonNode? node)
-    {
-        if (node is null)
-        {
-            return null;
-        }
+    public static ProviderResponse TimeoutResponse() =>
+        new() { Status = 0, Error = "bridge request timed out" };
 
-        var clone = node.DeepClone();
-        ConversationDetailLoader.StripBodies(clone);
-        StripSecrets(clone);
-        return clone;
-    }
-
-    public static bool ContainsPromptOrResponseText(JsonNode? node)
-    {
-        if (node is JsonObject obj)
-        {
-            if (obj["content"] is JsonObject content)
-            {
-                if (content["parts"] is JsonArray { Count: > 0 } parts
-                    && parts.Any(part => part is JsonValue value && value.GetValueKind() == JsonValueKind.String && !string.IsNullOrWhiteSpace(value.ToString())))
-                {
-                    return true;
-                }
-
-                if (content["text"] is JsonValue text
-                    && text.GetValueKind() == JsonValueKind.String
-                    && !string.IsNullOrWhiteSpace(text.ToString()))
-                {
-                    return true;
-                }
-            }
-
-            return obj.Any(property => ContainsPromptOrResponseText(property.Value));
-        }
-
-        if (node is JsonArray array)
-        {
-            return array.Any(ContainsPromptOrResponseText);
-        }
-
-        return false;
-    }
-
-    private static void StripSecrets(JsonNode? node)
-    {
-        if (node is JsonObject obj)
-        {
-            foreach (var key in new[] { "accessToken", "access_token", "sessionToken", "session_token", "authorization", "cookie" })
-            {
-                obj.Remove(key);
-            }
-
-            foreach (var property in obj.ToList())
-            {
-                StripSecrets(property.Value);
-            }
-        }
-        else if (node is JsonArray array)
-        {
-            foreach (var item in array)
-            {
-                StripSecrets(item);
-            }
-        }
-    }
+    public static ProviderResponse DisconnectResponse() =>
+        new() { Status = 0, Error = "browser companion disconnected" };
 }
 
 public static class OnboardingOutcomeMapper
@@ -246,15 +262,13 @@ public static class OnboardingOutcomeMapper
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
             _ => new OnboardingPresentation(
-                detail ?? DisplayStatus(status),
+                detail ?? status.ToString(),
                 ShowCount: false,
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: status is AppSyncStatus.SignedOut)
         };
     }
-
-    private static string DisplayStatus(AppSyncStatus status) => status.ToString();
 }
 
 public sealed record OnboardingPresentation(

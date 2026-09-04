@@ -56,6 +56,18 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 ## Transport
 
 - Transport schema failures must never be reported as network offline errors.
+- Chrome Native Messaging through runtime.connectNative is a long-lived, full-duplex channel. Never implement it as alternating request/reply I/O.
+- Application-initiated messages must reach the extension without requiring a preceding extension message.
+- Every bridge request must have a bounded timeout and must complete when the connection closes.
+- Browser companion authentication is owned by the extension. ChatGPT access tokens may exist only in extension service-worker memory and must never cross Native Messaging, named pipes, logs, settings, SQLite, or exports.
+- The browser bridge is read-only except for narrowly approved requests that are indispensable to usage reconstruction.
+- Arbitrary HTTP methods and arbitrary /backend-api paths are forbidden.
+- Browser responses must be projected through endpoint-specific metadata allowlists before leaving the browser. Recursive denylist deletion is not an adequate privacy boundary.
+- Named-pipe writes must be serialized and pipe access must be restricted to the current Windows user.
+- Native-host registration must fail closed when the companion executable or extension ID is invalid.
+- An encoded or canonicalized path must never escape an approved route.
+- Browser companion setup must be completable from onboarding without first performing a failed sync.
+- Transport migrations must never silently change an existing user's selected transport.
 
 ## Architecture
 

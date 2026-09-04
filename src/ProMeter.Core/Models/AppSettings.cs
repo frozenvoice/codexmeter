@@ -2,7 +2,7 @@ namespace ProMeter.Models;
 
 public sealed class AppSettings
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public int Version { get; set; } = CurrentVersion;
     public bool FirstRunCompleted { get; set; }
@@ -20,6 +20,9 @@ public sealed class AppSettings
     public AppTheme Theme { get; set; } = AppTheme.System;
     public AuthTransportKind AuthTransport { get; set; } = AuthTransportKind.BrowserCompanion;
     public string? CompanionExtensionId { get; set; }
+    public string? ChromeExtensionId { get; set; }
+    public string? EdgeExtensionId { get; set; }
+    public bool CompanionConnectOptIn { get; set; }
     public bool AutoSync { get; set; }
     public int SyncIntervalMinutes { get; set; } = 15;
     public int BodyFetchDelayMilliseconds { get; set; } = 250;

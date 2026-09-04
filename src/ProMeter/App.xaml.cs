@@ -42,13 +42,6 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        if (e.Args.Any(arg => string.Equals(arg, "--companion-host", StringComparison.OrdinalIgnoreCase)))
-        {
-            NativeMessagingHost.Run();
-            Shutdown();
-            return;
-        }
-
         _mutex = new Mutex(true, @"Local\ProMeter.SingleInstance", out var created);
         if (!created)
         {
@@ -125,6 +118,55 @@ public partial class App : Application
     private void RunWelcome()
     {
         var welcome = new WelcomeWindow();
+        void SyncConnectionState()
+        {
+            if (_companionHub.IsConnected)
+            {
+                welcome.SetCompanionState("Connected", registered: true, connected: true);
+                return;
+            }
+
+            if (welcome.CompanionRegistered)
+            {
+                welcome.SetCompanionState("Disconnected", registered: true, connected: false);
+            }
+        }
+
+        _companionHub.ConnectionChanged += SyncConnectionState;
+        welcome.Closed += (_, _) => _companionHub.ConnectionChanged -= SyncConnectionState;
+        welcome.OpenExtensionFolderRequested += () =>
+        {
+            var folder = Path.Combine(AppContext.BaseDirectory, "extension");
+            if (!Directory.Exists(folder))
+            {
+                folder = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "extension"));
+            }
+
+            if (Directory.Exists(folder))
+            {
+                Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
+            }
+        };
+        welcome.RegisterCompanionRequested += (chromeId, edgeId) =>
+        {
+            ApplyWelcomeChoices(welcome);
+            var error = RegisterCompanionHost(chromeId, edgeId);
+            if (error is not null)
+            {
+                welcome.SetCompanionState("Not installed: " + error, registered: false, connected: false);
+                return;
+            }
+
+            welcome.SetCompanionState(
+                _companionHub.IsConnected ? "Connected" : "Registered. Waiting for extension",
+                registered: true,
+                connected: _companionHub.IsConnected);
+        };
+        welcome.OpenChatGptRequested += () => Process.Start(new ProcessStartInfo
+        {
+            FileName = ChatGptEndpoints.LoginUrl,
+            UseShellExecute = true
+        });
         welcome.SignInRequested += async () =>
         {
             ApplyWelcomeChoices(welcome);
@@ -138,7 +180,11 @@ public partial class App : Application
 
             if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion)
             {
-                welcome.MarkSignedIn("Sign in to ChatGPT in Chrome or Edge, load the ProMeter extension, then click Connect. Sign-in alone does not scan history.");
+                Process.Start(new ProcessStartInfo { FileName = ChatGptEndpoints.LoginUrl, UseShellExecute = true });
+                welcome.SetCompanionState(
+                    _companionHub.IsConnected ? "Connected" : (welcome.CompanionRegistered ? "Waiting for extension" : "Not installed"),
+                    welcome.CompanionRegistered,
+                    _companionHub.IsConnected);
                 return;
             }
 
@@ -157,6 +203,12 @@ public partial class App : Application
             ApplyWelcomeChoices(welcome);
             _settingsStore.Save(_settings);
             ApplyTransport();
+            if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion && !_companionHub.IsConnected)
+            {
+                welcome.SetCompanionState("Waiting for extension", welcome.CompanionRegistered, false);
+                return;
+            }
+
             welcome.SetBusy("Running first manual sync...");
             var outcome = await SyncAsync(true);
             welcome.ApplyOutcome(OnboardingOutcomeMapper.From(outcome.Status, _snapshot.Used, _snapshot.Limit, outcome.Detail));
@@ -283,19 +335,11 @@ public partial class App : Application
             ApplyWidget();
             RefreshSnapshot();
         };
-        window.CompanionRegisterRequested += extensionId =>
+        window.CompanionRegisterRequested += (chromeId, edgeId) =>
         {
-            _settings.CompanionExtensionId = extensionId;
-            var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "prometer.exe");
-            var host = CompanionRegistration.ResolveHostPath(exe);
-            var manifest = CompanionRegistration.WriteHostManifest(exe, extensionId);
-            CompanionRegistration.RegisterOfficialChromiumHosts(manifest);
-            _settingsStore.Save(_settings);
-            var hostNote = host.EndsWith("prometer-companion-host.exe", StringComparison.OrdinalIgnoreCase)
-                ? "Native host: prometer-companion-host.exe"
-                : "Companion host executable was not found next to Prometer. Use the published win-x64 folder.";
+            var error = RegisterCompanionHost(chromeId, edgeId);
             MessageBox.Show(
-                "Registered the Chrome and Edge native hosts.\n" + hostNote + "\n\n" + CompanionRegistration.WhaleInstructions,
+                error ?? ("Registered the official Chrome/Edge native hosts.\n\n" + CompanionRegistration.WhaleInstructions),
                 "ProMeter");
         };
         window.ImportRequested += ImportExport;
@@ -385,8 +429,33 @@ public partial class App : Application
     {
         _settings.ApplyPreset(welcome.SelectedPreset);
         _settings.AuthTransport = welcome.SelectedTransport;
+        _settings.ChromeExtensionId = welcome.ChromeExtensionId;
+        _settings.EdgeExtensionId = welcome.EdgeExtensionId;
+        _settings.CompanionExtensionId = welcome.ChromeExtensionId ?? welcome.EdgeExtensionId;
         _settings.StartWithWindows = welcome.StartWithWindowsOptIn;
         _settings.AutoSync = welcome.AutoSyncOptIn;
+    }
+
+    private string? RegisterCompanionHost(string? chromeId, string? edgeId)
+    {
+        var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "prometer.exe");
+        var result = CompanionRegistration.Register(exe, chromeId, edgeId);
+        if (!result.Ok)
+        {
+            return result.Error ?? "native-host registration failed";
+        }
+
+        _settings.ChromeExtensionId = chromeId;
+        _settings.EdgeExtensionId = edgeId;
+        _settings.CompanionExtensionId = chromeId ?? edgeId;
+        var pairing = CompanionPairingStore.LoadOrCreate();
+        pairing.ChromeExtensionId = chromeId;
+        pairing.EdgeExtensionId = edgeId;
+        pairing.ExtensionId = chromeId ?? edgeId;
+        CompanionPairingStore.Save(pairing);
+        _settings.CompanionConnectOptIn = true;
+        _settingsStore.Save(_settings);
+        return null;
     }
 
     private void ApplyTransport()

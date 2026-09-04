@@ -9,7 +9,7 @@ public class CompanionBridgeTests
     [Fact]
     public void MalformedBridgeMessage_NeverBecomesSuccessfulEmptyResult()
     {
-        foreach (var raw in new[] { "", "{", "{}", "{\"type\":\"fetchResult\"}", "not-json" })
+        foreach (var raw in new[] { "", "{", "{}", "{\"type\":\"invokeResult\"}", "not-json" })
         {
             var parsed = CompanionBridgeProtocol.Parse(raw);
             var response = CompanionBridgeProtocol.ToProviderResponse(parsed);
@@ -20,9 +20,9 @@ public class CompanionBridgeTests
     }
 
     [Fact]
-    public void FetchWithRejectedTarget_IsSchemaMismatch()
+    public void GenericFetch_IsForbidden()
     {
-        var parsed = CompanionBridgeProtocol.Parse("""{"type":"fetch","path":"//evil.example/x"}""");
+        var parsed = CompanionBridgeProtocol.Parse("""{"type":"fetch","path":"/backend-api/conversations"}""");
         Assert.False(parsed.Accepted);
         var response = CompanionBridgeProtocol.ToProviderResponse(parsed);
         Assert.True(response.SchemaMismatch);
@@ -30,10 +30,11 @@ public class CompanionBridgeTests
     }
 
     [Fact]
-    public void SanitizedConversation_ContainsNoPromptOrResponseText()
+    public void ProjectedConversation_ContainsNoPromptOrResponseText()
     {
         var dirty = new JsonObject
         {
+            ["title"] = "SYNTHETIC_TITLE",
             ["accessToken"] = "synthetic-access-token-do-not-store",
             ["mapping"] = new JsonObject
             {
@@ -63,12 +64,22 @@ public class CompanionBridgeTests
             }
         };
 
-        var sanitized = BrowserResponseSanitizer.Sanitize(dirty);
-        Assert.NotNull(sanitized);
-        Assert.False(BrowserResponseSanitizer.ContainsPromptOrResponseText(sanitized));
-        Assert.Null(sanitized["accessToken"]);
-        Assert.Equal("req-synthetic", sanitized["mapping"]?["user-1"]?["message"]?["metadata"]?["request_id"]?.GetValue<string>());
-        Assert.Equal("gpt-6-pro", sanitized["mapping"]?["user-1"]?["message"]?["metadata"]?["model_slug"]?.GetValue<string>());
+        var projected = BridgeProjection.Project(CompanionOperation.GetConversationHead, dirty);
+        Assert.NotNull(projected);
+        Assert.True(BridgeProjection.TryValidateProjected(CompanionOperation.GetConversationHead, projected, out _));
+        Assert.False(BridgeProjection.ContainsPromptOrResponseText(projected));
+        Assert.Null(projected["title"]);
+        Assert.Null(projected["accessToken"]);
+        Assert.Equal("req-synthetic", projected["mapping"]?["user-1"]?["message"]?["metadata"]?["request_id"]?.GetValue<string>());
+    }
+
+    [Fact]
+    public void ErrorHttpStatus_IsPreservedWhenBodyIsNotJson()
+    {
+        var parsed = CompanionBridgeProtocol.Parse("""{"type":"invokeResult","operation":"GetModels","status":429,"retryAfter":"8","body":"not-json"}""");
+        var response = CompanionBridgeProtocol.ToProviderResponse(parsed, CompanionOperation.GetModels);
+        Assert.Equal(429, response.Status);
+        Assert.True(response.IsRateLimited);
     }
 
     [Fact]

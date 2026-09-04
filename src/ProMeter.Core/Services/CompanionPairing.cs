@@ -4,6 +4,8 @@ public sealed class CompanionPairingState
 {
     public string Token { get; set; } = "";
     public string? ExtensionId { get; set; }
+    public string? ChromeExtensionId { get; set; }
+    public string? EdgeExtensionId { get; set; }
 }
 
 public static class CompanionPairingStore

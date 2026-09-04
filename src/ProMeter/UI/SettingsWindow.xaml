@@ -60,8 +60,10 @@
                 <ComboBoxItem Content="WebView2 fallback"/>
                 <ComboBoxItem Content="Data Export only"/>
             </ComboBox>
-            <TextBlock Foreground="{StaticResource MutedBrush}" Text="Unpacked extension ID from chrome://extensions" Margin="0,0,0,4"/>
-            <TextBox x:Name="ExtensionIdBox" Margin="0,0,0,8"/>
+            <TextBlock Foreground="{StaticResource MutedBrush}" Text="Chrome unpacked extension ID (32 letters a-p)" Margin="0,0,0,4"/>
+            <TextBox x:Name="ChromeExtensionIdBox" Margin="0,0,0,8"/>
+            <TextBlock Foreground="{StaticResource MutedBrush}" Text="Edge unpacked extension ID if different" Margin="0,0,0,4"/>
+            <TextBox x:Name="EdgeExtensionIdBox" Margin="0,0,0,8"/>
             <TextBlock Foreground="{StaticResource MutedBrush}" Text="Local pairing token (not a ChatGPT secret). The native host attaches it automatically." Margin="0,0,0,4"/>
             <TextBox x:Name="PairingBox" Margin="0,0,0,8" IsReadOnly="True"/>
             <Button Style="{StaticResource GhostButton}" Content="Register Chrome/Edge native host" Click="OnRegisterCompanion" HorizontalAlignment="Left" Margin="0,0,0,8"/>

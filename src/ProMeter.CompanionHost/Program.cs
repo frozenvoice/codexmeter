@@ -1,3 +1,3 @@
 using ProMeter.Companion;
 
-NativeMessagingHost.Run();
+NativeMessagingHost.Run(args);

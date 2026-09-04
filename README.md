@@ -48,7 +48,7 @@ Google / Microsoft / Apple 로그인은 WebView2에서 **지원되지 않습니�
 5. 확장 팝업에서 **Connect to ProMeter**를 누릅니다.
 6. Welcome 또는 tray에서 **Run first manual sync** / **Sync now**를 누릅니다. 로그인만으로는 history 스캔이 시작되지 않습니다.
 
-네이티브 호스트는 `prometer-companion-host.exe`입니다. Chrome Native Messaging은 실행 파일 인자를 허용하지 않아 트레이 앱과 분리되어 있습니다. 확장은 `https://chatgpt.com/*`에서만 승인된 상대 경로를 fetch하고, 본문을 sanitize한 뒤 Native Messaging으로 전달합니다. 쿠키와 access token은 Windows 앱으로 보내지 않습니다.
+네이티브 호스트는 `prometer-companion-host.exe`입니다. Chrome Native Messaging은 실행 파일 인자를 허용하지 않아 트레이 앱과 분리되어 있습니다. `runtime.connectNative`는 양방향 펌프입니다. 확장은 승인된 논리 operation만 수행하고, endpoint별 metadata allowlist로 투영한 뒤에만 Native Messaging으로 전달합니다. ChatGPT access token은 확장 service-worker 메모리에만 있으며 Windows 앱으로 보내지 않습니다. Chrome과 Edge 확장 ID는 각각 32자 `a-p` 형식이어야 하며, companion executable이 없으면 등록은 fail closed입니다.
 
 Whale은 Chromium이지만 ProMeter가 레지스트리 위치를 만들지 않습니다. Chrome/Edge 공식 등록을 쓰거나 Whale 자체 문서를 따르세요.
 

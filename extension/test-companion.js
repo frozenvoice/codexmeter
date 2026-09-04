@@ -1,0 +1,156 @@
+(async function () {
+  const assert = require("assert");
+  const canonical = require("./canonical.js");
+  const operations = require("./operations.js");
+  const project = require("./project.js");
+  const auth = require("./auth.js");
+
+function fail(message) {
+  throw new Error(message);
+}
+
+const encoded = [
+  "/backend-api/%2e%2e/evil",
+  "/backend-api/.%2e/evil",
+  "/backend-api/%2e./evil",
+  "/backend-api/%2F%2Fevil",
+  "/backend-api/%5Cevil",
+  "/backend-api/%zz",
+  "/backend-api/../evil"
+];
+encoded.forEach(function (path) {
+  const result = canonical.tryValidate(path);
+  assert.strictEqual(result.ok, false, "should reject " + path);
+});
+
+const validQuery = canonical.tryValidate("/backend-api/conversations?offset=0&limit=28&order=updated&is_archived=false");
+assert.strictEqual(validQuery.ok, true);
+assert.ok(validQuery.canonical.indexOf("offset=0") >= 0);
+
+const validEncodedQuery = canonical.tryValidate("/backend-api/conversations/abc/messages?before=cursor%3Dvalue&include_has_versions=true&num_turns=100");
+assert.strictEqual(validEncodedQuery.ok, true);
+
+assert.strictEqual(operations.build("NotARealOp", {}).ok, false);
+assert.strictEqual(operations.build("GetSessionStatus", {}).method, "GET");
+assert.strictEqual(operations.build("GetQuotaInit", {}).method, "POST");
+assert.strictEqual(operations.build("GetConversationIndex", { offset: 0, limit: 100 }).ok, true);
+
+const dirty = {
+  title: "SYNTHETIC_TITLE_DO_NOT_LEAVE",
+  accessToken: "must-not-leave-browser",
+  mapping: {
+    user: {
+      id: "user-1",
+      parent: "root",
+      children: ["asst-1"],
+      message: {
+        id: "user-1",
+        author: { role: "user" },
+        create_time: 1777500000,
+        content: {
+          content_type: "text",
+          parts: ["SYNTHETIC_PROMPT_TEXT_DO_NOT_STORE"],
+          text: "SYNTHETIC_ASSISTANT_TEXT_DO_NOT_STORE"
+        },
+        metadata: {
+          request_id: "req-synthetic",
+          model_slug: "gpt-6-pro",
+          tool_calls: [{ arguments: "search query" }],
+          filename: "notes.txt",
+          url: "https://example.invalid"
+        }
+      }
+    }
+  }
+};
+const projected = project.project("GetConversationHead", dirty);
+assert.strictEqual(projected.ok, true);
+assert.strictEqual(projected.body.title, undefined);
+assert.strictEqual(projected.body.accessToken, undefined);
+assert.ok(!projected.body.mapping.user.message.content.parts);
+assert.ok(!projected.body.mapping.user.message.content.text);
+assert.ok(!projected.body.mapping.user.message.metadata.tool_calls);
+assert.ok(!projected.body.mapping.user.message.metadata.filename);
+assert.ok(!projected.body.mapping.user.message.metadata.url);
+assert.strictEqual(projected.body.mapping.user.message.metadata.request_id, "req-synthetic");
+assert.strictEqual(project.containsPromptOrResponseText(projected.body), false);
+
+auth.applySession({ accessToken: "in-memory-only-token" });
+assert.strictEqual(auth.tokenSnapshot(), "in-memory-only-token");
+const nativeMessage = { type: "invokeResult", body: JSON.stringify(projected.body) };
+assert.ok(JSON.stringify(nativeMessage).indexOf("in-memory-only-token") < 0);
+auth.neverSerializeToken(nativeMessage);
+
+let sessionCalls = 0;
+let backendCalls = 0;
+async function fetchImpl(url, init) {
+  if (String(url).indexOf("/api/auth/session") >= 0) {
+    sessionCalls += 1;
+    return {
+      status: 200,
+      headers: { get: function () { return null; } },
+      text: async function () {
+        return JSON.stringify({ accessToken: "in-memory-only-token", user: { id: "u1", email: "a@b.example" } });
+      }
+    };
+  }
+  backendCalls += 1;
+  return {
+    status: backendCalls === 1 ? 401 : 200,
+    headers: { get: function () { return null; } },
+    text: async function () {
+      return backendCalls === 1 ? "unauthorized" : JSON.stringify({ models: [{ slug: "gpt-6-pro" }] });
+    }
+  };
+}
+
+sessionCalls = 0;
+backendCalls = 0;
+auth.invalidate();
+const refreshed = await auth.invokeWithRefresh(fetchImpl, "GET", "/backend-api/models", null, "https://chatgpt.com");
+assert.strictEqual(backendCalls, 2);
+assert.strictEqual(sessionCalls, 1);
+assert.strictEqual(refreshed.status, 200);
+
+backendCalls = 0;
+sessionCalls = 0;
+auth.invalidate();
+async function always401(url) {
+  if (String(url).indexOf("/api/auth/session") >= 0) {
+    sessionCalls += 1;
+    return {
+      status: 200,
+      headers: { get: function () { return null; } },
+      text: async function () {
+        return JSON.stringify({ accessToken: "in-memory-only-token", user: { id: "u1" } });
+      }
+    };
+  }
+  backendCalls += 1;
+  return {
+    status: 401,
+    headers: { get: function () { return null; } },
+    text: async function () { return "unauthorized"; }
+  };
+}
+const second401 = await auth.invokeWithRefresh(always401, "GET", "/backend-api/models", null, "https://chatgpt.com");
+assert.strictEqual(backendCalls, 2);
+assert.strictEqual(second401.status, 401);
+
+auth.invalidate();
+async function session429() {
+  return {
+    status: 429,
+    headers: { get: function () { return "12"; } },
+    text: async function () { return "not-json"; }
+  };
+}
+const preserved = await auth.fetchSession(session429);
+assert.strictEqual(preserved.status, 429);
+assert.strictEqual(preserved.json, false);
+
+  process.stdout.write("companion node tests ok\n");
+})().catch(function (error) {
+  process.stderr.write(String(error && error.stack ? error.stack : error) + "\n");
+  process.exit(1);
+});

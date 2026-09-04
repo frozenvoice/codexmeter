@@ -4,11 +4,16 @@ ProMeter reconstructs ChatGPT Pro usage from **account conversation history**, n
 
 ```text
 Browser companion (recommended)
-  Chrome/Edge tab  →  MV3 extension (sanitize)  →  Native Messaging
-       →  prometer-companion-host.exe  →  named pipe  →  BrowserCompanionTransport
+  Chrome/Edge tab
+    → MV3 extension (operation allowlist, SW-memory auth, endpoint projection)
+    → Native Messaging full-duplex (stdin↔pipe and pipe↔stdout pumps)
+    → prometer-companion-host.exe
+    → named pipe ProMeterCompanion (CurrentUserOnly, serialized writer)
+    → CompanionRequestHub (timeout, generation, FailAllPending)
+    → BrowserCompanionTransport (logical operations only)
 
 WebView2 fallback (only when that sign-in works)
-  WebView2 session  →  WebViewTransport
+  WebView2 session → SessionAuthCoordinator → WebViewTransport
 
 Data Export (non-real-time)
   conversations.json  →  ConversationExportImporter
@@ -51,7 +56,9 @@ The companion security model:
 - Native Messaging is initiated by the unpacked extension (`com.prometer.bridge`).
 - The host binds only to the current-user named pipe `ProMeterCompanion` on loopback.
 - A local pairing token authenticates host messages. It is not a ChatGPT secret.
-- The extension fetches approved same-origin paths only, strips prompt/assistant text and tokens, then sends the sanitized JSON.
+- Native Messaging is two concurrent pumps. Application-initiated invoke messages do not wait for another extension message.
+- The extension constructs method/path from a closed operation enum. Arbitrary `/backend-api` fetch is forbidden.
+- Responses are projected through endpoint-specific metadata allowlists before leaving the browser. Access tokens stay in service-worker memory only.
 - Cookie databases are never read. Cookies and access tokens are never sent to the Windows app.
 
 WebView2 remains an optional fallback for authentication methods that actually work there. Its profile lives under `%LOCALAPPDATA%\ProMeter\webview`. Access tokens stay in process memory only.

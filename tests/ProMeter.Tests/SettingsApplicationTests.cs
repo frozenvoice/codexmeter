@@ -95,6 +95,8 @@ public class SettingsApplicationTests
         ResetAnchorConfigured = settings.ResetAnchorConfigured,
         AuthTransport = settings.AuthTransport,
         CompanionExtensionId = settings.CompanionExtensionId,
+        ChromeExtensionId = settings.ChromeExtensionId,
+        EdgeExtensionId = settings.EdgeExtensionId,
         AutoSync = settings.AutoSync,
         SyncIntervalMinutes = settings.SyncIntervalMinutes,
         StartWithWindows = settings.StartWithWindows,

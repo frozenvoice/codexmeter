@@ -8,7 +8,7 @@ public partial class SettingsWindow : Window
     public event Action? ImportRequested;
     public event Action<string>? ExportRequested;
     public event Action? OpenLogsRequested;
-    public event Action<string?>? CompanionRegisterRequested;
+    public event Action<string?, string?>? CompanionRegisterRequested;
 
     public SettingsWindow(AppSettings settings)
     {
@@ -24,7 +24,8 @@ public partial class SettingsWindow : Window
         ResetTimeBox.Text = settings.ResetTime.ToString(@"hh\:mm");
         ResetAnchorBox.IsChecked = settings.ResetAnchorConfigured;
         TransportBox.SelectedIndex = (int)settings.AuthTransport;
-        ExtensionIdBox.Text = settings.CompanionExtensionId ?? "";
+        ChromeExtensionIdBox.Text = settings.ChromeExtensionId ?? settings.CompanionExtensionId ?? "";
+        EdgeExtensionIdBox.Text = settings.EdgeExtensionId ?? "";
         PairingBox.Text = CompanionPairingStore.LoadOrCreate().Token;
         AutoSyncBox.IsChecked = settings.AutoSync;
         IntervalBox.Text = settings.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture);
@@ -82,7 +83,9 @@ public partial class SettingsWindow : Window
             ResetTime = resetTime,
             ResetAnchorConfigured = ResetAnchorBox.IsChecked == true,
             AuthTransport = (AuthTransportKind)Math.Clamp(TransportBox.SelectedIndex, 0, 2),
-            CompanionExtensionId = string.IsNullOrWhiteSpace(ExtensionIdBox.Text) ? null : ExtensionIdBox.Text.Trim(),
+            ChromeExtensionId = TrimOrNull(ChromeExtensionIdBox.Text),
+            EdgeExtensionId = TrimOrNull(EdgeExtensionIdBox.Text),
+            CompanionExtensionId = TrimOrNull(ChromeExtensionIdBox.Text) ?? TrimOrNull(EdgeExtensionIdBox.Text),
             AutoSync = AutoSyncBox.IsChecked == true,
             SyncIntervalMinutes = ParseInt(IntervalBox.Text, 15),
             StartWithWindows = StartupBox.IsChecked == true,
@@ -102,7 +105,10 @@ public partial class SettingsWindow : Window
     }
 
     private void OnRegisterCompanion(object sender, RoutedEventArgs e) =>
-        CompanionRegisterRequested?.Invoke(string.IsNullOrWhiteSpace(ExtensionIdBox.Text) ? null : ExtensionIdBox.Text.Trim());
+        CompanionRegisterRequested?.Invoke(TrimOrNull(ChromeExtensionIdBox.Text), TrimOrNull(EdgeExtensionIdBox.Text));
+
+    private static string? TrimOrNull(string? text) =>
+        string.IsNullOrWhiteSpace(text) ? null : text.Trim();
 
     private void OnImport(object sender, RoutedEventArgs e) => ImportRequested?.Invoke();
     private void OnExportJson(object sender, RoutedEventArgs e) => ExportRequested?.Invoke("json");

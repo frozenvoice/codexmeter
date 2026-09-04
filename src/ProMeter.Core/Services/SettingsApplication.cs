@@ -13,6 +13,8 @@ public sealed record SettingsEdit
     public bool ResetAnchorConfigured { get; set; }
     public AuthTransportKind AuthTransport { get; set; }
     public string? CompanionExtensionId { get; set; }
+    public string? ChromeExtensionId { get; set; }
+    public string? EdgeExtensionId { get; set; }
     public bool AutoSync { get; set; }
     public int SyncIntervalMinutes { get; set; }
     public bool StartWithWindows { get; set; }
@@ -43,6 +45,8 @@ public static class SettingsApplication
         target.ResetAnchorConfigured = edit.ResetAnchorConfigured;
         target.AuthTransport = edit.AuthTransport;
         target.CompanionExtensionId = edit.CompanionExtensionId;
+        target.ChromeExtensionId = edit.ChromeExtensionId;
+        target.EdgeExtensionId = edit.EdgeExtensionId;
         target.AutoSync = edit.AutoSync;
         target.SyncIntervalMinutes = Math.Clamp(edit.SyncIntervalMinutes, 5, 180);
         target.StartWithWindows = edit.StartWithWindows;
