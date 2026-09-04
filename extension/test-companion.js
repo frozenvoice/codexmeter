@@ -102,6 +102,7 @@ assert.ok(canonical.utf8ByteLength(korean) > canonical.MAX_NATIVE_MESSAGE_BYTES)
 
 auth.applySession({ accessToken: "in-memory-only-token" });
 assert.strictEqual(auth.tokenSnapshot(), "in-memory-only-token");
+assert.strictEqual(auth.isKnown(), true);
 const nativeMessage = { type: "invokeResult", body: JSON.stringify(projected.body) };
 assert.ok(JSON.stringify(nativeMessage).indexOf("in-memory-only-token") < 0);
 auth.neverSerializeToken(nativeMessage);

@@ -60,6 +60,8 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Application-initiated messages must reach the extension without requiring a preceding extension message.
 - Every bridge request must have a bounded timeout and must complete when the connection closes.
 - Browser companion authentication is owned by the extension. ChatGPT access tokens may exist only in chatgpt.com page-local memory and must never cross Native Messaging, named pipes, logs, settings, SQLite, or exports.
+- Page-context modules must not be reinitialized for every operation when doing so destroys authentication state.
+- ChatGPT access tokens remain page-local only and must never cross the extension/native boundary.
 - ProMeter must work with the user's normal browser networking configuration, including a browser VPN/proxy, when chatgpt.com itself works in that browser.
 - Do not instruct users to disable VPN as a product requirement.
 - Browser Companion ChatGPT requests should execute in the authenticated chatgpt.com page context when extension service-worker fetches do not share equivalent site/session context.
@@ -104,6 +106,12 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Do not report PASS without actual command output.
 - Keep the GitHub Actions Windows workflow green.
 - Never claim live ChatGPT compatibility that was not actually validated.
+- A task is not complete after a local commit. The agent must push the final commit to the configured origin unless the user explicitly says not to.
+- Never force-push.
+- After pushing, verify that the remote branch SHA exactly matches local HEAD.
+- Do not report "complete", "pushed", or provide a commit for review until the remote SHA has been verified.
+- If push authentication or network access fails, report the exact failure and clearly state that the commit remains local.
+- A GitHub Actions run triggered by the pushed SHA should be reported as pending, passed, or failed when the GitHub CLI is available.
 
 ## Working style
 

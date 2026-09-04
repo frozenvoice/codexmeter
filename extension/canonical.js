@@ -7,6 +7,7 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   var EXPECTED_ORIGIN = "https://chatgpt.com";
   var MAX_NATIVE_MESSAGE_BYTES = 1048576;
+  var PAGE_BRIDGE_VERSION = 1;
 
   function utf8ByteLength(text) {
     return new TextEncoder().encode(String(text)).byteLength;
@@ -91,5 +92,11 @@
     return { ok: true, canonical: url.pathname + url.search, origin: url.origin, pathname: url.pathname };
   }
 
-  return { tryValidate: tryValidate, EXPECTED_ORIGIN: EXPECTED_ORIGIN, MAX_NATIVE_MESSAGE_BYTES: MAX_NATIVE_MESSAGE_BYTES, utf8ByteLength: utf8ByteLength };
+  return {
+    tryValidate: tryValidate,
+    EXPECTED_ORIGIN: EXPECTED_ORIGIN,
+    MAX_NATIVE_MESSAGE_BYTES: MAX_NATIVE_MESSAGE_BYTES,
+    PAGE_BRIDGE_VERSION: PAGE_BRIDGE_VERSION,
+    utf8ByteLength: utf8ByteLength
+  };
 });

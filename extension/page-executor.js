@@ -6,7 +6,10 @@
       require("./project.js"),
       require("./auth.js")
     );
-  } else {
+    return;
+  }
+  var version = root.ProMeterCanonical && root.ProMeterCanonical.PAGE_BRIDGE_VERSION;
+  if (!(root.ProMeterPageExecutor && root.ProMeterPageBridge && root.ProMeterPageBridge.version === version)) {
     root.ProMeterPageExecutor = factory(
       root.ProMeterCanonical,
       root.ProMeterOperations,
@@ -14,6 +17,7 @@
       root.ProMeterAuth
     );
   }
+  root.ProMeterPageBridge = { version: version };
 })(typeof globalThis !== "undefined" ? globalThis : this, function (canonical, operations, project, auth) {
   var EXPECTED_ORIGIN = canonical.EXPECTED_ORIGIN;
   var FORBIDDEN = "ChatGPT rejected the page request (403)";
@@ -156,6 +160,14 @@
           body: JSON.stringify(sessionBody),
           error: session.status === 403 ? FORBIDDEN : undefined
         };
+      }
+
+      var primed = await auth.ensureSession(pageFetch);
+      if (!primed.skipped && primed.status === 403) {
+        return { status: 403, retryAfter: primed.retryAfter || null, body: "", error: FORBIDDEN };
+      }
+      if (!primed.skipped && primed.status && primed.status !== 200) {
+        return { status: primed.status, retryAfter: primed.retryAfter || null, body: "" };
       }
 
       response = await auth.invokeWithRefresh(pageFetch, built.method, built.path, built.body, EXPECTED_ORIGIN);

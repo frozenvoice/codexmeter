@@ -6,6 +6,7 @@
   }
 })(typeof globalThis !== "undefined" ? globalThis : this, function (canonical) {
   var EXPECTED_ORIGIN = canonical.EXPECTED_ORIGIN;
+  var PAGE_BRIDGE_VERSION = canonical.PAGE_BRIDGE_VERSION;
   var CHATGPT_HOME = EXPECTED_ORIGIN + "/";
   var PAGE_FILES = ["canonical.js", "operations.js", "project.js", "auth.js", "page-executor.js"];
   var NO_TAB = "Open/sign in to ChatGPT, then retry";
@@ -72,61 +73,70 @@
     });
   }
 
+  function pageBridgeStatus(expectedVersion) {
+    var bridge = globalThis.ProMeterPageBridge;
+    var auth = globalThis.ProMeterAuth;
+    var executor = globalThis.ProMeterPageExecutor;
+    return {
+      ready: !!(
+        bridge &&
+        bridge.version === expectedVersion &&
+        auth &&
+        typeof auth.isKnown === "function" &&
+        executor &&
+        typeof executor.execute === "function"
+      )
+    };
+  }
+
   function pageExecute(operation, args) {
     return globalThis.ProMeterPageExecutor.execute(operation, args);
   }
 
-  async function executeOnTab(chromeApi, tabId, operation, args) {
-    var inject = chromeApi.scripting.executeScript({
+  async function runExecuteScript(chromeApi, details) {
+    var pending = chromeApi.scripting.executeScript(details);
+    if (pending && typeof pending.then === "function") {
+      return await pending;
+    }
+    return await new Promise(function (resolve, reject) {
+      chromeApi.scripting.executeScript(details, function (value) {
+        var err = chromeApi.runtime && chromeApi.runtime.lastError;
+        if (err) {
+          reject(new Error(err.message || BRIDGE_UNAVAILABLE));
+          return;
+        }
+        resolve(value);
+      });
+    });
+  }
+
+  async function ensurePageBridge(chromeApi, tabId) {
+    var probed = await runExecuteScript(chromeApi, {
+      target: { tabId: tabId },
+      world: "MAIN",
+      func: pageBridgeStatus,
+      args: [PAGE_BRIDGE_VERSION]
+    });
+    var status = probed && probed[0] ? probed[0].result : null;
+    if (status && status.ready === true) {
+      return "reused";
+    }
+    await runExecuteScript(chromeApi, {
       target: { tabId: tabId },
       world: "MAIN",
       files: PAGE_FILES
     });
-    if (inject && typeof inject.then === "function") {
-      await inject;
-    } else {
-      await new Promise(function (resolve, reject) {
-        chromeApi.scripting.executeScript({
-          target: { tabId: tabId },
-          world: "MAIN",
-          files: PAGE_FILES
-        }, function () {
-          var err = chromeApi.runtime && chromeApi.runtime.lastError;
-          if (err) {
-            reject(new Error(err.message || BRIDGE_UNAVAILABLE));
-            return;
-          }
-          resolve();
-        });
-      });
-    }
+    return "injected";
+  }
 
-    var ran = chromeApi.scripting.executeScript({
+  async function executeOnTab(chromeApi, tabId, operation, args) {
+    await ensurePageBridge(chromeApi, tabId);
+    var results = await runExecuteScript(chromeApi, {
       target: { tabId: tabId },
       world: "MAIN",
       func: pageExecute,
       args: [operation, args || {}]
     });
-    var results;
-    if (ran && typeof ran.then === "function") {
-      results = await ran;
-    } else {
-      results = await new Promise(function (resolve, reject) {
-        chromeApi.scripting.executeScript({
-          target: { tabId: tabId },
-          world: "MAIN",
-          func: pageExecute,
-          args: [operation, args || {}]
-        }, function (value) {
-          var err = chromeApi.runtime && chromeApi.runtime.lastError;
-          if (err) {
-            reject(new Error(err.message || BRIDGE_UNAVAILABLE));
-            return;
-          }
-          resolve(value);
-        });
-      });
-    }
     return results && results[0] ? results[0].result : null;
   }
 
@@ -167,6 +177,8 @@
     invoke: invoke,
     isExactChatGptTabUrl: isExactChatGptTabUrl,
     pickPreferredTab: pickPreferredTab,
+    pageBridgeStatus: pageBridgeStatus,
+    PAGE_BRIDGE_VERSION: PAGE_BRIDGE_VERSION,
     NO_TAB: NO_TAB,
     BRIDGE_UNAVAILABLE: BRIDGE_UNAVAILABLE,
     PAGE_FILES: PAGE_FILES,
