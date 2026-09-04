@@ -16,5 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\ProMeter\UI\Themes.xaml" Link="Themes.xaml" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

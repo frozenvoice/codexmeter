@@ -16,12 +16,12 @@
         <StackPanel>
             <TextBlock Text="Welcome to ProMeter" FontSize="22" FontWeight="SemiBold"/>
             <TextBlock Text="Windows tray monitor that reconstructs ChatGPT Pro usage from account conversation history."
-                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                       Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
         </StackPanel>
         <ScrollViewer Grid.Row="1" Margin="0,16,0,12" VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <TextBlock Text="1. Review before enabling sync" FontSize="15"/>
-                <TextBlock Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,12"
+                <TextBlock Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,12"
                            Text="ProMeter uses unofficial ChatGPT web endpoints. These are not part of the public OpenAI API and may change without notice. Programmatic history access is unsupported and may conflict with applicable ChatGPT terms. Review current terms before enabling synchronization. Official ChatGPT Data Export import is the lower-risk fallback but is not real-time. Only a matching server quota counter is authoritative; reconstructed history counts are estimates. The browser companion avoids embedded OAuth; it does not make this integration official."/>
                 <TextBlock Text="2. Choose how to connect" FontSize="15"/>
                 <ComboBox x:Name="TransportBox" Margin="0,8,0,8" SelectedIndex="0" SelectionChanged="OnTransportChanged">
@@ -29,18 +29,18 @@
                     <ComboBoxItem Content="WebView2 fallback (only if sign-in works there)"/>
                     <ComboBoxItem Content="Data Export import only (not real-time)"/>
                 </ComboBox>
-                <TextBlock Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"
+                <TextBlock Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,12"
                            Text="Google, Microsoft, and Apple sign-in are not supported inside WebView2. Use the browser companion with your normal browser session. ProMeter never spoofs a user agent."/>
                 <StackPanel x:Name="CompanionPanel">
-                    <TextBlock Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
+                    <TextBlock Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
                                Text="Load the unpacked extension, enter its ID, register the native host, then Connect in the popup. Finish can be used after registration without running a sync."/>
                     <Button x:Name="OpenExtensionButton" Style="{StaticResource GhostButton}" Content="Open extension folder" Click="OnOpenExtension" HorizontalAlignment="Left" Margin="0,0,0,8"/>
-                    <TextBlock Foreground="{StaticResource MutedBrush}" Text="Chrome extension ID (32 letters a-p)" Margin="0,0,0,4"/>
+                    <TextBlock Foreground="{DynamicResource MutedBrush}" Text="Chrome extension ID (32 letters a-p)" Margin="0,0,0,4"/>
                     <TextBox x:Name="ChromeExtensionIdBox" Margin="0,0,0,6"/>
-                    <TextBlock Foreground="{StaticResource MutedBrush}" Text="Edge extension ID if different" Margin="0,0,0,4"/>
+                    <TextBlock Foreground="{DynamicResource MutedBrush}" Text="Edge extension ID if different" Margin="0,0,0,4"/>
                     <TextBox x:Name="EdgeExtensionIdBox" Margin="0,0,0,6"/>
                     <Button x:Name="RegisterCompanionButton" Style="{StaticResource GhostButton}" Content="Register selected native host" Click="OnRegisterCompanion" HorizontalAlignment="Left" Margin="0,0,0,6"/>
-                    <TextBlock x:Name="CompanionStateText" Foreground="{StaticResource MutedBrush}" Text="Not installed" Margin="0,0,0,8"/>
+                    <TextBlock x:Name="CompanionStateText" Foreground="{DynamicResource MutedBrush}" Text="Not installed" Margin="0,0,0,8"/>
                     <Button x:Name="OpenChatGptButton" Style="{StaticResource GhostButton}" Content="Open chatgpt.com in your browser" Click="OnOpenChatGpt" HorizontalAlignment="Left" Margin="0,0,0,12"/>
                 </StackPanel>
                 <TextBlock Text="3. Choose your Pro plan" FontSize="15"/>
@@ -51,11 +51,11 @@
                 </ComboBox>
                 <TextBlock Text="4. Optional background behavior" FontSize="15"/>
                 <TextBlock Text="Both options stay off unless you check them."
-                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,8"/>
-                <CheckBox x:Name="StartupBox" Content="Start with Windows" Foreground="{StaticResource TextBrush}" Margin="0,2" IsChecked="False"/>
-                <CheckBox x:Name="AutoSyncBox" Content="Automatic history synchronization" Foreground="{StaticResource TextBrush}" Margin="0,6,0,12" IsChecked="False"/>
+                           Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,8"/>
+                <CheckBox x:Name="StartupBox" Content="Start with Windows" Foreground="{DynamicResource TextBrush}" Margin="0,2" IsChecked="False"/>
+                <CheckBox x:Name="AutoSyncBox" Content="Automatic history synchronization" Foreground="{DynamicResource TextBrush}" Margin="0,6,0,12" IsChecked="False"/>
                 <TextBlock Text="5. Sign in, then run a first manual sync" FontSize="15"/>
-                <TextBlock x:Name="ProgressText" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0"
+                <TextBlock x:Name="ProgressText" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,0"
                            Text="Sign-in alone does not scan history. After you are signed in, use Run first manual sync."
                            TextWrapping="Wrap"/>
             </StackPanel>

@@ -232,7 +232,9 @@ public partial class App : Application
         {
             var outcome = await _sync.SyncAsync(_provider, _settings, force);
             RefreshSnapshot();
-            if (outcome.Status is AppSyncStatus.AuthenticationRequired or AppSyncStatus.Error or AppSyncStatus.Offline)
+            if (outcome.Status is AppSyncStatus.AuthenticationRequired or AppSyncStatus.SignedOut
+                or AppSyncStatus.Error or AppSyncStatus.Offline or AppSyncStatus.Forbidden
+                or AppSyncStatus.ChatGptTabRequired or AppSyncStatus.PageBridgeUnavailable)
             {
                 _toasts.SyncError(_settings, outcome.Detail ?? DisplayFormatting.StatusLabel(outcome.Status));
             }
@@ -505,6 +507,11 @@ public partial class App : Application
         app.Resources["CardBrush"] = new SolidColorBrush(dark ? MediaColor(27, 31, 39) : MediaColor(255, 255, 255));
         app.Resources["TextBrush"] = new SolidColorBrush(dark ? MediaColor(238, 241, 246) : MediaColor(23, 27, 34));
         app.Resources["MutedBrush"] = new SolidColorBrush(dark ? MediaColor(139, 147, 167) : MediaColor(90, 98, 114));
+        app.Resources["LineBrush"] = new SolidColorBrush(dark ? MediaColor(42, 49, 64) : MediaColor(213, 218, 227));
+        app.Resources["ControlBrush"] = new SolidColorBrush(dark ? MediaColor(37, 42, 52) : MediaColor(255, 255, 255));
+        app.Resources["GhostBrush"] = new SolidColorBrush(dark ? MediaColor(37, 42, 52) : MediaColor(232, 236, 242));
+        app.Resources["SelectionBrush"] = new SolidColorBrush(dark ? MediaColor(29, 78, 216) : MediaColor(191, 219, 254));
+        app.Resources["DisabledBrush"] = new SolidColorBrush(dark ? MediaColor(107, 114, 128) : MediaColor(154, 163, 178));
     }
 
     private static Color MediaColor(byte r, byte g, byte b) => Color.FromRgb(r, g, b);

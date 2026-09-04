@@ -3,6 +3,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using ProMeter.Models;
+using ProMeter.Services;
 using DrawingColor = System.Drawing.Color;
 using Font = System.Drawing.Font;
 using Pen = System.Drawing.Pen;
@@ -21,14 +22,19 @@ public static class TrayIconRenderer
         graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         graphics.Clear(DrawingColor.Transparent);
 
-        var remaining = snapshot.Remaining;
-        var ratio = snapshot.Limit <= 0 ? 0 : snapshot.Remaining / (double)snapshot.Limit;
-        var fill = ratio switch
-        {
-            <= 0 => DrawingColor.FromArgb(248, 113, 113),
-            <= 0.2 => DrawingColor.FromArgb(251, 191, 36),
-            _ => DrawingColor.FromArgb(59, 130, 246)
-        };
+        var unavailable = snapshot.DisplayUsageUnavailable;
+        var ratio = unavailable || snapshot.Limit <= 0
+            ? 0
+            : snapshot.Remaining / (double)snapshot.Limit;
+        var fill = unavailable
+            ? DrawingColor.FromArgb(251, 191, 36)
+            : ratio switch
+            {
+                <= 0 => DrawingColor.FromArgb(248, 113, 113),
+                <= 0.2 => DrawingColor.FromArgb(251, 191, 36),
+                _ => DrawingColor.FromArgb(59, 130, 246)
+            };
+        var text = DisplayFormatting.TrayIconText(snapshot);
 
         if (style == TrayIconStyle.ProgressRing)
         {
@@ -37,14 +43,18 @@ public static class TrayIconRenderer
             var pad = size / 8f;
             var rect = new RectangleF(pad, pad, size - pad * 2, size - pad * 2);
             graphics.DrawArc(bg, rect, -90, 360);
-            graphics.DrawArc(fg, rect, -90, (float)(360 * ratio));
-            DrawNumber(graphics, remaining, size, DrawingColor.White);
+            if (!unavailable)
+            {
+                graphics.DrawArc(fg, rect, -90, (float)(360 * ratio));
+            }
+
+            DrawGlyph(graphics, text, size, DrawingColor.White);
         }
         else
         {
             using var brush = new SolidBrush(fill);
             graphics.FillEllipse(brush, 1, 1, size - 2, size - 2);
-            DrawNumber(graphics, remaining, size, DrawingColor.White);
+            DrawGlyph(graphics, text, size, DrawingColor.White);
         }
 
         var handle = bitmap.GetHicon();
@@ -62,10 +72,9 @@ public static class TrayIconRenderer
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool DestroyIcon(IntPtr hIcon);
 
-    private static void DrawNumber(Graphics graphics, int remaining, int size, DrawingColor color)
+    private static void DrawGlyph(Graphics graphics, string text, int size, DrawingColor color)
     {
-        var text = remaining >= 100 ? "99+" : remaining.ToString(CultureInfo.InvariantCulture);
-        var fontSize = remaining >= 100 ? size * 0.38f : remaining >= 10 ? size * 0.48f : size * 0.62f;
+        var fontSize = text.Length >= 3 ? size * 0.38f : text.Length >= 2 ? size * 0.48f : size * 0.62f;
         using var font = new Font("Segoe UI Semibold", fontSize, System.Drawing.FontStyle.Bold, GraphicsUnit.Pixel);
         using var brush = new SolidBrush(color);
         var bounds = graphics.VisibleClipBounds;

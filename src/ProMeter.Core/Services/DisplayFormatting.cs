@@ -64,6 +64,9 @@ public static class DisplayFormatting
         AppSyncStatus.PartialData => "Partial data",
         AppSyncStatus.Offline => "Offline",
         AppSyncStatus.Error => "Error",
+        AppSyncStatus.Forbidden => CompanionDiagnostics.Forbidden403,
+        AppSyncStatus.ChatGptTabRequired => CompanionDiagnostics.NoChatGptTab,
+        AppSyncStatus.PageBridgeUnavailable => CompanionDiagnostics.PageBridgeUnavailable,
         _ => "Idle"
     };
 
@@ -73,6 +76,18 @@ public static class DisplayFormatting
             ? "?"
             : snapshot.Used.ToString(CultureInfo.InvariantCulture);
         return $"{used} / {snapshot.Limit}";
+    }
+
+    public static string TrayIconText(QuotaSnapshot snapshot)
+    {
+        if (snapshot.DisplayUsageUnavailable)
+        {
+            return "?";
+        }
+
+        return snapshot.Remaining >= 100
+            ? "99+"
+            : snapshot.Remaining.ToString(CultureInfo.InvariantCulture);
     }
 
     public static string CountSourceLabel(QuotaSnapshot snapshot)

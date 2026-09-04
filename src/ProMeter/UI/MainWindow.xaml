@@ -19,7 +19,7 @@
             <TabItem Header="Overview">
                 <ScrollViewer>
                     <StackPanel Margin="0,12,0,0">
-                        <TextBlock x:Name="PeriodText" Foreground="{StaticResource MutedBrush}"/>
+                        <TextBlock x:Name="PeriodText" Foreground="{DynamicResource MutedBrush}"/>
                         <ItemsControl x:Name="ModelList" Margin="0,12,0,0"/>
                         <TextBlock Style="{StaticResource SectionTitle}" Text="SOL REASONING"/>
                         <TextBlock x:Name="ReasonText"/>
@@ -30,12 +30,11 @@
             </TabItem>
             <TabItem Header="Trends">
                 <Grid Margin="0,12,0,0">
-                    <Canvas x:Name="ChartCanvas" Height="280" Background="#151922"/>
+                    <Canvas x:Name="ChartCanvas" Height="280" Background="{DynamicResource ControlBrush}"/>
                 </Grid>
             </TabItem>
             <TabItem Header="Breakdown">
                 <DataGrid x:Name="EventGrid" Margin="0,12,0,0" AutoGenerateColumns="False" IsReadOnly="True"
-                          Background="Transparent" Foreground="{StaticResource TextBrush}"
                           HeadersVisibility="Column" GridLinesVisibility="Horizontal" BorderThickness="0">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Time" Binding="{Binding CreatedAt}" Width="160"/>

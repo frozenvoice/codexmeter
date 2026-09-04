@@ -72,8 +72,8 @@ public sealed class SyncEngine
             LastAccount = account;
             if (!account.IsSignedIn)
             {
-                LastStatus = AppSyncStatus.AuthenticationRequired;
-                LastStatusDetail = "Sign in to ChatGPT to reconstruct account usage.";
+                LastStatus = AppSyncStatus.SignedOut;
+                LastStatusDetail = "ChatGPT tab is signed out.";
                 LastCoverage = coverage;
                 return new SyncOutcome(LastStatus, LastStatusDetail, 0);
             }
@@ -213,6 +213,27 @@ public sealed class SyncEngine
             LastStatus = AppSyncStatus.AuthenticationRequired;
             LastStatusDetail = "ChatGPT session expired.";
             _log.Http("sync", ex.Status, "auth required");
+            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+        }
+        catch (ChatGptProviderException ex) when (ex.IsForbidden)
+        {
+            LastStatus = AppSyncStatus.Forbidden;
+            LastStatusDetail = CompanionDiagnostics.Forbidden403;
+            _log.Http("sync", 403, "page request rejected");
+            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+        }
+        catch (ChatGptProviderException ex) when (ex.IsChatGptTabRequired)
+        {
+            LastStatus = AppSyncStatus.ChatGptTabRequired;
+            LastStatusDetail = CompanionDiagnostics.NoChatGptTab;
+            _log.Info("sync chatgpt tab required");
+            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+        }
+        catch (ChatGptProviderException ex) when (ex.IsPageBridgeUnavailable)
+        {
+            LastStatus = AppSyncStatus.PageBridgeUnavailable;
+            LastStatusDetail = CompanionDiagnostics.PageBridgeUnavailable;
+            _log.Warn("sync page bridge unavailable");
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.SchemaMismatch)
@@ -609,7 +630,8 @@ public sealed class SyncEngine
     }
 
     private static bool IsFatalProviderError(ChatGptProviderException ex) =>
-        ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline;
+        ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline
+        || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable;
 
     private static AppSyncStatus Worse(AppSyncStatus current, AppSyncStatus incoming)
     {

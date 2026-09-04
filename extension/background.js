@@ -1,5 +1,5 @@
-/* global importScripts, chrome, ProMeterCanonical, ProMeterOperations, ProMeterProject, ProMeterAuth */
-importScripts("canonical.js", "operations.js", "project.js", "auth.js");
+/* global importScripts, chrome, ProMeterCanonical, ProMeterOperations, ProMeterPageTab */
+importScripts("canonical.js", "operations.js", "page-tab.js");
 
 var NATIVE_HOST = "com.prometer.bridge";
 var MAX_BYTES = ProMeterCanonical.MAX_NATIVE_MESSAGE_BYTES;
@@ -47,7 +47,7 @@ function postResult(requestId, operation, payload) {
   payload.requestId = requestId;
   payload.operation = operation;
   var json = JSON.stringify(payload);
-  if (ProMeterAuth.tokenSnapshot() && json.indexOf(ProMeterAuth.tokenSnapshot()) >= 0) {
+  if (/\baccessToken\b|\baccess_token\b|Bearer\s+/i.test(json)) {
     port.postMessage({ type: "invokeResult", requestId: requestId, operation: operation, status: 0, schemaMismatch: true, error: "refusing to send access token" });
     return;
   }
@@ -85,48 +85,14 @@ async function handleInvoke(message) {
     return;
   }
   try {
-    var response;
-    if (operation === "GetSessionStatus") {
-      var session = await ProMeterAuth.fetchSession(fetch);
-      if (!session.json) {
-        postResult(requestId, operation, { status: session.status, retryAfter: session.retryAfter, body: "" });
-        return;
-      }
-      var projectedSession = ProMeterProject.project(operation, session.body);
-      if (!projectedSession.ok) {
-        postResult(requestId, operation, { status: 0, schemaMismatch: true, error: projectedSession.error });
-        return;
-      }
-      postResult(requestId, operation, { status: session.status, retryAfter: session.retryAfter, body: JSON.stringify(projectedSession.body) });
+    var result = await ProMeterPageTab.invoke(operation, message.args || {}, chrome);
+    if (!result || typeof result !== "object") {
+      postResult(requestId, operation, { status: 0, error: ProMeterPageTab.BRIDGE_UNAVAILABLE });
       return;
     }
-
-    response = await ProMeterAuth.invokeWithRefresh(fetch, built.method, built.path, built.body, ProMeterCanonical.EXPECTED_ORIGIN);
-    var retryAfter = response.headers && response.headers.get ? response.headers.get("retry-after") : null;
-    var text = await response.text();
-    if (!text) {
-      postResult(requestId, operation, { status: response.status, retryAfter: retryAfter, body: "" });
-      return;
-    }
-    var parsed;
-    try {
-      parsed = JSON.parse(text);
-    } catch (error) {
-      postResult(requestId, operation, { status: response.status, retryAfter: retryAfter, body: "" });
-      return;
-    }
-    var projected = ProMeterProject.project(operation, parsed);
-    if (!projected.ok) {
-      postResult(requestId, operation, { status: 0, schemaMismatch: true, error: projected.error });
-      return;
-    }
-    if (ProMeterProject.containsPromptOrResponseText(projected.body)) {
-      postResult(requestId, operation, { status: 0, schemaMismatch: true, error: "refusing unsanitized body" });
-      return;
-    }
-    postResult(requestId, operation, { status: response.status, retryAfter: retryAfter, body: JSON.stringify(projected.body) });
+    postResult(requestId, operation, result);
   } catch (error) {
-    postResult(requestId, operation, { status: 0, error: error && error.message ? error.message : "offline" });
+    postResult(requestId, operation, { status: 0, error: ProMeterPageTab.BRIDGE_UNAVAILABLE });
   }
 }
 

@@ -38,7 +38,7 @@
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="RESET ANCHOR"/>
             <TextBlock Text="Weekday and time are estimates unless you confirm them below. Saving other settings does not confirm this anchor."
-                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                       Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
             <DockPanel>
                 <ComboBox x:Name="WeekdayBox" Width="140">
                     <ComboBoxItem Content="Sunday"/><ComboBoxItem Content="Monday"/><ComboBoxItem Content="Tuesday"/>
@@ -49,35 +49,35 @@
             </DockPanel>
             <CheckBox x:Name="ResetAnchorBox"
                       Content="Use this reset anchor when the server reset time is unavailable"
-                      Foreground="{StaticResource TextBrush}"
+                      Foreground="{DynamicResource TextBrush}"
                       Margin="0,8,0,0"/>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="CONNECTION"/>
-            <TextBlock Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
+            <TextBlock Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
                        Text="Browser companion uses your normal Chrome or Edge ChatGPT session and avoids embedded social OAuth. It does not make unofficial ChatGPT endpoints official. WebView2 is a fallback only when that sign-in method works. Google/Microsoft/Apple login inside WebView2 is unsupported. Data Export remains the lower-risk non-real-time fallback."/>
             <ComboBox x:Name="TransportBox" Margin="0,0,0,8">
                 <ComboBoxItem Content="Browser companion"/>
                 <ComboBoxItem Content="WebView2 fallback"/>
                 <ComboBoxItem Content="Data Export only"/>
             </ComboBox>
-            <TextBlock Foreground="{StaticResource MutedBrush}" Text="Chrome unpacked extension ID (32 letters a-p)" Margin="0,0,0,4"/>
+            <TextBlock Foreground="{DynamicResource MutedBrush}" Text="Chrome unpacked extension ID (32 letters a-p)" Margin="0,0,0,4"/>
             <TextBox x:Name="ChromeExtensionIdBox" Margin="0,0,0,8"/>
-            <TextBlock Foreground="{StaticResource MutedBrush}" Text="Edge unpacked extension ID if different" Margin="0,0,0,4"/>
+            <TextBlock Foreground="{DynamicResource MutedBrush}" Text="Edge unpacked extension ID if different" Margin="0,0,0,4"/>
             <TextBox x:Name="EdgeExtensionIdBox" Margin="0,0,0,8"/>
-            <TextBlock Foreground="{StaticResource MutedBrush}" Text="Local pairing token (not a ChatGPT secret). The native host attaches it automatically." Margin="0,0,0,4"/>
+            <TextBlock Foreground="{DynamicResource MutedBrush}" Text="Local pairing token (not a ChatGPT secret). The native host attaches it automatically." Margin="0,0,0,4"/>
             <TextBox x:Name="PairingBox" Margin="0,0,0,8" IsReadOnly="True"/>
             <Button Style="{StaticResource GhostButton}" Content="Register Chrome/Edge native host" Click="OnRegisterCompanion" HorizontalAlignment="Left" Margin="0,0,0,8"/>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="APP"/>
-            <TextBlock Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
+            <TextBlock Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
                        Text="ProMeter uses unofficial ChatGPT web endpoints. They are not part of the public OpenAI API and may change. Programmatic history access is unsupported and may carry account or terms risk. Review current ChatGPT terms before enabling synchronization. Official ChatGPT Data Export import is the lower-risk fallback but is not real-time."/>
-            <CheckBox x:Name="AutoSyncBox" Content="Automatic history synchronization" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
+            <CheckBox x:Name="AutoSyncBox" Content="Automatic history synchronization" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
             <DockPanel Margin="0,4,0,0">
                 <TextBlock Text="Sync interval (minutes)" VerticalAlignment="Center"/>
                 <TextBox x:Name="IntervalBox" Width="80" DockPanel.Dock="Right" HorizontalAlignment="Right"/>
             </DockPanel>
-            <CheckBox x:Name="StartupBox" Content="Start with Windows" Foreground="{StaticResource TextBrush}" Margin="0,8,0,4"/>
-            <CheckBox x:Name="WidgetBox" Content="Floating widget" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
+            <CheckBox x:Name="StartupBox" Content="Start with Windows" Foreground="{DynamicResource TextBrush}" Margin="0,8,0,4"/>
+            <CheckBox x:Name="WidgetBox" Content="Floating widget" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
             <ComboBox x:Name="ThemeBox" Margin="0,8,0,0">
                 <ComboBoxItem Content="System"/>
                 <ComboBoxItem Content="Light"/>
@@ -87,14 +87,14 @@
                 <ComboBoxItem Content="Remaining number"/>
                 <ComboBoxItem Content="Progress ring"/>
             </ComboBox>
-            <CheckBox x:Name="FlyoutCloseBox" Content="Close flyout when it loses focus" Foreground="{StaticResource TextBrush}" Margin="0,8,0,4"/>
+            <CheckBox x:Name="FlyoutCloseBox" Content="Close flyout when it loses focus" Foreground="{DynamicResource TextBrush}" Margin="0,8,0,4"/>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="NOTIFICATIONS"/>
-            <CheckBox x:Name="N20" Content="20% remaining" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
-            <CheckBox x:Name="N10" Content="10% remaining" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
-            <CheckBox x:Name="NEx" Content="Quota exhausted" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
-            <CheckBox x:Name="NReset" Content="Quota reset" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
-            <CheckBox x:Name="NErr" Content="Sync / authentication error" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
+            <CheckBox x:Name="N20" Content="20% remaining" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
+            <CheckBox x:Name="N10" Content="10% remaining" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
+            <CheckBox x:Name="NEx" Content="Quota exhausted" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
+            <CheckBox x:Name="NReset" Content="Quota reset" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
+            <CheckBox x:Name="NErr" Content="Sync / authentication error" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="DATA"/>
             <WrapPanel Margin="0,4,0,0">
@@ -103,7 +103,7 @@
                 <Button Style="{StaticResource GhostButton}" Content="Export CSV" Click="OnExportCsv" Margin="0,0,8,8"/>
                 <Button Style="{StaticResource GhostButton}" Content="Open logs" Click="OnOpenLogs" Margin="0,0,8,8"/>
             </WrapPanel>
-            <CheckBox x:Name="HistoricalBox" Content="Import older than the current quota period" Foreground="{StaticResource TextBrush}" Margin="0,4"/>
+            <CheckBox x:Name="HistoricalBox" Content="Import older than the current quota period" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
 
             <Button Style="{StaticResource PrimaryButton}" Content="Save" HorizontalAlignment="Right" Margin="0,16,0,0" Click="OnSave"/>
         </StackPanel>

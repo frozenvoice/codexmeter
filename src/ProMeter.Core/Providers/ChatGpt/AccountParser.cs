@@ -14,9 +14,16 @@ public static class AccountParser
         status.Email = ChatGptJson.GetString(user, "email");
         status.DisplayName = ChatGptJson.GetString(user, "name");
         status.UserId = ChatGptJson.GetString(user, "id");
-        status.IsSignedIn = !string.IsNullOrWhiteSpace(status.Email)
-            || !string.IsNullOrWhiteSpace(status.UserId)
-            || session["accessToken"] is not null;
+        if (session["signedIn"] is JsonValue signedValue && signedValue.TryGetValue(out bool signedIn))
+        {
+            status.IsSignedIn = signedIn;
+        }
+        else
+        {
+            status.IsSignedIn = !string.IsNullOrWhiteSpace(status.Email)
+                || !string.IsNullOrWhiteSpace(status.UserId)
+                || session["accessToken"] is not null;
+        }
         return status;
     }
 

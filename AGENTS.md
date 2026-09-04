@@ -59,7 +59,12 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Chrome Native Messaging through runtime.connectNative is a long-lived, full-duplex channel. Never implement it as alternating request/reply I/O.
 - Application-initiated messages must reach the extension without requiring a preceding extension message.
 - Every bridge request must have a bounded timeout and must complete when the connection closes.
-- Browser companion authentication is owned by the extension. ChatGPT access tokens may exist only in extension service-worker memory and must never cross Native Messaging, named pipes, logs, settings, SQLite, or exports.
+- Browser companion authentication is owned by the extension. ChatGPT access tokens may exist only in chatgpt.com page-local memory and must never cross Native Messaging, named pipes, logs, settings, SQLite, or exports.
+- ProMeter must work with the user's normal browser networking configuration, including a browser VPN/proxy, when chatgpt.com itself works in that browser.
+- Do not instruct users to disable VPN as a product requirement.
+- Browser Companion ChatGPT requests should execute in the authenticated chatgpt.com page context when extension service-worker fetches do not share equivalent site/session context.
+- ChatGPT credentials, cookies, access tokens and Cloudflare/session material must never cross into Native Messaging or ProMeter.
+- Page-context execution must remain operation-allowlisted and metadata-only.
 - The browser bridge is read-only except for narrowly approved requests that are indispensable to usage reconstruction.
 - Arbitrary HTTP methods and arbitrary /backend-api paths are forbidden.
 - Browser responses must be projected through endpoint-specific metadata allowlists before leaving the browser. Recursive denylist deletion is not an adequate privacy boundary.
@@ -86,6 +91,8 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Projection must canonicalize both server shapes into one metadata-only internal shape before crossing Native Messaging.
 - UI callbacks originating from pipe/background threads must marshal to the WPF Dispatcher before touching controls.
 - Dark-theme flyout values must never rely on the platform default foreground.
+- Dark and light theme controls must never rely on Windows/WPF default foreground/background colors.
+- Every visible TextBlock, TextBox, ComboBox, TabControl, DataGrid and context UI must be readable in Dark, Light and System themes.
 - An incomplete reconstruction must not present "0 / quota" as though zero were a trustworthy usage measurement.
 
 ## Testing and completion

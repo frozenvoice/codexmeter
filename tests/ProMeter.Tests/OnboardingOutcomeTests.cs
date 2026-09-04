@@ -77,4 +77,29 @@ public class OnboardingOutcomeTests
         Assert.False(error.ShowCount);
         Assert.Equal("sync failed", error.Message);
     }
+
+    [Fact]
+    public void ForbiddenAndBridgeDiagnostics_DoNotShowQuotaOrExpired()
+    {
+        var forbidden = OnboardingOutcomeMapper.From(AppSyncStatus.Forbidden, 0, 50, null);
+        Assert.False(forbidden.ShowCount);
+        Assert.Equal(CompanionDiagnostics.Forbidden403, forbidden.Message);
+        Assert.DoesNotContain("expired", forbidden.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(forbidden.AllowRetrySync);
+
+        var tab = OnboardingOutcomeMapper.From(AppSyncStatus.ChatGptTabRequired, 0, 50, null);
+        Assert.False(tab.ShowCount);
+        Assert.Equal(CompanionDiagnostics.NoChatGptTab, tab.Message);
+        Assert.True(tab.AllowSignInAgain);
+
+        var bridge = OnboardingOutcomeMapper.From(AppSyncStatus.PageBridgeUnavailable, 0, 50, null);
+        Assert.False(bridge.ShowCount);
+        Assert.Equal(CompanionDiagnostics.PageBridgeUnavailable, bridge.Message);
+        Assert.DoesNotContain("VPN", bridge.Message, StringComparison.OrdinalIgnoreCase);
+
+        var signedOut = OnboardingOutcomeMapper.From(AppSyncStatus.SignedOut, 0, 50, null);
+        Assert.False(signedOut.ShowCount);
+        Assert.Contains("signed out", signedOut.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.True(signedOut.AllowSignInAgain);
+    }
 }

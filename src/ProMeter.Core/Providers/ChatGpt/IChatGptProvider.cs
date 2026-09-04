@@ -25,8 +25,13 @@ public sealed class ChatGptProviderException : Exception
     public int Status { get; }
     public string? RetryAfter { get; }
     public bool SchemaMismatch { get; }
-    public bool IsUnauthorized => Status is 401 or 403;
+    public bool IsUnauthorized => Status == 401;
+    public bool IsForbidden => Status == 403;
+    public bool IsChatGptTabRequired =>
+        Status == 0 && string.Equals(Message, CompanionDiagnostics.NoChatGptTab, StringComparison.Ordinal);
+    public bool IsPageBridgeUnavailable =>
+        Status == 0 && string.Equals(Message, CompanionDiagnostics.PageBridgeUnavailable, StringComparison.Ordinal);
     public bool IsRateLimited => Status == 429;
     public bool IsServerError => Status is >= 500 and < 600;
-    public bool IsOffline => Status == 0 && !SchemaMismatch;
+    public bool IsOffline => Status == 0 && !SchemaMismatch && !IsChatGptTabRequired && !IsPageBridgeUnavailable;
 }

@@ -262,6 +262,8 @@ const preserved = await auth.fetchSession(session429);
 assert.strictEqual(preserved.status, 429);
 assert.strictEqual(preserved.json, false);
 
+await require("./test-page-context.js")();
+
   process.stdout.write("companion node tests ok\n");
 })().catch(function (error) {
   process.stderr.write(String(error && error.stack ? error.stack : error) + "\n");

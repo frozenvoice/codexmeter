@@ -1,0 +1,175 @@
+(function (root, factory) {
+  if (typeof module === "object" && module.exports) {
+    module.exports = factory(require("./canonical.js"));
+  } else {
+    root.ProMeterPageTab = factory(root.ProMeterCanonical);
+  }
+})(typeof globalThis !== "undefined" ? globalThis : this, function (canonical) {
+  var EXPECTED_ORIGIN = canonical.EXPECTED_ORIGIN;
+  var CHATGPT_HOME = EXPECTED_ORIGIN + "/";
+  var PAGE_FILES = ["canonical.js", "operations.js", "project.js", "auth.js", "page-executor.js"];
+  var NO_TAB = "Open/sign in to ChatGPT, then retry";
+  var BRIDGE_UNAVAILABLE = "ChatGPT page bridge unavailable";
+
+  function isExactChatGptTabUrl(urlString) {
+    if (!urlString || typeof urlString !== "string") {
+      return false;
+    }
+    var url;
+    try {
+      url = new URL(urlString);
+    } catch (error) {
+      return false;
+    }
+    return url.origin === EXPECTED_ORIGIN && url.protocol === "https:" && (!url.port || url.port === "443") && !url.username && !url.password;
+  }
+
+  function pickPreferredTab(tabs) {
+    var exact = (tabs || []).filter(function (tab) {
+      return tab && isExactChatGptTabUrl(tab.url);
+    });
+    if (exact.length === 0) {
+      return null;
+    }
+    exact.sort(function (a, b) {
+      if (a.active !== b.active) {
+        return a.active ? -1 : 1;
+      }
+      return (b.lastAccessed || 0) - (a.lastAccessed || 0);
+    });
+    return exact[0];
+  }
+
+  async function queryChatGptTabs(chromeApi) {
+    var query = chromeApi.tabs.query({ url: "https://chatgpt.com/*" });
+    return typeof query.then === "function" ? await query : await new Promise(function (resolve, reject) {
+      chromeApi.tabs.query({ url: "https://chatgpt.com/*" }, function (tabs) {
+        var err = chromeApi.runtime && chromeApi.runtime.lastError;
+        if (err) {
+          reject(new Error(err.message || BRIDGE_UNAVAILABLE));
+          return;
+        }
+        resolve(tabs || []);
+      });
+    });
+  }
+
+  async function openChatGptTab(chromeApi) {
+    var created = chromeApi.tabs.create({ url: CHATGPT_HOME, active: true });
+    if (created && typeof created.then === "function") {
+      await created;
+      return;
+    }
+    await new Promise(function (resolve, reject) {
+      chromeApi.tabs.create({ url: CHATGPT_HOME, active: true }, function () {
+        var err = chromeApi.runtime && chromeApi.runtime.lastError;
+        if (err) {
+          reject(new Error(err.message || BRIDGE_UNAVAILABLE));
+          return;
+        }
+        resolve();
+      });
+    });
+  }
+
+  function pageExecute(operation, args) {
+    return globalThis.ProMeterPageExecutor.execute(operation, args);
+  }
+
+  async function executeOnTab(chromeApi, tabId, operation, args) {
+    var inject = chromeApi.scripting.executeScript({
+      target: { tabId: tabId },
+      world: "MAIN",
+      files: PAGE_FILES
+    });
+    if (inject && typeof inject.then === "function") {
+      await inject;
+    } else {
+      await new Promise(function (resolve, reject) {
+        chromeApi.scripting.executeScript({
+          target: { tabId: tabId },
+          world: "MAIN",
+          files: PAGE_FILES
+        }, function () {
+          var err = chromeApi.runtime && chromeApi.runtime.lastError;
+          if (err) {
+            reject(new Error(err.message || BRIDGE_UNAVAILABLE));
+            return;
+          }
+          resolve();
+        });
+      });
+    }
+
+    var ran = chromeApi.scripting.executeScript({
+      target: { tabId: tabId },
+      world: "MAIN",
+      func: pageExecute,
+      args: [operation, args || {}]
+    });
+    var results;
+    if (ran && typeof ran.then === "function") {
+      results = await ran;
+    } else {
+      results = await new Promise(function (resolve, reject) {
+        chromeApi.scripting.executeScript({
+          target: { tabId: tabId },
+          world: "MAIN",
+          func: pageExecute,
+          args: [operation, args || {}]
+        }, function (value) {
+          var err = chromeApi.runtime && chromeApi.runtime.lastError;
+          if (err) {
+            reject(new Error(err.message || BRIDGE_UNAVAILABLE));
+            return;
+          }
+          resolve(value);
+        });
+      });
+    }
+    return results && results[0] ? results[0].result : null;
+  }
+
+  async function invoke(operation, args, chromeApi) {
+    if (!chromeApi || !chromeApi.tabs || !chromeApi.scripting || typeof chromeApi.scripting.executeScript !== "function") {
+      return { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
+    }
+
+    var tabs;
+    try {
+      tabs = await queryChatGptTabs(chromeApi);
+    } catch (error) {
+      return { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
+    }
+
+    var tab = pickPreferredTab(tabs);
+    if (!tab || typeof tab.id !== "number") {
+      try {
+        await openChatGptTab(chromeApi);
+      } catch (error) {
+        return { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
+      }
+      return { status: 0, error: NO_TAB, diagnostic: "NoChatGptTab" };
+    }
+
+    try {
+      var result = await executeOnTab(chromeApi, tab.id, operation, args);
+      if (!result || typeof result !== "object") {
+        return { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
+      }
+      return result;
+    } catch (error) {
+      return { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
+    }
+  }
+
+  return {
+    invoke: invoke,
+    isExactChatGptTabUrl: isExactChatGptTabUrl,
+    pickPreferredTab: pickPreferredTab,
+    NO_TAB: NO_TAB,
+    BRIDGE_UNAVAILABLE: BRIDGE_UNAVAILABLE,
+    PAGE_FILES: PAGE_FILES,
+    CHATGPT_HOME: CHATGPT_HOME
+  };
+});

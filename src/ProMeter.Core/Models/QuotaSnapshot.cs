@@ -76,8 +76,13 @@ public sealed class ProviderResponse
     public string? Error { get; set; }
 
     public bool IsSuccess => Status is >= 200 and < 300;
-    public bool IsUnauthorized => Status is 401 or 403;
+    public bool IsUnauthorized => Status == 401;
+    public bool IsForbidden => Status == 403;
     public bool IsRateLimited => Status == 429;
     public bool IsServerError => Status is >= 500 and < 600;
-    public bool IsOffline => Status == 0 && !SchemaMismatch;
+    public bool IsChatGptTabRequired =>
+        Status == 0 && string.Equals(Error, CompanionDiagnostics.NoChatGptTab, StringComparison.Ordinal);
+    public bool IsPageBridgeUnavailable =>
+        Status == 0 && string.Equals(Error, CompanionDiagnostics.PageBridgeUnavailable, StringComparison.Ordinal);
+    public bool IsOffline => Status == 0 && !SchemaMismatch && !IsChatGptTabRequired && !IsPageBridgeUnavailable;
 }

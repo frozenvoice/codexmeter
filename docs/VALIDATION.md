@@ -62,3 +62,30 @@ ProMeter reconstructs usage from ChatGPT account history. These checks require a
 2. Import it from ProMeter Settings.
 3. Import the same file again.
 4. Confirm usage counts do not double.
+
+## Theme readability (Dark and Light)
+
+Check each screen in Dark, then repeat in Light (Settings → Theme):
+
+- Main
+- Settings
+- Flyout
+- Coverage
+- Welcome
+- About
+
+Confirm labels, text boxes, combo boxes and dropdown items, checkboxes, tab headers, DataGrid text/headers, and flyout values stay readable. No black/default text on a dark background, and no washed-out light text on a light background.
+
+## Browser companion with VPN left on
+
+Do not disable the browser VPN or proxy, switch browsers, or weaken browser security.
+
+1. Keep the VPN/proxy enabled in Edge or Chrome.
+2. Confirm chatgpt.com itself loads and is signed in in a normal tab.
+3. Confirm the companion popup shows connected to ProMeter.
+4. Leave that ChatGPT tab open (or let ProMeter open https://chatgpt.com/ and sign in there, then retry).
+5. Run a manual sync.
+6. Confirm ProMeter does **not** tell you to disable VPN.
+7. If ChatGPT returns 403, the UI/log should say `ChatGPT rejected the page request (403)`, not `ChatGPT session expired`, unless the ChatGPT tab is independently signed out.
+8. If no ChatGPT tab exists, the status should be `Open/sign in to ChatGPT, then retry`.
+9. If MAIN-world page execution is blocked, the status should be `ChatGPT page bridge unavailable` rather than a silent service-worker fetch.

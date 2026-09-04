@@ -19,7 +19,7 @@ public sealed class ChatGptProvider : IChatGptProvider
             var check = await GetJsonAsync("GET", ChatGptEndpoints.AccountsCheck, cancellationToken: cancellationToken);
             AccountParser.MergeAccountsCheck(status, check);
         }
-        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline)
+        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable)
         {
             throw;
         }
@@ -32,7 +32,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 status.DisplayName ??= ChatGptJson.GetString(me, "name");
                 status.IsSignedIn = status.IsSignedIn || me is not null;
             }
-            catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline)
+            catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable)
             {
                 throw;
             }
@@ -205,7 +205,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 return parsed;
             }
         }
-        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline)
+        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable)
         {
             throw;
         }
@@ -222,7 +222,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 return parsed;
             }
         }
-        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline)
+        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable)
         {
             throw;
         }
@@ -311,6 +311,21 @@ public sealed class ChatGptProvider : IChatGptProvider
         if (response.SchemaMismatch)
         {
             throw new ChatGptProviderException("Provider schema mismatch", response.Status, response.RetryAfter, schemaMismatch: true);
+        }
+
+        if (response.IsChatGptTabRequired)
+        {
+            throw new ChatGptProviderException(CompanionDiagnostics.NoChatGptTab, 0, response.RetryAfter);
+        }
+
+        if (response.IsPageBridgeUnavailable)
+        {
+            throw new ChatGptProviderException(CompanionDiagnostics.PageBridgeUnavailable, 0, response.RetryAfter);
+        }
+
+        if (response.IsForbidden)
+        {
+            throw new ChatGptProviderException(CompanionDiagnostics.Forbidden403, response.Status, response.RetryAfter);
         }
 
         if (response.IsUnauthorized)

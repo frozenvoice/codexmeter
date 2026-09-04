@@ -48,7 +48,10 @@ public enum AppSyncStatus
     ProviderSchemaMismatch,
     PartialData,
     Offline,
-    Error
+    Error,
+    Forbidden,
+    ChatGptTabRequired,
+    PageBridgeUnavailable
 }
 
 public enum CoverageConfidence

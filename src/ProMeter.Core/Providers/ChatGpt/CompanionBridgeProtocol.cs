@@ -225,6 +225,13 @@ public static class CompanionBridgeProtocol
         new() { Status = 0, Error = "bridge result operation mismatch", SchemaMismatch = true };
 }
 
+public static class CompanionDiagnostics
+{
+    public const string NoChatGptTab = "Open/sign in to ChatGPT, then retry";
+    public const string PageBridgeUnavailable = "ChatGPT page bridge unavailable";
+    public const string Forbidden403 = "ChatGPT rejected the page request (403)";
+}
+
 public static class OnboardingOutcomeMapper
 {
     public static OnboardingPresentation From(AppSyncStatus status, int used, int limit, string? detail, bool usageUnavailable = false)
@@ -271,6 +278,30 @@ public static class OnboardingOutcomeMapper
                 AllowFinish: true,
                 AllowRetrySync: true,
                 AllowSignInAgain: false),
+            AppSyncStatus.Forbidden => new OnboardingPresentation(
+                CompanionDiagnostics.Forbidden403,
+                ShowCount: false,
+                AllowFinish: true,
+                AllowRetrySync: true,
+                AllowSignInAgain: false),
+            AppSyncStatus.ChatGptTabRequired => new OnboardingPresentation(
+                CompanionDiagnostics.NoChatGptTab,
+                ShowCount: false,
+                AllowFinish: true,
+                AllowRetrySync: true,
+                AllowSignInAgain: true),
+            AppSyncStatus.PageBridgeUnavailable => new OnboardingPresentation(
+                CompanionDiagnostics.PageBridgeUnavailable,
+                ShowCount: false,
+                AllowFinish: true,
+                AllowRetrySync: true,
+                AllowSignInAgain: false),
+            AppSyncStatus.SignedOut => new OnboardingPresentation(
+                "ChatGPT tab is signed out.",
+                ShowCount: false,
+                AllowFinish: false,
+                AllowRetrySync: true,
+                AllowSignInAgain: true),
             _ => new OnboardingPresentation(
                 detail ?? status.ToString(),
                 ShowCount: false,

@@ -10,7 +10,7 @@
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
         MouseLeftButtonDown="OnDrag">
-    <Border Background="#DD1B1F27" CornerRadius="10" Padding="10,6" BorderBrush="#333B4A" BorderThickness="1">
-        <TextBlock x:Name="Label" Foreground="White" FontWeight="SemiBold" FontSize="13"/>
+    <Border Background="{DynamicResource CardBrush}" CornerRadius="10" Padding="10,6" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1">
+        <TextBlock x:Name="Label" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" FontSize="13"/>
     </Border>
 </Window>

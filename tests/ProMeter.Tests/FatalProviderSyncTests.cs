@@ -171,6 +171,43 @@ public class FatalProviderSyncTests
         Assert.Contains(ChatGptEndpoints.AccountsCheck, paths);
     }
 
+    [Fact]
+    public async Task ForbiddenDuringBodyFetch_AbortsWithoutSessionExpiredLabel()
+    {
+        var (engine, provider, settings) = CreateTwoConversationHarness(_ =>
+            throw new ChatGptProviderException(CompanionDiagnostics.Forbidden403, 403));
+        var outcome = await engine.SyncAsync(provider, settings, true);
+        Assert.Equal(AppSyncStatus.Forbidden, outcome.Status);
+        Assert.Equal(CompanionDiagnostics.Forbidden403, outcome.Detail);
+        Assert.DoesNotContain("session expired", outcome.Detail ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, provider.BodyFetches);
+    }
+
+    [Fact]
+    public async Task MissingChatGptTab_IsNotOfflineOrSessionExpired()
+    {
+        var (engine, provider, settings) = CreateTwoConversationHarness(_ =>
+            throw new ChatGptProviderException(CompanionDiagnostics.NoChatGptTab, 0));
+        var outcome = await engine.SyncAsync(provider, settings, true);
+        Assert.Equal(AppSyncStatus.ChatGptTabRequired, outcome.Status);
+        Assert.Equal(CompanionDiagnostics.NoChatGptTab, outcome.Detail);
+        Assert.NotEqual(AppSyncStatus.Offline, outcome.Status);
+        Assert.NotEqual(AppSyncStatus.AuthenticationRequired, outcome.Status);
+        Assert.Equal(1, provider.BodyFetches);
+    }
+
+    [Fact]
+    public async Task PageBridgeUnavailable_IsNotOffline()
+    {
+        var (engine, provider, settings) = CreateTwoConversationHarness(_ =>
+            throw new ChatGptProviderException(CompanionDiagnostics.PageBridgeUnavailable, 0));
+        var outcome = await engine.SyncAsync(provider, settings, true);
+        Assert.Equal(AppSyncStatus.PageBridgeUnavailable, outcome.Status);
+        Assert.Equal(CompanionDiagnostics.PageBridgeUnavailable, outcome.Detail);
+        Assert.NotEqual(AppSyncStatus.Offline, outcome.Status);
+        Assert.Equal(1, provider.BodyFetches);
+    }
+
     private static ProviderResponse SessionOk() => new()
     {
         Status = 200,
