@@ -11,7 +11,12 @@ public static class DisplayFormatting
 
         var local = snapshot.ResetAt.Value.ToLocalTime();
         var stamp = local.ToString("MMM d HH:mm", CultureInfo.InvariantCulture);
-        return snapshot.ResetEstimated ? $"{stamp} (estimated)" : stamp;
+        return snapshot.ResetAnchorSource switch
+        {
+            ResetAnchorSource.Server => $"{stamp} (server reset)",
+            ResetAnchorSource.UserConfigured => $"{stamp} (user-configured reset)",
+            _ => $"{stamp} (estimated reset)"
+        };
     }
 
     public static string RemainingDuration(DateTimeOffset? reset, DateTimeOffset now)

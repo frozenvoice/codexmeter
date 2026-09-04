@@ -1,5 +1,34 @@
 namespace ProMeter.Providers.ChatGpt;
 
+public static class IndexCollections
+{
+    public static readonly string[] Conversation = ["items", "conversations"];
+    public static readonly string[] Project = ["items", "gizmos"];
+
+    public static JsonArray? Find(JsonNode? root, IReadOnlyList<string> keys)
+    {
+        if (root is JsonArray array)
+        {
+            return array;
+        }
+
+        if (root is null)
+        {
+            return null;
+        }
+
+        foreach (var key in keys)
+        {
+            if (root[key] is JsonArray found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+}
+
 public static class ConversationIndexPager
 {
     public const int RequestedLimit = 100;
@@ -64,21 +93,28 @@ public static class ConversationIndexPager
         return page.HasMore is null && page.ReturnedCount > 0 && page.Total is null;
     }
 
-    public static CursorPageInfo ReadCursor(JsonNode? root)
+    public static CursorPageInfo ReadCursor(JsonNode? root, IReadOnlyList<string> collectionKeys)
     {
+        var collection = IndexCollections.Find(root, collectionKeys);
+        var hasMore = ChatGptJson.GetBool(root, "has_more", "hasMore");
         return new CursorPageInfo
         {
-            HasMore = ChatGptJson.GetBool(root, "has_more", "hasMore"),
+            HasMore = hasMore,
             NextCursor = ChatGptJson.GetString(root, "next_cursor", "cursor", "nextCursor"),
-            ReturnedCount = (root?["items"] as JsonArray)?.Count
-                ?? (root?["conversations"] as JsonArray)?.Count
-                ?? 0
+            ReturnedCount = collection?.Count ?? 0,
+            RecognizedCollection = collection is not null,
+            SchemaMismatch = hasMore == true && collection is null
         };
     }
 
     public static bool ShouldFetchNextCursor(string? currentCursor, CursorPageInfo page, ISet<string> seenCursors)
     {
-        if (page.ReturnedCount == 0 || page.HasMore == false)
+        if (page.SchemaMismatch || page.HasMore == false)
+        {
+            return false;
+        }
+
+        if (page.ReturnedCount == 0)
         {
             return false;
         }
@@ -110,6 +146,8 @@ public sealed class CursorPageInfo
     public bool? HasMore { get; init; }
     public string? NextCursor { get; init; }
     public int ReturnedCount { get; init; }
+    public bool RecognizedCollection { get; init; }
+    public bool SchemaMismatch { get; init; }
 }
 
 public sealed class ConversationIndexResult
@@ -134,12 +172,24 @@ public sealed class IndexParseResult
 {
     public IReadOnlyList<ConversationIndexItem> Items { get; init; } = [];
     public bool RecognizedShape { get; init; }
+    public bool SchemaMismatch { get; init; }
+    public bool Incomplete { get; init; }
     public bool TimestampComplete { get; init; }
     public int MissingTimestamps { get; init; }
+    public int TotalRawItems { get; init; }
+    public int ValidItems { get; init; }
+    public int MalformedItems { get; init; }
+    public int MissingIds { get; init; }
 }
 
 public sealed class ProjectParseResult
 {
     public IReadOnlyList<ProjectInfo> Projects { get; init; } = [];
     public bool RecognizedShape { get; init; }
+    public bool SchemaMismatch { get; init; }
+    public bool Incomplete { get; init; }
+    public int TotalRawItems { get; init; }
+    public int ValidItems { get; init; }
+    public int MalformedItems { get; init; }
+    public int MissingIds { get; init; }
 }

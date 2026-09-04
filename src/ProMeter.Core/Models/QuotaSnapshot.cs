@@ -11,6 +11,7 @@ public sealed class QuotaSnapshot
     public DateTimeOffset PeriodEnd { get; set; }
     public DateTimeOffset? ResetAt { get; set; }
     public bool ResetEstimated { get; set; } = true;
+    public ResetAnchorSource ResetAnchorSource { get; set; } = ResetAnchorSource.Default;
     public DateTimeOffset? LastSync { get; set; }
     public AppSyncStatus Status { get; set; } = AppSyncStatus.Idle;
     public string? StatusDetail { get; set; }

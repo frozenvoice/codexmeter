@@ -71,6 +71,8 @@ public partial class SettingsWindow : Window
             _settings.ResetTime = time;
         }
 
+        _settings.ResetAnchorConfigured = true;
+
         _settings.AutoSync = AutoSyncBox.IsChecked == true;
         _settings.SyncIntervalMinutes = Math.Clamp(ParseInt(IntervalBox.Text, 15), 5, 180);
         _settings.StartWithWindows = StartupBox.IsChecked == true;

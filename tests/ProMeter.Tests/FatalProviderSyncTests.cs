@@ -76,6 +76,107 @@ public class FatalProviderSyncTests
         Assert.Equal(AppSyncStatus.AuthenticationRequired, outcome.Status);
     }
 
+    [Fact]
+    public async Task AccountsCheckRateLimit_DoesNotCallMe_AndAbortsSync()
+    {
+        var paths = new List<string>();
+        var transport = new PaginationTests.ScriptedTransport((_, path) =>
+        {
+            paths.Add(path);
+            if (path == ChatGptEndpoints.Session)
+            {
+                return SessionOk();
+            }
+
+            if (path == ChatGptEndpoints.AccountsCheck)
+            {
+                return new ProviderResponse { Status = 429, RetryAfter = "0", Error = "rate limited" };
+            }
+
+            return new ProviderResponse { Status = 500, Error = "unexpected " + path };
+        });
+        var dir = NewTempDir();
+        using var store = new SqliteStore(Path.Combine(dir, "rl.db"));
+        var models = new ModelNormalizer();
+        var engine = new SyncEngine(store, new ConversationParser(models), models, new AppLog(Path.Combine(dir, "logs")));
+        engine.RetryAttempts = 1;
+        engine.RetryBaseDelay = TimeSpan.Zero;
+        var outcome = await engine.SyncAsync(new ChatGptProvider(transport), AppSettings.CreateDefaults(), true);
+        Assert.Equal(AppSyncStatus.RateLimited, outcome.Status);
+        Assert.DoesNotContain(paths, path => path.Equals(ChatGptEndpoints.Me, StringComparison.Ordinal));
+        Assert.Contains(ChatGptEndpoints.AccountsCheck, paths);
+    }
+
+    [Fact]
+    public async Task AccountsCheckUnauthorized_AbortsWithoutMe()
+    {
+        var paths = new List<string>();
+        var transport = new PaginationTests.ScriptedTransport((_, path) =>
+        {
+            paths.Add(path);
+            if (path == ChatGptEndpoints.Session)
+            {
+                return SessionOk();
+            }
+
+            if (path == ChatGptEndpoints.AccountsCheck)
+            {
+                return new ProviderResponse { Status = 401, Error = "unauthorized" };
+            }
+
+            return new ProviderResponse { Status = 500, Error = "unexpected " + path };
+        });
+        var dir = NewTempDir();
+        using var store = new SqliteStore(Path.Combine(dir, "auth.db"));
+        var models = new ModelNormalizer();
+        var engine = new SyncEngine(store, new ConversationParser(models), models, new AppLog(Path.Combine(dir, "logs")));
+        var outcome = await engine.SyncAsync(new ChatGptProvider(transport), AppSettings.CreateDefaults(), true);
+        Assert.Equal(AppSyncStatus.AuthenticationRequired, outcome.Status);
+        Assert.DoesNotContain(paths, path => path.Equals(ChatGptEndpoints.Me, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task UnsupportedAccountsCheck_FallsBackToMe()
+    {
+        var paths = new List<string>();
+        var transport = new PaginationTests.ScriptedTransport((_, path) =>
+        {
+            paths.Add(path);
+            if (path == ChatGptEndpoints.Session)
+            {
+                return SessionOk();
+            }
+
+            if (path == ChatGptEndpoints.AccountsCheck)
+            {
+                return new ProviderResponse { Status = 404, Error = "not found" };
+            }
+
+            if (path == ChatGptEndpoints.Me)
+            {
+                return new ProviderResponse
+                {
+                    Status = 200,
+                    Body = """{"email":"a@b.com","name":"A"}"""
+                };
+            }
+
+            return new ProviderResponse { Status = 500, Error = "unexpected " + path };
+        });
+
+        var status = await new ChatGptProvider(transport).GetAccountStatusAsync();
+        Assert.True(status.IsSignedIn);
+        Assert.Equal("a@b.com", status.Email);
+        Assert.Contains(ChatGptEndpoints.Me, paths);
+        Assert.Contains(ChatGptEndpoints.AccountsCheck, paths);
+    }
+
+    private static ProviderResponse SessionOk() => new()
+    {
+        Status = 200,
+        Body = """{"user":{"email":"a@b.com","id":"u1"}}"""
+    };
+
     private static (SyncEngine Engine, ScriptedBodyProvider Provider, AppSettings Settings) CreateTwoConversationHarness(
         Func<string, ConversationLoadResult> load)
     {

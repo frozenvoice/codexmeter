@@ -10,11 +10,32 @@ public enum ConversationEndpointKind
 
 public sealed class EndpointCapabilityCache
 {
+    public const int ConfirmationsRequired = 2;
+
     private readonly HashSet<ConversationEndpointKind> _unsupported = [];
+    private readonly Dictionary<ConversationEndpointKind, HashSet<string>> _notFoundByConversation = [];
 
     public bool IsSupported(ConversationEndpointKind kind) => !_unsupported.Contains(kind);
 
-    public void MarkUnsupported(ConversationEndpointKind kind) => _unsupported.Add(kind);
+    public void ObserveNotFound(ConversationEndpointKind kind, string conversationId)
+    {
+        if (_unsupported.Contains(kind) || string.IsNullOrWhiteSpace(conversationId))
+        {
+            return;
+        }
+
+        if (!_notFoundByConversation.TryGetValue(kind, out var ids))
+        {
+            ids = new HashSet<string>(StringComparer.Ordinal);
+            _notFoundByConversation[kind] = ids;
+        }
+
+        ids.Add(conversationId);
+        if (ids.Count >= ConfirmationsRequired)
+        {
+            _unsupported.Add(kind);
+        }
+    }
 
     public IReadOnlyCollection<ConversationEndpointKind> Unsupported => _unsupported;
 }
@@ -43,7 +64,7 @@ public sealed class ConversationDetailLoader
 
         if (Capabilities.IsSupported(ConversationEndpointKind.PaginatedTurns))
         {
-            var turns = await TryGet(fetch, "GET", ChatGptEndpoints.ConversationTurns(conversationId), cancellationToken, diagnostics, "paginated-head", ConversationEndpointKind.PaginatedTurns);
+            var turns = await TryGet(fetch, "GET", ChatGptEndpoints.ConversationTurns(conversationId), conversationId, cancellationToken, diagnostics, "paginated-head", ConversationEndpointKind.PaginatedTurns);
             if (IsCompleteMapping(turns))
             {
                 return Complete(turns, mapping: true, diagnostics);
@@ -63,7 +84,7 @@ public sealed class ConversationDetailLoader
 
         if (Capabilities.IsSupported(ConversationEndpointKind.FullMapping))
         {
-            var full = await TryGet(fetch, "GET", ChatGptEndpoints.ConversationFull(conversationId), cancellationToken, diagnostics, "full-mapping", ConversationEndpointKind.FullMapping);
+            var full = await TryGet(fetch, "GET", ChatGptEndpoints.ConversationFull(conversationId), conversationId, cancellationToken, diagnostics, "full-mapping", ConversationEndpointKind.FullMapping);
             if (IsCompleteMapping(full))
             {
                 return Complete(full, mapping: true, diagnostics);
@@ -78,7 +99,7 @@ public sealed class ConversationDetailLoader
 
         if (Capabilities.IsSupported(ConversationEndpointKind.LegacyMapping))
         {
-            var legacy = await TryGet(fetch, "GET", ChatGptEndpoints.ConversationById(conversationId), cancellationToken, diagnostics, "legacy-mapping", ConversationEndpointKind.LegacyMapping);
+            var legacy = await TryGet(fetch, "GET", ChatGptEndpoints.ConversationById(conversationId), conversationId, cancellationToken, diagnostics, "legacy-mapping", ConversationEndpointKind.LegacyMapping);
             if (IsCompleteMapping(legacy))
             {
                 return Complete(legacy, mapping: true, diagnostics);
@@ -106,7 +127,7 @@ public sealed class ConversationDetailLoader
             : null;
         if (first is null && Capabilities.IsSupported(ConversationEndpointKind.PaginatedTurns))
         {
-            first = await TryGet(fetch, "GET", ChatGptEndpoints.ConversationTurns(conversationId), cancellationToken, diagnostics, "paginated-head", ConversationEndpointKind.PaginatedTurns);
+            first = await TryGet(fetch, "GET", ChatGptEndpoints.ConversationTurns(conversationId), conversationId, cancellationToken, diagnostics, "paginated-head", ConversationEndpointKind.PaginatedTurns);
         }
 
         if (first is null)
@@ -150,6 +171,7 @@ public sealed class ConversationDetailLoader
                 fetch,
                 "GET",
                 ChatGptEndpoints.ConversationOlderMessages(conversationId, cursor),
+                conversationId,
                 cancellationToken,
                 diagnostics,
                 "paginated-older",
@@ -359,6 +381,7 @@ public sealed class ConversationDetailLoader
         Func<string, string, string?, CancellationToken, Task<JsonNode?>> fetch,
         string method,
         string path,
+        string conversationId,
         CancellationToken cancellationToken,
         List<string> diagnostics,
         string label,
@@ -368,9 +391,13 @@ public sealed class ConversationDetailLoader
         {
             return await fetch(method, path, null, cancellationToken);
         }
+        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline)
+        {
+            throw;
+        }
         catch (ChatGptProviderException ex) when (ex.Status is 404 or 400)
         {
-            Capabilities.MarkUnsupported(kind);
+            Capabilities.ObserveNotFound(kind, conversationId);
             diagnostics.Add($"{label} unavailable status={ex.Status}");
             return null;
         }

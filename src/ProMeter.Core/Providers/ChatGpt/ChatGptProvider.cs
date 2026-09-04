@@ -19,6 +19,10 @@ public sealed class ChatGptProvider : IChatGptProvider
             var check = await GetJsonAsync("GET", ChatGptEndpoints.AccountsCheck, cancellationToken: cancellationToken);
             AccountParser.MergeAccountsCheck(status, check);
         }
+        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline)
+        {
+            throw;
+        }
         catch (ChatGptProviderException)
         {
             try
@@ -27,6 +31,10 @@ public sealed class ChatGptProvider : IChatGptProvider
                 status.Email ??= ChatGptJson.GetString(me, "email");
                 status.DisplayName ??= ChatGptJson.GetString(me, "name");
                 status.IsSignedIn = status.IsSignedIn || me is not null;
+            }
+            catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsRateLimited || ex.IsOffline)
+            {
+                throw;
             }
             catch (ChatGptProviderException)
             {
@@ -61,18 +69,26 @@ public sealed class ChatGptProvider : IChatGptProvider
             var root = await GetJsonAsync("GET", ChatGptEndpoints.ProjectsSidebarQuery(cursor), cancellationToken: cancellationToken);
             var page = AccountParser.ParseProjects(root);
             pages++;
-            if (!page.RecognizedShape)
+            if (!page.RecognizedShape || page.SchemaMismatch)
             {
                 mismatch = true;
                 incomplete = true;
                 break;
             }
 
+            incomplete |= page.Incomplete;
             projects.AddRange(page.Projects);
-            var info = ConversationIndexPager.ReadCursor(root);
+            var info = ConversationIndexPager.ReadCursor(root, IndexCollections.Project);
+            if (info.SchemaMismatch)
+            {
+                mismatch = true;
+                incomplete = true;
+                break;
+            }
+
             if (!ConversationIndexPager.ShouldFetchNextCursor(cursor, info, seen))
             {
-                if (info.HasMore == true && (string.IsNullOrWhiteSpace(info.NextCursor) || info.NextCursor == cursor))
+                if (info.HasMore == true)
                 {
                     incomplete = true;
                 }
@@ -107,13 +123,14 @@ public sealed class ChatGptProvider : IChatGptProvider
             var root = await GetJsonAsync("GET", ChatGptEndpoints.ProjectConversationsById(projectId, cursor), cancellationToken: cancellationToken);
             var page = AccountParser.ParseConversationIndex(root, archived: false, projectId, "project");
             pages++;
-            if (!page.RecognizedShape)
+            if (!page.RecognizedShape || page.SchemaMismatch)
             {
                 mismatch = true;
                 incomplete = true;
                 break;
             }
 
+            incomplete |= page.Incomplete;
             timestampIncomplete |= !page.TimestampComplete;
             foreach (var item in page.Items)
             {
@@ -133,10 +150,17 @@ public sealed class ChatGptProvider : IChatGptProvider
                 items.Add(item);
             }
 
-            var info = ConversationIndexPager.ReadCursor(root);
+            var info = ConversationIndexPager.ReadCursor(root, IndexCollections.Conversation);
+            if (info.SchemaMismatch)
+            {
+                mismatch = true;
+                incomplete = true;
+                break;
+            }
+
             if (cutoff || !ConversationIndexPager.ShouldFetchNextCursor(cursor, info, seen))
             {
-                if (!cutoff && info.HasMore == true && (string.IsNullOrWhiteSpace(info.NextCursor) || info.NextCursor == cursor))
+                if (!cutoff && info.HasMore == true)
                 {
                     incomplete = true;
                 }
@@ -224,13 +248,14 @@ public sealed class ChatGptProvider : IChatGptProvider
             var root = await GetJsonAsync("GET", ChatGptEndpoints.ConversationsPage(offset, ConversationIndexPager.RequestedLimit, archived), cancellationToken: cancellationToken);
             var parsed = AccountParser.ParseConversationIndex(root, archived, source: archived ? "archived" : "chat");
             pages++;
-            if (!parsed.RecognizedShape)
+            if (!parsed.RecognizedShape || parsed.SchemaMismatch)
             {
                 mismatch = true;
                 incomplete = true;
                 break;
             }
 
+            incomplete |= parsed.Incomplete;
             timestampIncomplete |= !parsed.TimestampComplete;
             foreach (var item in parsed.Items)
             {
@@ -250,10 +275,10 @@ public sealed class ChatGptProvider : IChatGptProvider
                 items.Add(item);
             }
 
-            var info = ConversationIndexPager.ReadPage(root, offset, ConversationIndexPager.RequestedLimit, parsed.Items.Count, cutoff);
+            var info = ConversationIndexPager.ReadPage(root, offset, ConversationIndexPager.RequestedLimit, parsed.TotalRawItems, cutoff);
             if (!ConversationIndexPager.ShouldFetchNext(info, offset, seenNext))
             {
-                if (!cutoff && info.HasMore == true && (info.NextOffset is null || info.NextOffset <= offset))
+                if (!cutoff && info.HasMore == true)
                 {
                     incomplete = true;
                 }
@@ -261,7 +286,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 break;
             }
 
-            offset = info.NextOffset ?? (offset + Math.Max(parsed.Items.Count, 1));
+            offset = info.NextOffset ?? (offset + Math.Max(parsed.TotalRawItems, 1));
         }
 
         if (!cutoff && pages >= ConversationIndexPager.MaxPages)

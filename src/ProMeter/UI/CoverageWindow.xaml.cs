@@ -9,7 +9,7 @@ public partial class CoverageWindow : Window
         NormalText.Text = $"Normal chats       {(coverage.NormalChats ? "✓" : "—")}";
         ArchivedText.Text = $"Archived chats     {(coverage.ArchivedChats ? "✓" : "—")}";
         ProjectsText.Text = $"Projects           {(coverage.Projects ? "✓" : "—")}";
-        ResetText.Text = $"Reset time         {(coverage.ResetTimeAuthoritative ? "server" : "estimated")}";
+        ResetText.Text = $"Reset time         {coverage.ResetAnchorSource switch { ResetAnchorSource.Server => "Server reset", ResetAnchorSource.UserConfigured => "User-configured reset", _ => "Estimated reset" }}";
         CountConfidenceText.Text = $"Count confidence   {coverage.CountConfidence}";
         ResetConfidenceText.Text = $"Reset confidence   {coverage.ResetConfidence}";
         BranchesText.Text = $"Branches included  {(coverage.BranchesIncluded ? "yes" : "unknown")}";

@@ -26,27 +26,40 @@ public sealed class QuotaEngine
         var todaySol = todayEvents.Count(IsSolPro);
         var combinedToday = todayEvents.Count(e => e.QuotaFamily == QuotaFamily.GptPro);
         var useServerCount = weekly is { IsAuthoritative: true };
-        var solWindow = serverQuota?.SolProDaily;
-        var combinedWindow = serverQuota?.CombinedProDaily;
+        var allowSolDaily = AllowsDailyWindow(settings, settings.SolProDailyQuota);
+        var allowCombinedDaily = AllowsDailyWindow(settings, settings.CombinedDailyQuota);
+        var solWindow = allowSolDaily ? serverQuota?.SolProDaily : null;
+        var combinedWindow = allowCombinedDaily ? serverQuota?.CombinedProDaily : null;
+        var resetSource = weeklyReset is not null
+            ? ResetAnchorSource.Server
+            : settings.ResetAnchorConfigured
+                ? ResetAnchorSource.UserConfigured
+                : ResetAnchorSource.Default;
+        var historyComplete = coverage is { NormalChats: true, IndexIncomplete: false, ConversationIncomplete: false, FailedConversations: 0 };
+        var periodTrusted = resetSource is ResetAnchorSource.Server or ResetAnchorSource.UserConfigured;
 
-        coverage.ResetTimeAuthoritative = weeklyReset is not null;
+        coverage.ResetAnchorSource = resetSource;
+        coverage.ResetTimeAuthoritative = resetSource == ResetAnchorSource.Server;
         coverage.QuotaMetadataAuthoritative = useServerCount;
         coverage.CountConfidence = useServerCount
             ? CoverageConfidence.Authoritative
-            : coverage is { NormalChats: true, IndexIncomplete: false, ConversationIncomplete: false, FailedConversations: 0 }
+            : historyComplete && periodTrusted
                 ? CoverageConfidence.HighConfidence
                 : CoverageConfidence.Estimated;
-        coverage.ResetConfidence = weeklyReset is not null
-            ? CoverageConfidence.Authoritative
-            : CoverageConfidence.Estimated;
+        coverage.ResetConfidence = resetSource switch
+        {
+            ResetAnchorSource.Server => CoverageConfidence.Authoritative,
+            ResetAnchorSource.UserConfigured => CoverageConfidence.HighConfidence,
+            _ => CoverageConfidence.Estimated
+        };
         coverage.TemporaryChats = false;
         coverage.DeletedChats = false;
 
         var reconstructedTop = settings.PlanPreset == SubscriptionPreset.Pro200 ? gpt6Weekly : reconstructed;
         var used = useServerCount ? weekly!.Used!.Value : reconstructedTop;
         var limit = useServerCount ? weekly!.Limit!.Value : Math.Max(1, settings.WeeklyProQuota);
-        var solLimit = solWindow?.Limit ?? settings.SolProDailyQuota;
-        var combinedLimit = combinedWindow?.Limit ?? settings.CombinedDailyQuota;
+        var solLimit = solWindow?.Limit ?? (allowSolDaily ? settings.SolProDailyQuota : null);
+        var combinedLimit = combinedWindow?.Limit ?? (allowCombinedDaily ? settings.CombinedDailyQuota : null);
         var solUsed = solWindow is { IsAuthoritative: true } ? solWindow.Used!.Value : todaySol;
         var combinedUsed = combinedWindow is { IsAuthoritative: true } ? combinedWindow.Used!.Value : combinedToday;
 
@@ -67,7 +80,8 @@ public sealed class QuotaEngine
             PeriodStart = start,
             PeriodEnd = end,
             ResetAt = end,
-            ResetEstimated = coverage.ResetConfidence != CoverageConfidence.Authoritative,
+            ResetEstimated = resetSource != ResetAnchorSource.Server,
+            ResetAnchorSource = resetSource,
             LastSync = lastSync,
             Status = status,
             StatusDetail = statusDetail,
@@ -136,6 +150,14 @@ public sealed class QuotaEngine
         return ContainsAny(e.NormalizedModel, "gpt-6", "gpt 6")
                || slug.StartsWith("gpt-6", StringComparison.OrdinalIgnoreCase);
     }
+
+    private static bool AllowsDailyWindow(AppSettings settings, int? configuredLimit) =>
+        settings.PlanPreset switch
+        {
+            SubscriptionPreset.Pro200 => true,
+            SubscriptionPreset.Custom => configuredLimit is not null,
+            _ => false
+        };
 
     private static bool ContainsAny(string? value, params string[] needles) =>
         !string.IsNullOrWhiteSpace(value)

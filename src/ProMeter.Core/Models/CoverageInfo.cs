@@ -16,6 +16,7 @@ public sealed class CoverageInfo
     public string? Notes { get; set; }
     public CoverageConfidence CountConfidence { get; set; } = CoverageConfidence.Estimated;
     public CoverageConfidence ResetConfidence { get; set; } = CoverageConfidence.Estimated;
+    public ResetAnchorSource ResetAnchorSource { get; set; } = ResetAnchorSource.Default;
 
     public CoverageConfidence Confidence
     {

@@ -74,6 +74,13 @@ public enum QuotaWindowKind
     CombinedProDaily
 }
 
+public enum ResetAnchorSource
+{
+    Default,
+    UserConfigured,
+    Server
+}
+
 public enum TrayIconStyle
 {
     RemainingNumber,

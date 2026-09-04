@@ -15,6 +15,7 @@ public sealed class AppSettings
     public DayOfWeek ResetWeekday { get; set; } = DayOfWeek.Monday;
     public TimeSpan ResetTime { get; set; } = new(0, 0, 0);
     public string ResetTimeZoneId { get; set; } = TimeZoneInfo.Local.Id;
+    public bool ResetAnchorConfigured { get; set; }
     public DisplayMode DisplayMode { get; set; } = DisplayMode.TrayOnly;
     public AppTheme Theme { get; set; } = AppTheme.System;
     public bool AutoSync { get; set; } = true;

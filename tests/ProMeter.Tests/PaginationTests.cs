@@ -141,6 +141,102 @@ public class PaginationTests
         Assert.Equal(new[] { "proj-1", "proj-2" }, result.Projects.Select(p => p.Id));
     }
 
+    [Fact]
+    public async Task ProjectsSidebar_FollowsGizmosCursorPages()
+    {
+        var transport = new ScriptedTransport((_, path) =>
+        {
+            if (path.Contains("cursor=page-2", StringComparison.Ordinal))
+            {
+                return Ok(new JsonObject
+                {
+                    ["gizmos"] = new JsonArray
+                    {
+                        new JsonObject { ["id"] = "proj-2", ["gizmo"] = new JsonObject { ["id"] = "proj-2", ["display"] = new JsonObject { ["name"] = "Two" } } }
+                    },
+                    ["has_more"] = false
+                });
+            }
+
+            return Ok(new JsonObject
+            {
+                ["gizmos"] = new JsonArray
+                {
+                    new JsonObject { ["id"] = "proj-1", ["gizmo"] = new JsonObject { ["id"] = "proj-1", ["display"] = new JsonObject { ["name"] = "One" } } }
+                },
+                ["has_more"] = true,
+                ["next_cursor"] = "page-2"
+            });
+        });
+
+        var result = await new ChatGptProvider(transport).GetProjectsAsync();
+        Assert.False(result.Incomplete);
+        Assert.False(result.SchemaMismatch);
+        Assert.Equal(2, result.Pages);
+        Assert.Equal(new[] { "proj-1", "proj-2" }, result.Projects.Select(p => p.Id));
+    }
+
+    [Fact]
+    public async Task ProjectConversationIndex_FollowsConversationsCursorPages()
+    {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var transport = new ScriptedTransport((_, path) =>
+        {
+            Assert.Contains("/backend-api/gizmos/proj-1/conversations", path, StringComparison.Ordinal);
+            if (path.Contains("cursor=page-2", StringComparison.Ordinal))
+            {
+                return Ok(new JsonObject
+                {
+                    ["conversations"] = new JsonArray
+                    {
+                        new JsonObject { ["id"] = "c-2", ["update_time"] = now - 1, ["create_time"] = now - 11 }
+                    },
+                    ["has_more"] = false
+                });
+            }
+
+            return Ok(new JsonObject
+            {
+                ["conversations"] = new JsonArray
+                {
+                    new JsonObject { ["id"] = "c-1", ["update_time"] = now, ["create_time"] = now - 10 }
+                },
+                ["has_more"] = true,
+                ["next_cursor"] = "page-2"
+            });
+        });
+
+        var result = await new ChatGptProvider(transport).GetProjectConversationsAsync("proj-1");
+        Assert.False(result.Incomplete);
+        Assert.False(result.SchemaMismatch);
+        Assert.Equal(2, result.Pages);
+        Assert.Equal(new[] { "c-1", "c-2" }, result.Items.Select(item => item.Id));
+    }
+
+    [Fact]
+    public async Task HasMoreWithUnrecognizedCollection_IsNotSuccessfulCompletion()
+    {
+        var transport = new ScriptedTransport((_, _) => Ok(new JsonObject
+        {
+            ["widgets"] = new JsonArray
+            {
+                new JsonObject { ["id"] = "hidden-1" }
+            },
+            ["has_more"] = true,
+            ["next_cursor"] = "page-2"
+        }));
+
+        var projects = await new ChatGptProvider(transport).GetProjectsAsync();
+        Assert.True(projects.SchemaMismatch);
+        Assert.True(projects.Incomplete);
+        Assert.Empty(projects.Projects);
+
+        var conversations = await new ChatGptProvider(transport).GetConversationIndexAsync(false);
+        Assert.True(conversations.SchemaMismatch);
+        Assert.True(conversations.Incomplete);
+        Assert.Empty(conversations.Items);
+    }
+
     private static ProviderResponse Page(IReadOnlyList<ConversationIndexItem> items, int offset, int pageSize, int total)
     {
         var slice = items.Skip(offset).Take(pageSize).ToList();

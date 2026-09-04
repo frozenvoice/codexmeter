@@ -38,6 +38,7 @@ public class QuotaCoverageTests
         Assert.False(snapshot.UsesServerCount);
         Assert.Equal(CoverageConfidence.Authoritative, coverage.ResetConfidence);
         Assert.NotEqual(CoverageConfidence.Authoritative, coverage.CountConfidence);
+        Assert.Equal(ResetAnchorSource.Server, coverage.ResetAnchorSource);
         Assert.True(snapshot.ResetEstimated is false);
         Assert.Equal(0, snapshot.Used);
         Assert.Equal(50, snapshot.Limit);
@@ -155,7 +156,9 @@ public class QuotaCoverageTests
         Assert.Equal(200, snapshot.CombinedDailyLimit);
         Assert.Equal(169, snapshot.SolProDailyRemaining);
         Assert.Equal(198, snapshot.CombinedDailyRemaining);
-        Assert.Equal(CoverageConfidence.HighConfidence, coverage.CountConfidence);
+        Assert.Equal(CoverageConfidence.Estimated, coverage.CountConfidence);
+        Assert.Equal(ResetAnchorSource.Default, coverage.ResetAnchorSource);
+        Assert.Equal(ResetAnchorSource.Default, snapshot.ResetAnchorSource);
     }
 
     [Fact]
@@ -163,7 +166,7 @@ public class QuotaCoverageTests
     {
         var entries = new JsonNode[]
         {
-            new JsonObject { ["feature_name"] = "gpt-6-pro", ["used"] = 11, ["limit"] = 200, ["reset_at"] = "2026-09-08T00:00:00Z" },
+            new JsonObject { ["feature_name"] = "gpt-6-pro-weekly", ["used"] = 11, ["limit"] = 200, ["reset_at"] = "2026-09-08T00:00:00Z" },
             new JsonObject { ["feature_name"] = "gpt-5-6-pro-daily", ["used"] = 4, ["limit"] = 170, ["reset_at"] = "2026-09-05T00:00:00Z" },
             new JsonObject { ["feature_name"] = "combined_pro_daily", ["used"] = 9, ["limit"] = 200, ["reset_at"] = "2026-09-05T00:00:00Z" }
         };
@@ -217,6 +220,105 @@ public class QuotaCoverageTests
         Assert.False(coverage.DeletedChats);
         Assert.Equal(CoverageConfidence.Incomplete, coverage.Confidence);
         Assert.True(coverage.ApproximatePercent < 50);
+    }
+
+    [Fact]
+    public void PerfectHistory_UntouchedDefaultReset_IsEstimated()
+    {
+        var settings = AppSettings.CreateDefaults();
+        settings.ResetTimeZoneId = "UTC";
+        var coverage = new CoverageInfo { NormalChats = true, ArchivedChats = true, Projects = true };
+        var snapshot = new QuotaEngine().Build([], settings, new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero), DateTimeOffset.UtcNow, coverage, new QuotaMetadataSet(), AppSyncStatus.UpToDate);
+        Assert.Equal(CoverageConfidence.Estimated, coverage.CountConfidence);
+        Assert.Equal(CoverageConfidence.Estimated, coverage.ResetConfidence);
+        Assert.Equal(ResetAnchorSource.Default, snapshot.ResetAnchorSource);
+        Assert.True(snapshot.ResetEstimated);
+        Assert.False(settings.ResetAnchorConfigured);
+    }
+
+    [Fact]
+    public void PerfectHistory_UserConfiguredReset_IsHighConfidence()
+    {
+        var settings = AppSettings.CreateDefaults();
+        settings.ResetTimeZoneId = "UTC";
+        settings.ResetAnchorConfigured = true;
+        var coverage = new CoverageInfo { NormalChats = true, ArchivedChats = true, Projects = true };
+        var snapshot = new QuotaEngine().Build([], settings, new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero), DateTimeOffset.UtcNow, coverage, new QuotaMetadataSet(), AppSyncStatus.UpToDate);
+        Assert.Equal(CoverageConfidence.HighConfidence, coverage.CountConfidence);
+        Assert.Equal(CoverageConfidence.HighConfidence, coverage.ResetConfidence);
+        Assert.Equal(ResetAnchorSource.UserConfigured, snapshot.ResetAnchorSource);
+        Assert.True(snapshot.ResetEstimated);
+        Assert.NotEqual(CoverageConfidence.Authoritative, coverage.CountConfidence);
+    }
+
+    [Fact]
+    public void ServerUsedLimitReset_IsAuthoritative()
+    {
+        var settings = AppSettings.CreateDefaults();
+        var created = DateTimeOffset.UtcNow;
+        var metadata = new QuotaMetadataSet
+        {
+            SharedProWeekly = new QuotaWindow
+            {
+                Found = true,
+                Used = 7,
+                Limit = 50,
+                ResetAt = created.AddDays(2),
+                FeatureName = "gpt_pro_weekly"
+            }
+        };
+        var coverage = new CoverageInfo { NormalChats = true };
+        var snapshot = new QuotaEngine().Build([], settings, created, created, coverage, metadata, AppSyncStatus.UpToDate);
+        Assert.Equal(CoverageConfidence.Authoritative, coverage.CountConfidence);
+        Assert.Equal(CoverageConfidence.Authoritative, coverage.ResetConfidence);
+        Assert.Equal(ResetAnchorSource.Server, snapshot.ResetAnchorSource);
+        Assert.True(snapshot.UsesServerCount);
+        Assert.Equal(7, snapshot.Used);
+    }
+
+    [Fact]
+    public void AmbiguousGpt56Pro_IsDiagnosticUnlessCadenceIsExplicit()
+    {
+        Assert.Equal(QuotaWindowKind.SolProDaily, AccountParser.ClassifyGptProWindow("gpt-5-6-pro-daily"));
+        Assert.Equal(QuotaWindowKind.Unclassified, AccountParser.ClassifyGptProWindow("gpt-5-6-pro"));
+        Assert.Equal(QuotaWindowKind.SharedProWeekly, AccountParser.ClassifyGptProWindow("gpt_pro_weekly"));
+        Assert.Equal(QuotaWindowKind.Gpt6ProWeekly, AccountParser.ClassifyGptProWindow("gpt-6-pro-weekly"));
+        Assert.Equal(QuotaWindowKind.Unclassified, AccountParser.ClassifyGptProWindow("gpt-6-pro"));
+
+        var parsed = AccountParser.ParseQuotaMetadata(new JsonObject
+        {
+            ["limits_progress"] = new JsonArray
+            {
+                new JsonObject { ["feature_name"] = "gpt-5-6-pro", ["used"] = 12, ["limit"] = 170, ["reset_at"] = "2026-09-05T00:00:00Z" }
+            }
+        });
+        Assert.Null(parsed.SolProDaily);
+        Assert.Null(parsed.SharedProWeekly);
+        Assert.Contains(parsed.Diagnostics, window => window.FeatureName == "gpt-5-6-pro");
+        Assert.True(parsed.Found);
+        Assert.False(parsed.MatchesGptProAllowance);
+    }
+
+    [Fact]
+    public void Pro100_DoesNotExposeDailyLimitsFromAmbiguousServerMetadata()
+    {
+        var settings = AppSettings.CreateDefaults();
+        settings.ApplyPreset(SubscriptionPreset.Pro100);
+        var created = new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero);
+        var metadata = AccountParser.ParseQuotaMetadata(new JsonObject
+        {
+            ["limits_progress"] = new JsonArray
+            {
+                new JsonObject { ["feature_name"] = "gpt-5-6-pro", ["used"] = 12, ["limit"] = 170, ["reset_at"] = "2026-09-05T00:00:00Z" }
+            }
+        });
+        var events = new[] { ProEvent("sol", "GPT-5.6 Sol Pro", "gpt-5-6-pro", created) };
+        var snapshot = new QuotaEngine().Build(events, settings, created, created, new CoverageInfo { NormalChats = true }, metadata, AppSyncStatus.UpToDate);
+        Assert.Null(snapshot.SolProDailyLimit);
+        Assert.Null(snapshot.CombinedDailyLimit);
+        Assert.False(snapshot.UsesServerCount);
+        Assert.Equal(1, snapshot.Used);
+        Assert.Equal(50, snapshot.Limit);
     }
 
     private static UsageEvent ProEvent(string id, string display, string raw, DateTimeOffset created) => new()

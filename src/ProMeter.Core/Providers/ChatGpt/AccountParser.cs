@@ -99,29 +99,42 @@ public static class AccountParser
     {
         if (root is null)
         {
-            return new IndexParseResult { RecognizedShape = true, TimestampComplete = true };
+            return new IndexParseResult { SchemaMismatch = true, TimestampComplete = false };
         }
 
         var array = ConversationIndexArray(root);
         if (array is null)
         {
-            return new IndexParseResult { RecognizedShape = false, TimestampComplete = false };
+            return new IndexParseResult { TimestampComplete = false };
         }
 
         var items = new List<ConversationIndexItem>();
-        var missing = 0;
+        var missingTimestamps = 0;
+        var missingIds = 0;
+        var malformed = 0;
+        var raw = 0;
         foreach (var item in ChatGptJson.Enumerate(array))
         {
+            raw++;
+            if (item is not JsonObject)
+            {
+                missingIds++;
+                malformed++;
+                continue;
+            }
+
             var id = ChatGptJson.GetString(item, "id", "conversation_id");
             if (string.IsNullOrWhiteSpace(id))
             {
+                missingIds++;
+                malformed++;
                 continue;
             }
 
             var updateTime = TimestampParser.ToUnixSeconds(item, "update_time", "updateTime");
             if (updateTime <= 0)
             {
-                missing++;
+                missingTimestamps++;
             }
 
             items.Add(new ConversationIndexItem
@@ -136,40 +149,60 @@ public static class AccountParser
             });
         }
 
+        var emptyValid = items.Count == 0;
         return new IndexParseResult
         {
             Items = items,
             RecognizedShape = true,
-            TimestampComplete = missing == 0,
-            MissingTimestamps = missing
+            SchemaMismatch = raw > 0 && emptyValid,
+            Incomplete = items.Count > 0 && malformed > 0,
+            TimestampComplete = missingTimestamps == 0,
+            MissingTimestamps = missingTimestamps,
+            TotalRawItems = raw,
+            ValidItems = items.Count,
+            MalformedItems = malformed,
+            MissingIds = missingIds
         };
     }
 
     public static JsonArray? ConversationIndexArray(JsonNode? root) =>
-        root as JsonArray ?? root?["items"] as JsonArray ?? root?["conversations"] as JsonArray;
+        IndexCollections.Find(root, IndexCollections.Conversation);
 
     public static ProjectParseResult ParseProjects(JsonNode? root)
     {
         if (root is null)
         {
-            return new ProjectParseResult { RecognizedShape = true };
+            return new ProjectParseResult { SchemaMismatch = true };
         }
 
         var items = ProjectIndexArray(root);
         if (items is null)
         {
-            return new ProjectParseResult { RecognizedShape = false };
+            return new ProjectParseResult();
         }
 
         var projects = new List<ProjectInfo>();
+        var raw = 0;
+        var missingIds = 0;
+        var malformed = 0;
         foreach (var item in ChatGptJson.Enumerate(items))
         {
+            raw++;
+            if (item is not JsonObject)
+            {
+                missingIds++;
+                malformed++;
+                continue;
+            }
+
             var gizmo = item["gizmo"]?["gizmo"] as JsonObject
                 ?? item["gizmo"] as JsonObject
                 ?? item as JsonObject;
             var id = ChatGptJson.GetString(gizmo, "id") ?? ChatGptJson.GetString(item, "id");
             if (string.IsNullOrWhiteSpace(id))
             {
+                missingIds++;
+                malformed++;
                 continue;
             }
 
@@ -181,11 +214,21 @@ public static class AccountParser
             });
         }
 
-        return new ProjectParseResult { Projects = projects, RecognizedShape = true };
+        return new ProjectParseResult
+        {
+            Projects = projects,
+            RecognizedShape = true,
+            SchemaMismatch = raw > 0 && projects.Count == 0,
+            Incomplete = projects.Count > 0 && malformed > 0,
+            TotalRawItems = raw,
+            ValidItems = projects.Count,
+            MalformedItems = malformed,
+            MissingIds = missingIds
+        };
     }
 
     public static JsonArray? ProjectIndexArray(JsonNode? root) =>
-        root as JsonArray ?? root?["items"] as JsonArray ?? root?["gizmos"] as JsonArray;
+        IndexCollections.Find(root, IndexCollections.Project);
 
     public static QuotaMetadataSet ParseQuotaMetadata(JsonNode? root)
     {
@@ -235,20 +278,20 @@ public static class AccountParser
 
         if (combined)
         {
-            return daily || !weekly ? QuotaWindowKind.CombinedProDaily : QuotaWindowKind.Unclassified;
+            return daily && !weekly ? QuotaWindowKind.CombinedProDaily : QuotaWindowKind.Unclassified;
         }
 
         if (gpt6)
         {
-            return daily ? QuotaWindowKind.Unclassified : QuotaWindowKind.Gpt6ProWeekly;
+            return weekly && !daily ? QuotaWindowKind.Gpt6ProWeekly : QuotaWindowKind.Unclassified;
         }
 
         if (sol56)
         {
-            return weekly && !daily ? QuotaWindowKind.Unclassified : QuotaWindowKind.SolProDaily;
+            return daily && !weekly ? QuotaWindowKind.SolProDaily : QuotaWindowKind.Unclassified;
         }
 
-        if (weekly || key is "gptproweekly" or "chatgptproweekly" or "proweekly")
+        if (weekly && !daily)
         {
             return QuotaWindowKind.SharedProWeekly;
         }

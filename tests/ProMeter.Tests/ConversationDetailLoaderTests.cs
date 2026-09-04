@@ -184,14 +184,16 @@ public class ConversationDetailLoaderTests
     }
 
     [Fact]
-    public async Task UnsupportedEndpoint_IsProbedOncePerSession()
+    public async Task ConversationSpecific404_DoesNotDisableEndpointForLaterConversations()
     {
         var loader = new ConversationDetailLoader();
         var paths = new List<string>();
         Task<JsonNode?> Fetch(string conversationId, string path)
         {
             paths.Add(conversationId + ":" + path);
-            if (path.Contains("/conversations/", StringComparison.Ordinal) || path.Contains("include_full_conversation=true", StringComparison.Ordinal))
+            if (conversationId == "one"
+                && path.Contains("/conversations/one?", StringComparison.Ordinal)
+                && path.Contains("num_turns=100", StringComparison.Ordinal))
             {
                 throw new ChatGptProviderException("gone", 404);
             }
@@ -203,11 +205,81 @@ public class ConversationDetailLoaderTests
         var second = await loader.LoadAsync(null!, "two", (_, path, _, _) => Fetch("two", path));
         Assert.True(first.Complete);
         Assert.True(second.Complete);
-        Assert.Equal(1, paths.Count(p => p.Contains("/conversations/", StringComparison.Ordinal)));
-        Assert.Equal(1, paths.Count(p => p.Contains("include_full_conversation=true", StringComparison.Ordinal)));
-        Assert.Contains(paths, p => p.StartsWith("two:/backend-api/conversation/two", StringComparison.Ordinal)
-                                    && !p.Contains("include_full_conversation", StringComparison.Ordinal));
-        Assert.DoesNotContain(paths, p => p.StartsWith("two:") && p.Contains("/conversations/", StringComparison.Ordinal));
+        Assert.True(loader.Capabilities.IsSupported(ConversationEndpointKind.PaginatedTurns));
+        Assert.Contains(paths, p => p.StartsWith("two:/backend-api/conversations/two?", StringComparison.Ordinal));
+        Assert.Contains(paths, p => p.StartsWith("one:") && p.Contains("include_full_conversation=true", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RepeatedUnsupportedEndpoint_IsEventuallyCached()
+    {
+        var loader = new ConversationDetailLoader();
+        var paths = new List<string>();
+        Task<JsonNode?> Fetch(string conversationId, string path)
+        {
+            paths.Add(conversationId + ":" + path);
+            if (path.Contains("/conversations/", StringComparison.Ordinal) && path.Contains("num_turns=100", StringComparison.Ordinal))
+            {
+                throw new ChatGptProviderException("gone", 404);
+            }
+
+            return Task.FromResult<JsonNode?>(ConversationFixtures.NormalPro(conversationId));
+        }
+
+        Assert.True((await loader.LoadAsync(null!, "one", (_, path, _, _) => Fetch("one", path))).Complete);
+        Assert.True((await loader.LoadAsync(null!, "two", (_, path, _, _) => Fetch("two", path))).Complete);
+        Assert.False(loader.Capabilities.IsSupported(ConversationEndpointKind.PaginatedTurns));
+        Assert.True((await loader.LoadAsync(null!, "three", (_, path, _, _) => Fetch("three", path))).Complete);
+        Assert.Equal(2, paths.Count(p => p.Contains("/conversations/", StringComparison.Ordinal) && p.Contains("num_turns=100", StringComparison.Ordinal)));
+        Assert.DoesNotContain(paths, p => p.StartsWith("three:") && p.Contains("/conversations/three?", StringComparison.Ordinal));
+        Assert.Contains(paths, p => p.StartsWith("three:") && p.Contains("include_full_conversation=true", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task InvalidOlderCursor_DoesNotDisablePaginatedOlderGlobally()
+    {
+        var loader = new ConversationDetailLoader();
+        Task<JsonNode?> Fetch(string conversationId, string path)
+        {
+            if (path.Contains("/conversations/" + conversationId + "?", StringComparison.Ordinal))
+            {
+                return Task.FromResult<JsonNode?>(ConversationFixtures.PaginatedHead(conversationId));
+            }
+
+            if (path.Contains("/messages?", StringComparison.Ordinal))
+            {
+                if (conversationId == "one")
+                {
+                    throw new ChatGptProviderException("bad cursor", 400);
+                }
+
+                return Task.FromResult<JsonNode?>(ConversationFixtures.PaginatedOlder(conversationId));
+            }
+
+            throw new InvalidOperationException("Unexpected path " + path);
+        }
+
+        var first = await loader.LoadAsync(null!, "one", (_, path, _, _) => Fetch("one", path));
+        var second = await loader.LoadAsync(null!, "two", (_, path, _, _) => Fetch("two", path));
+        Assert.False(first.Complete);
+        Assert.True(second.Complete);
+        Assert.True(loader.Capabilities.IsSupported(ConversationEndpointKind.PaginatedOlder));
+        Assert.True(second.PaginatedUsed);
+    }
+
+    [Fact]
+    public async Task FatalStatuses_AreNotCapabilityEvidence()
+    {
+        foreach (var status in new[] { 401, 429, 0 })
+        {
+            var loader = new ConversationDetailLoader();
+            var ex = await Assert.ThrowsAsync<ChatGptProviderException>(() =>
+                loader.LoadAsync(null!, "fatal", (_, _, _, _) => throw new ChatGptProviderException("fatal", status)));
+            Assert.Equal(status, ex.Status);
+            Assert.True(loader.Capabilities.IsSupported(ConversationEndpointKind.PaginatedTurns));
+            Assert.True(loader.Capabilities.IsSupported(ConversationEndpointKind.PaginatedOlder));
+            Assert.Empty(loader.Capabilities.Unsupported);
+        }
     }
 
     private static void AssertEmptyBodies(JsonNode? node)
