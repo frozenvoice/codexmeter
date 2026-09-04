@@ -1,0 +1,79 @@
+namespace ProMeter.Models;
+
+public enum SubscriptionPreset
+{
+    Pro100,
+    Pro200,
+    Custom
+}
+
+public enum QuotaFamily
+{
+    Unknown,
+    Instant,
+    SolReasoning,
+    GptPro
+}
+
+public enum ReasoningEffort
+{
+    Unknown,
+    None,
+    Low,
+    Medium,
+    High,
+    ExtraHigh
+}
+
+public enum UsageSource
+{
+    ConversationSync,
+    ProjectSync,
+    ArchivedSync,
+    OfficialExport,
+    Catalog
+}
+
+public enum AppSyncStatus
+{
+    Idle,
+    SignedOut,
+    AuthenticationRequired,
+    DetectingAccount,
+    LoadingCatalog,
+    Syncing,
+    UpToDate,
+    RateLimited,
+    ApiChanged,
+    ProviderSchemaMismatch,
+    PartialData,
+    Offline,
+    Error
+}
+
+public enum CoverageConfidence
+{
+    Authoritative,
+    HighConfidence,
+    Estimated,
+    Incomplete
+}
+
+public enum TrayIconStyle
+{
+    RemainingNumber,
+    ProgressRing
+}
+
+public enum AppTheme
+{
+    System,
+    Light,
+    Dark
+}
+
+public enum DisplayMode
+{
+    TrayOnly,
+    TrayAndWidget
+}

@@ -1,0 +1,23 @@
+<Window x:Class="ProMeter.UI.CoverageWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Coverage"
+        Width="360"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        Style="{StaticResource AppWindow}"
+        ResizeMode="NoResize">
+    <StackPanel Margin="20">
+        <TextBlock x:Name="Headline" FontSize="16" FontWeight="SemiBold"/>
+        <TextBlock Text="History reconstruction is not an official OpenAI quota counter."
+                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,12"/>
+        <TextBlock x:Name="NormalText"/>
+        <TextBlock x:Name="ArchivedText" Margin="0,4,0,0"/>
+        <TextBlock x:Name="ProjectsText" Margin="0,4,0,0"/>
+        <TextBlock Text="Temporary chats    unavailable" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
+        <TextBlock Text="Deleted chats      unavailable" Foreground="{StaticResource MutedBrush}" Margin="0,4,0,0"/>
+        <TextBlock x:Name="ResetText" Margin="0,4,0,0"/>
+        <TextBlock x:Name="NotesText" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"/>
+        <Button Style="{StaticResource GhostButton}" Content="Close" Margin="0,16,0,0" HorizontalAlignment="Right" Click="OnClose"/>
+    </StackPanel>
+</Window>

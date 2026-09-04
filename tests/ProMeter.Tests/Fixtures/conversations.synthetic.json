@@ -1,0 +1,37 @@
+{
+  "description": "Synthetic ChatGPT conversation mapping fixtures. Parts are placeholders, never real prompts.",
+  "conversations": [
+    {
+      "case": "normal Pro response",
+      "conversation_id": "conv-normal",
+      "update_time": 1777500000,
+      "mapping": {
+        "user-1": {
+          "id": "user-1",
+          "parent": null,
+          "children": ["asst-1"],
+          "message": {
+            "id": "user-1",
+            "author": { "role": "user" },
+            "create_time": 1777499998,
+            "metadata": { "default_model_slug": "gpt-5-6-pro" }
+          }
+        },
+        "asst-1": {
+          "id": "asst-1",
+          "parent": "user-1",
+          "children": [],
+          "message": {
+            "id": "asst-1",
+            "author": { "role": "assistant" },
+            "create_time": 1777499999,
+            "end_turn": true,
+            "recipient": "all",
+            "content": { "content_type": "text", "parts": ["[redacted]"] },
+            "metadata": { "request_id": "req-normal", "model_slug": "gpt-5-6-pro" }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+## .NET
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+[Bb]uild/
+artifacts/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Publish
+publish/
+dist/
+
+## IDE
+.vs/
+.idea/
+*.swp
+*~
+.vscode/*
+!.vscode/extensions.json
+
+## User data
+App_Data/
+*.db
+*.db-shm
+*.db-wal
+logs/
+*.log
+
+## Secrets / local
+.secrets/
+*.pfx
+*.snk
+
+## OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+## Test
+TestResults/
+coverage/
+
+## Misc
+*.tmp
+*.bak

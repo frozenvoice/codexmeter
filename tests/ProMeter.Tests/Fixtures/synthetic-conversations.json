@@ -1,0 +1,14 @@
+{
+  "note": "Synthetic ChatGPT conversation fixtures. No real user content.",
+  "cases": [
+    "normal Pro response",
+    "multiple assistant nodes same request_id",
+    "regenerated response",
+    "tool calls",
+    "reasoning message",
+    "project conversation",
+    "archived conversation",
+    "unknown model",
+    "missing request_id"
+  ]
+}
