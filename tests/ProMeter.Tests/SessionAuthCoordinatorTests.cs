@@ -78,6 +78,129 @@ public class SessionAuthCoordinatorTests
     }
 
     [Fact]
+    public async Task Refresh429_IsReturnedInsteadOfOriginal401()
+    {
+        var coordinator = new SessionAuthCoordinator();
+        var fetch = new RecordingFetch();
+        fetch.SessionQueue.Enqueue(SessionOk());
+        fetch.SessionQueue.Enqueue(new ProviderResponse { Status = 429, Error = "rate limited" });
+        fetch.On("/backend-api/me", new ProviderResponse { Status = 401, Error = "expired" });
+
+        var response = await coordinator.SendAsync(fetch.Send, "GET", "/backend-api/me", null, CancellationToken.None);
+        Assert.True(response.IsRateLimited);
+        Assert.Equal(429, response.Status);
+        Assert.Equal(1, fetch.Count("/backend-api/me"));
+    }
+
+    [Fact]
+    public async Task RefreshOffline_IsReturnedInsteadOfOriginal401()
+    {
+        var coordinator = new SessionAuthCoordinator();
+        var fetch = new RecordingFetch();
+        fetch.SessionQueue.Enqueue(SessionOk());
+        fetch.SessionQueue.Enqueue(new ProviderResponse { Status = 0, Error = "offline" });
+        fetch.On("/backend-api/me", new ProviderResponse { Status = 401, Error = "expired" });
+
+        var response = await coordinator.SendAsync(fetch.Send, "GET", "/backend-api/me", null, CancellationToken.None);
+        Assert.True(response.IsOffline);
+        Assert.Equal(0, response.Status);
+        Assert.False(response.SchemaMismatch);
+    }
+
+    [Fact]
+    public async Task RefreshSchemaMismatch_RemainsSchemaMismatch()
+    {
+        var coordinator = new SessionAuthCoordinator();
+        var fetch = new RecordingFetch();
+        fetch.SessionQueue.Enqueue(SessionOk());
+        fetch.SessionQueue.Enqueue(new ProviderResponse { Status = 0, SchemaMismatch = true, Error = "session shape changed" });
+        fetch.On("/backend-api/me", new ProviderResponse { Status = 401, Error = "expired" });
+
+        var response = await coordinator.SendAsync(fetch.Send, "GET", "/backend-api/me", null, CancellationToken.None);
+        Assert.True(response.SchemaMismatch);
+        Assert.False(response.IsOffline);
+        Assert.False(response.IsUnauthorized);
+    }
+
+    [Fact]
+    public async Task Refresh500_IsReturnedInsteadOfOriginal401()
+    {
+        var coordinator = new SessionAuthCoordinator();
+        var fetch = new RecordingFetch();
+        fetch.SessionQueue.Enqueue(SessionOk());
+        fetch.SessionQueue.Enqueue(new ProviderResponse { Status = 500, Error = "upstream" });
+        fetch.On("/backend-api/me", new ProviderResponse { Status = 401, Error = "expired" });
+
+        var response = await coordinator.SendAsync(fetch.Send, "GET", "/backend-api/me", null, CancellationToken.None);
+        Assert.True(response.IsServerError);
+        Assert.Equal(500, response.Status);
+    }
+
+    [Fact]
+    public async Task ConcurrentBackendRequests_ShareOneSessionFetch()
+    {
+        var coordinator = new SessionAuthCoordinator();
+        var fetch = new RecordingFetch { Delay = TimeSpan.FromMilliseconds(200) };
+        fetch.On(ChatGptEndpoints.Session, SessionOk());
+        fetch.On("/backend-api/conversations", Ok("""{"items":[]}"""));
+        fetch.On("/backend-api/models", Ok("""{"models":[]}"""));
+
+        await Task.WhenAll(
+            coordinator.SendAsync(fetch.Send, "GET", "/backend-api/conversations", null, CancellationToken.None),
+            coordinator.SendAsync(fetch.Send, "GET", "/backend-api/models", null, CancellationToken.None));
+
+        Assert.Equal(1, coordinator.SessionFetchCount);
+        Assert.Equal(1, fetch.Count(ChatGptEndpoints.Session));
+    }
+
+    [Fact]
+    public async Task Concurrent401_ShareOneRefresh()
+    {
+        var coordinator = new SessionAuthCoordinator();
+        coordinator.ApplySession(ChatGptJson.ParseNode(SessionOk().Body), DateTimeOffset.UtcNow.AddHours(1));
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var fetch = new RecordingFetch { BlockSessionUntil = gate.Task };
+        fetch.On(ChatGptEndpoints.Session, SessionOk());
+        fetch.On("/backend-api/me", new ProviderResponse { Status = 401, Error = "expired" });
+        fetch.On("/backend-api/models", new ProviderResponse { Status = 401, Error = "expired" });
+
+        var first = coordinator.SendAsync(fetch.Send, "GET", "/backend-api/me", null, CancellationToken.None);
+        var second = coordinator.SendAsync(fetch.Send, "GET", "/backend-api/models", null, CancellationToken.None);
+        for (var i = 0; i < 50 && fetch.Count("/backend-api/me") + fetch.Count("/backend-api/models") < 2; i++)
+        {
+            await Task.Delay(10);
+        }
+
+        gate.TrySetResult();
+        await Task.WhenAll(first, second);
+
+        Assert.Equal(1, coordinator.SessionFetchCount);
+        Assert.Equal(1, fetch.Count(ChatGptEndpoints.Session));
+    }
+
+    [Fact]
+    public async Task CancellingOneCaller_DoesNotCorruptSharedSession()
+    {
+        var coordinator = new SessionAuthCoordinator();
+        var fetch = new RecordingFetch { Delay = TimeSpan.FromMilliseconds(250) };
+        fetch.On(ChatGptEndpoints.Session, SessionOk());
+        fetch.On("/backend-api/conversations", Ok("""{"items":[]}"""));
+        fetch.On("/backend-api/models", Ok("""{"models":[]}"""));
+        using var cts = new CancellationTokenSource();
+
+        var cancelled = coordinator.SendAsync(fetch.Send, "GET", "/backend-api/conversations", null, cts.Token);
+        var kept = coordinator.SendAsync(fetch.Send, "GET", "/backend-api/models", null, CancellationToken.None);
+        await Task.Delay(40);
+        cts.Cancel();
+
+        var keptResponse = await kept;
+        Assert.True(keptResponse.IsSuccess);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelled);
+        Assert.True(coordinator.HasCachedSession);
+        Assert.Equal(1, coordinator.SessionFetchCount);
+    }
+
+    [Fact]
     public void Token_NeverAppearsInLogsOrSerializedSettings()
     {
         var coordinator = new SessionAuthCoordinator();
@@ -110,24 +233,55 @@ public class SessionAuthCoordinatorTests
     {
         public List<string> Paths { get; } = [];
         public Dictionary<string, Func<string, string?, string?, ProviderResponse>> Handler { get; } = new(StringComparer.Ordinal);
+        public Queue<ProviderResponse> SessionQueue { get; } = new();
+        public TimeSpan Delay { get; set; }
+        public Task? BlockSessionUntil { get; set; }
 
         public void On(string path, ProviderResponse response) =>
             Handler[path] = (_, _, _) => response;
 
         public int Count(string path) => Paths.Count(item => item == path);
 
-        public Task<ProviderResponse> Send(string method, string path, string? body, string? token, CancellationToken cancellationToken)
+        private readonly object _gate = new();
+
+        public async Task<ProviderResponse> Send(string method, string path, string? body, string? token, CancellationToken cancellationToken)
         {
             _ = method;
             _ = body;
+            _ = token;
             _ = cancellationToken;
-            Paths.Add(path);
-            if (Handler.TryGetValue(path, out var handler))
+            lock (_gate)
             {
-                return Task.FromResult(handler(path, body, token));
+                Paths.Add(path);
             }
 
-            return Task.FromResult(new ProviderResponse { Status = 500, Error = "unexpected " + path });
+            if (SessionAuthCoordinator.IsSessionPath(path) && BlockSessionUntil is not null)
+            {
+                await BlockSessionUntil;
+            }
+
+            if (SessionAuthCoordinator.IsSessionPath(path) && Delay > TimeSpan.Zero)
+            {
+                await Task.Delay(Delay, CancellationToken.None);
+            }
+
+            if (SessionAuthCoordinator.IsSessionPath(path))
+            {
+                lock (_gate)
+                {
+                    if (SessionQueue.Count > 0)
+                    {
+                        return SessionQueue.Dequeue();
+                    }
+                }
+            }
+
+            if (Handler.TryGetValue(path, out var handler))
+            {
+                return handler(path, body, token);
+            }
+
+            return new ProviderResponse { Status = 500, Error = "unexpected " + path };
         }
     }
 }

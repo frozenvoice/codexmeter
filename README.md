@@ -33,15 +33,37 @@ ProMeter는 ChatGPT 웹사이트가 쓰는 **비공식(unofficial) 내부 엔드
 
 Windows 시작 시 실행과 자동 history 동기화는 **명시적 opt-in**입니다. 새 설치에서는 둘 다 꺼져 있습니다.
 
-## 최초 ChatGPT 로그인
+브라우저 companion은 **임베디드 OAuth를 피하기 위한 경로**입니다. ChatGPT 내부 엔드포인트 연동을 공식으로 만들지는 않습니다. 공식 ChatGPT Data Export import는 실시간은 아니지만 더 낮은 위험의 대안입니다.
+
+전송 방식은 조용히 바뀌지 않습니다. Browser companion / WebView2 / Data Export 중 하나를 직접 고릅니다.
+
+## 브라우저 companion (권장)
+
+Google / Microsoft / Apple 로그인은 WebView2에서 **지원되지 않습니다**. 일반 Chrome 또는 Edge ChatGPT 세션과 Manifest V3 확장을 사용하세요. ProMeter는 user-agent를 위장하거나 쿠키 DB를 읽지 않습니다.
+
+1. `publish\win-x64\extension` 또는 저장소의 `extension\` 폴더를 Chrome/Edge에서 **Load unpacked**로 로드합니다.
+2. `chrome://extensions`에서 확장 ID를 복사합니다.
+3. ProMeter Settings에 확장 ID를 넣고 **Register Chrome/Edge native host**를 누릅니다. 공식 Native Messaging 레지스트리만 사용합니다 (`Software\Google\Chrome\NativeMessagingHosts\com.prometer.bridge`, `Software\Microsoft\Edge\NativeMessagingHosts\com.prometer.bridge`).
+4. Chrome/Edge에서 chatgpt.com에 로그인합니다.
+5. 확장 팝업에서 **Connect to ProMeter**를 누릅니다.
+6. Welcome 또는 tray에서 **Run first manual sync** / **Sync now**를 누릅니다. 로그인만으로는 history 스캔이 시작되지 않습니다.
+
+네이티브 호스트는 `prometer-companion-host.exe`입니다. Chrome Native Messaging은 실행 파일 인자를 허용하지 않아 트레이 앱과 분리되어 있습니다. 확장은 `https://chatgpt.com/*`에서만 승인된 상대 경로를 fetch하고, 본문을 sanitize한 뒤 Native Messaging으로 전달합니다. 쿠키와 access token은 Windows 앱으로 보내지 않습니다.
+
+Whale은 Chromium이지만 ProMeter가 레지스트리 위치를 만들지 않습니다. Chrome/Edge 공식 등록을 쓰거나 Whale 자체 문서를 따르세요.
+
+## WebView2 fallback
+
+이메일/비밀번호처럼 WebView2에서 실제로 되는 인증만 선택적 fallback입니다. Google/Microsoft/Apple WebView 로그인은 unsupported입니다. 세션은 `%LOCALAPPDATA%\ProMeter\webview`에만 유지됩니다.
+
+## 최초 설정
 
 1. ProMeter를 실행하면 Welcome 창이 열립니다.
 2. 비공식 엔드포인트와 약관 안내를 확인합니다.
-3. **Sign in to ChatGPT**를 누르면 전용 WebView2 창이 열립니다.
-4. ChatGPT에 로그인합니다. 세션은 `%LOCALAPPDATA%\ProMeter\webview`에만 유지됩니다.
-5. Pro $100 / Pro $200 / Custom 중 플랜을 고릅니다.
-6. 원하는 경우에만 Start with Windows / Automatic synchronization을 켭니다.
-7. 로그인 후 수동으로 현재 quota period를 한 번 스캔할 수 있습니다.
+3. Browser companion / WebView2 fallback / Data Export 중 연결 방식을 고릅니다.
+4. Pro $100 / Pro $200 / Custom 중 플랜을 고릅니다.
+5. 원하는 경우에만 Start with Windows / Automatic synchronization을 켭니다. 둘 다 기본은 꺼져 있습니다.
+6. Sign in / Connect와 **Run first manual sync**는 별도 동작입니다.
 
 Chrome/Whale/Edge cookie DB를 읽거나 복호화하지 않습니다.
 
@@ -104,7 +126,7 @@ Coverage는 `Good` / `Estimated` / `Incomplete` 등으로 표시됩니다. 공�
 
 | 증상 | 확인 |
 | --- | --- |
-| Authentication required | tray → Open Login |
+| Authentication required | companion: Chrome/Edge에서 Connect 후 Sync now. WebView2: tray → Open Login |
 | Rate limited | 잠시 후 Sync now. conversation body는 동시성 1 |
 | Provider schema mismatch | ChatGPT JSON이 바뀐 상태. 로그의 parsing error 확인 |
 | Offline | chatgpt.com 연결 확인 |

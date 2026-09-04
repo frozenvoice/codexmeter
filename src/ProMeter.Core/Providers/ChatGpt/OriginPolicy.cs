@@ -24,17 +24,27 @@ public static class OriginPolicy
     public static bool TryGetAbsoluteUri(string? value, out Uri uri)
     {
         uri = null!;
-        if (string.IsNullOrWhiteSpace(value))
+        if (string.IsNullOrWhiteSpace(value) || value.Contains('\\') || ContainsControl(value))
         {
             return false;
         }
 
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var parsed))
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var parsed) || !parsed.IsAbsoluteUri)
         {
             return false;
         }
 
-        if (parsed.Scheme is not "https" and not "http")
+        if (!string.Equals(parsed.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (!parsed.IsDefaultPort && parsed.Port != 443)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(parsed.UserInfo))
         {
             return false;
         }
@@ -88,6 +98,125 @@ public static class OriginPolicy
 
         return false;
     }
+
+    internal static bool ContainsControl(string value)
+    {
+        foreach (var ch in value)
+        {
+            if (char.IsControl(ch))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+public static class BackendTargetPolicy
+{
+    public static readonly string[] AllowedPrefixes =
+    [
+        ChatGptEndpoints.Session,
+        "/backend-api/"
+    ];
+
+    public static bool TryValidate(string? path, out string normalized, out string error)
+    {
+        normalized = "";
+        error = "";
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            error = "empty target";
+            return false;
+        }
+
+        if (path.Contains('\\') || OriginPolicy.ContainsControl(path))
+        {
+            error = "illegal target characters";
+            return false;
+        }
+
+        if (path.StartsWith("//", StringComparison.Ordinal) || path.Contains("://", StringComparison.Ordinal))
+        {
+            error = "absolute or scheme-relative target rejected";
+            return false;
+        }
+
+        if (!path.StartsWith('/') || path.StartsWith("//", StringComparison.Ordinal))
+        {
+            error = "target must be a relative same-origin path";
+            return false;
+        }
+
+        var query = "";
+        var cut = path.IndexOf('?', StringComparison.Ordinal);
+        var rawPath = cut >= 0 ? path[..cut] : path;
+        if (cut >= 0)
+        {
+            query = path[cut..];
+        }
+
+        if (!TryNormalizePath(rawPath, out var safePath))
+        {
+            error = "path traversal rejected";
+            return false;
+        }
+
+        if (!IsAllowedPrefix(safePath))
+        {
+            error = "target prefix is not approved";
+            return false;
+        }
+
+        normalized = safePath + query;
+        return true;
+    }
+
+    private static bool IsAllowedPrefix(string path)
+    {
+        if (string.Equals(path, ChatGptEndpoints.Session, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return path.StartsWith("/backend-api/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryNormalizePath(string path, out string normalized)
+    {
+        normalized = "";
+        var parts = path.Split('/', StringSplitOptions.None);
+        if (parts.Length == 0 || parts[0].Length != 0)
+        {
+            return false;
+        }
+
+        var stack = new List<string>();
+        foreach (var part in parts.Skip(1))
+        {
+            if (part is "" or ".")
+            {
+                continue;
+            }
+
+            if (part == "..")
+            {
+                if (stack.Count == 0)
+                {
+                    return false;
+                }
+
+                stack.RemoveAt(stack.Count - 1);
+                continue;
+            }
+
+            stack.Add(part);
+        }
+
+        normalized = "/" + string.Join('/', stack);
+        return true;
+    }
 }
 
 public enum LoginNavigationAction
@@ -99,13 +228,37 @@ public enum LoginNavigationAction
 
 public sealed class LoginNavigationMachine
 {
+    private TaskCompletionSource<bool>? _waiters;
+
     public bool IsActive { get; private set; }
+    public int Generation { get; private set; }
 
-    public void Begin() => IsActive = true;
+    public (Task<bool> Task, bool Started) BeginOrJoin()
+    {
+        if (_waiters is not null)
+        {
+            return (_waiters.Task, false);
+        }
 
-    public void Complete() => IsActive = false;
+        Generation++;
+        IsActive = true;
+        _waiters = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        return (_waiters.Task, true);
+    }
 
-    public void Cancel() => IsActive = false;
+    public void Complete(bool signedIn)
+    {
+        IsActive = false;
+        _waiters?.TrySetResult(signedIn);
+        _waiters = null;
+    }
+
+    public void Cancel()
+    {
+        IsActive = false;
+        _waiters?.TrySetResult(false);
+        _waiters = null;
+    }
 
     public LoginNavigationAction Observe(string? uri, bool navigationCompleted)
     {
@@ -128,5 +281,19 @@ public sealed class LoginNavigationMachine
         return LoginNavigationAction.Ignore;
     }
 
+    public bool AcceptsProbe(int generation, string? uri, bool navigationCompleted) =>
+        IsActive
+        && generation == Generation
+        && Observe(uri, navigationCompleted) == LoginNavigationAction.ProbeSession;
+
+    public bool ShouldStopProbe(string? uri) => !OriginPolicy.IsChatGptAppOrigin(uri);
+
     public bool MayNavigateAwayToProbe() => !IsActive;
+}
+
+public static class SessionProbePolicy
+{
+    public static readonly TimeSpan[] Backoff = [TimeSpan.Zero, TimeSpan.FromMilliseconds(400), TimeSpan.FromMilliseconds(800)];
+
+    public static bool CanProbe(string? uri) => OriginPolicy.AllowsBackendFetch(uri);
 }

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using ProMeter.Companion;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 
@@ -22,8 +23,11 @@ public partial class App : Application
     private QuotaEngine _quota = null!;
     private SyncEngine _sync = null!;
     private ConversationExportImporter _importer = null!;
-    private WebViewTransport _transport = null!;
+    private WebViewTransport _webViewTransport = null!;
+    private IChatGptTransport _transport = null!;
     private ChatGptProvider _provider = null!;
+    private CompanionRequestHub _companionHub = null!;
+    private CompanionPipeServer? _companionServer;
     private TrayController _tray = null!;
     private ToastNotificationService _toasts = null!;
     private readonly DispatcherTimer _timer = new();
@@ -38,6 +42,13 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if (e.Args.Any(arg => string.Equals(arg, "--companion-host", StringComparison.OrdinalIgnoreCase)))
+        {
+            NativeMessagingHost.Run();
+            Shutdown();
+            return;
+        }
+
         _mutex = new Mutex(true, @"Local\ProMeter.SingleInstance", out var created);
         if (!created)
         {
@@ -60,8 +71,12 @@ public partial class App : Application
         _quota = new QuotaEngine();
         _sync = new SyncEngine(_store, _parser, _models, _log);
         _importer = new ConversationExportImporter(_parser, _models);
-        _transport = new WebViewTransport(_log);
-        _provider = new ChatGptProvider(_transport);
+        _companionHub = new CompanionRequestHub();
+        _webViewTransport = new WebViewTransport(_log);
+        var pairing = CompanionPairingStore.LoadOrCreate();
+        _companionServer = new CompanionPipeServer(_companionHub, pairing, _log);
+        _companionServer.Start();
+        ApplyTransport();
         _toasts = new ToastNotificationService(_settingsStore, _log);
         StartupConsent.ApplyIfPermitted(new WindowsStartupService(), _settings);
         ApplyTheme(_settings.Theme);
@@ -112,20 +127,39 @@ public partial class App : Application
         var welcome = new WelcomeWindow();
         welcome.SignInRequested += async () =>
         {
-            welcome.SetBusy("Opening ChatGPT sign-in...");
-            var signedIn = await _transport.ShowLoginAsync();
-            if (!signedIn)
+            ApplyWelcomeChoices(welcome);
+            _settingsStore.Save(_settings);
+            ApplyTransport();
+            if (_settings.AuthTransport == AuthTransportKind.DataExport)
             {
-                welcome.SetCancelled("Sign-in was cancelled. You can try again or close this window.");
+                welcome.MarkSignedIn("Data Export selected. Import conversations.json from Settings. No ChatGPT scan will run.");
                 return;
             }
 
-            welcome.SetBusy("Detecting account...");
+            if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion)
+            {
+                welcome.MarkSignedIn("Sign in to ChatGPT in Chrome or Edge, load the ProMeter extension, then click Connect. Sign-in alone does not scan history.");
+                return;
+            }
+
+            welcome.SetBusy("Opening WebView2 sign-in...");
+            var signedIn = await _webViewTransport.ShowLoginAsync();
+            if (!signedIn)
+            {
+                welcome.SetCancelled("Sign-in was cancelled. Google/Microsoft/Apple WebView login is unsupported.");
+                return;
+            }
+
+            welcome.MarkSignedIn("Signed in. Use Run first manual sync to scan history.");
+        };
+        welcome.SyncRequested += async () =>
+        {
             ApplyWelcomeChoices(welcome);
             _settingsStore.Save(_settings);
-            welcome.SetBusy("Loading current usage...");
+            ApplyTransport();
+            welcome.SetBusy("Running first manual sync...");
             var outcome = await SyncAsync(true);
-            welcome.SetReady($"GPT Pro usage: {_snapshot.Used} / {_snapshot.Limit}");
+            welcome.ApplyOutcome(OnboardingOutcomeMapper.From(outcome.Status, _snapshot.Used, _snapshot.Limit, outcome.Detail));
             _log.Info("welcome sync " + outcome.Status);
         };
         if (welcome.ShowDialog() == true)
@@ -133,6 +167,7 @@ public partial class App : Application
             _settings.FirstRunCompleted = true;
             ApplyWelcomeChoices(welcome);
             _settingsStore.Save(_settings);
+            ApplyTransport();
             StartupConsent.ApplyIfPermitted(new WindowsStartupService(), _settings);
         }
     }
@@ -240,12 +275,28 @@ public partial class App : Application
         {
             _settings = settings;
             _settingsStore.Save(settings);
+            ApplyTransport();
             StartupConsent.ApplyIfPermitted(new WindowsStartupService(), settings);
             _timer.Interval = TimeSpan.FromMinutes(Math.Clamp(settings.SyncIntervalMinutes, 5, 180));
             ApplyTheme(settings.Theme);
             _tray.RebuildMenu(settings.StartWithWindows);
             ApplyWidget();
             RefreshSnapshot();
+        };
+        window.CompanionRegisterRequested += extensionId =>
+        {
+            _settings.CompanionExtensionId = extensionId;
+            var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "prometer.exe");
+            var host = CompanionRegistration.ResolveHostPath(exe);
+            var manifest = CompanionRegistration.WriteHostManifest(exe, extensionId);
+            CompanionRegistration.RegisterOfficialChromiumHosts(manifest);
+            _settingsStore.Save(_settings);
+            var hostNote = host.EndsWith("prometer-companion-host.exe", StringComparison.OrdinalIgnoreCase)
+                ? "Native host: prometer-companion-host.exe"
+                : "Companion host executable was not found next to Prometer. Use the published win-x64 folder.";
+            MessageBox.Show(
+                "Registered the Chrome and Edge native hosts.\n" + hostNote + "\n\n" + CompanionRegistration.WhaleInstructions,
+                "ProMeter");
         };
         window.ImportRequested += ImportExport;
         window.ExportRequested += format => Export(format);
@@ -304,19 +355,49 @@ public partial class App : Application
 
     private async Task SignInAsync()
     {
-        if (!await _transport.ShowLoginAsync())
+        if (_settings.AuthTransport == AuthTransportKind.DataExport)
         {
             return;
         }
 
-        await SyncAsync(true);
+        if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion)
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = ChatGptEndpoints.LoginUrl,
+                UseShellExecute = true
+            });
+            return;
+        }
+
+        if (!await _webViewTransport.ShowLoginAsync())
+        {
+            return;
+        }
+
+        if (_settings.AutoSync)
+        {
+            await SyncAsync(true);
+        }
     }
 
     private void ApplyWelcomeChoices(WelcomeWindow welcome)
     {
         _settings.ApplyPreset(welcome.SelectedPreset);
+        _settings.AuthTransport = welcome.SelectedTransport;
         _settings.StartWithWindows = welcome.StartWithWindowsOptIn;
         _settings.AutoSync = welcome.AutoSyncOptIn;
+    }
+
+    private void ApplyTransport()
+    {
+        _transport = _settings.AuthTransport switch
+        {
+            AuthTransportKind.BrowserCompanion => new BrowserCompanionTransport(_companionHub),
+            AuthTransportKind.DataExport => new DataExportTransport(),
+            _ => _webViewTransport
+        };
+        _provider = new ChatGptProvider(_transport);
     }
 
     private void ShowAbout()
@@ -376,7 +457,8 @@ public partial class App : Application
         IsExiting = true;
         _timer.Stop();
         _tray.Dispose();
-        _transport.Dispose();
+        _companionServer?.Dispose();
+        _webViewTransport.Dispose();
         _store.Dispose();
         Shutdown();
     }

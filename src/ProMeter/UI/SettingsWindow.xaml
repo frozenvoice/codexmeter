@@ -52,6 +52,20 @@
                       Foreground="{StaticResource TextBrush}"
                       Margin="0,8,0,0"/>
 
+            <TextBlock Style="{StaticResource SectionTitle}" Text="CONNECTION"/>
+            <TextBlock Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
+                       Text="Browser companion uses your normal Chrome or Edge ChatGPT session and avoids embedded social OAuth. It does not make unofficial ChatGPT endpoints official. WebView2 is a fallback only when that sign-in method works. Google/Microsoft/Apple login inside WebView2 is unsupported. Data Export remains the lower-risk non-real-time fallback."/>
+            <ComboBox x:Name="TransportBox" Margin="0,0,0,8">
+                <ComboBoxItem Content="Browser companion"/>
+                <ComboBoxItem Content="WebView2 fallback"/>
+                <ComboBoxItem Content="Data Export only"/>
+            </ComboBox>
+            <TextBlock Foreground="{StaticResource MutedBrush}" Text="Unpacked extension ID from chrome://extensions" Margin="0,0,0,4"/>
+            <TextBox x:Name="ExtensionIdBox" Margin="0,0,0,8"/>
+            <TextBlock Foreground="{StaticResource MutedBrush}" Text="Local pairing token (not a ChatGPT secret). The native host attaches it automatically." Margin="0,0,0,4"/>
+            <TextBox x:Name="PairingBox" Margin="0,0,0,8" IsReadOnly="True"/>
+            <Button Style="{StaticResource GhostButton}" Content="Register Chrome/Edge native host" Click="OnRegisterCompanion" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+
             <TextBlock Style="{StaticResource SectionTitle}" Text="APP"/>
             <TextBlock Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
                        Text="ProMeter uses unofficial ChatGPT web endpoints. They are not part of the public OpenAI API and may change. Programmatic history access is unsupported and may carry account or terms risk. Review current ChatGPT terms before enabling synchronization. Official ChatGPT Data Export import is the lower-risk fallback but is not real-time."/>

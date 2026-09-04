@@ -9,6 +9,9 @@ public delegate Task<ProviderResponse> RawAuthenticatedFetch(
 
 public sealed class SessionAuthCoordinator
 {
+    private readonly SemaphoreSlim _sessionGate = new(1, 1);
+    private readonly object _flightLock = new();
+    private Task<ProviderResponse>? _sessionFlight;
     private string? _accessToken;
     private DateTimeOffset? _expiresAt;
     private bool _sessionKnown;
@@ -29,24 +32,21 @@ public sealed class SessionAuthCoordinator
 
     public static bool IsSessionPath(string path)
     {
-        if (string.IsNullOrWhiteSpace(path))
+        if (!BackendTargetPolicy.TryValidate(path, out var normalized, out _))
         {
-            return false;
+            var relative = path ?? "";
+            var query = relative.IndexOf('?', StringComparison.Ordinal);
+            if (query >= 0)
+            {
+                relative = relative[..query];
+            }
+
+            return string.Equals(relative, ChatGptEndpoints.Session, StringComparison.OrdinalIgnoreCase);
         }
 
-        var relative = path;
-        if (Uri.TryCreate(path, UriKind.Absolute, out var uri))
-        {
-            relative = uri.AbsolutePath;
-        }
-
-        var query = relative.IndexOf('?', StringComparison.Ordinal);
-        if (query >= 0)
-        {
-            relative = relative[..query];
-        }
-
-        return string.Equals(relative, ChatGptEndpoints.Session, StringComparison.OrdinalIgnoreCase);
+        var cut = normalized.IndexOf('?', StringComparison.Ordinal);
+        var withoutQuery = cut >= 0 ? normalized[..cut] : normalized;
+        return string.Equals(withoutQuery, ChatGptEndpoints.Session, StringComparison.OrdinalIgnoreCase);
     }
 
     public void ApplySession(JsonNode? session, DateTimeOffset now)
@@ -74,13 +74,13 @@ public sealed class SessionAuthCoordinator
         var clock = now ?? DateTimeOffset.UtcNow;
         if (IsSessionPath(path))
         {
-            return await FetchSessionAsync(fetch, cancellationToken, clock);
+            return await SharedSessionFetchAsync(fetch, clock, cancellationToken);
         }
 
         if (NeedsSession(clock))
         {
-            var session = await FetchSessionAsync(fetch, cancellationToken, clock);
-            if (IsFatalTransport(session))
+            var session = await SharedSessionFetchAsync(fetch, clock, cancellationToken);
+            if (IsUnusableSession(session))
             {
                 return session;
             }
@@ -92,38 +92,67 @@ public sealed class SessionAuthCoordinator
             return response;
         }
 
-        Invalidate();
-        var refresh = await FetchSessionAsync(fetch, cancellationToken, DateTimeOffset.UtcNow);
-        if (IsFatalTransport(refresh) && !refresh.IsSuccess)
+        _accessToken = null;
+        var refresh = await SharedSessionFetchAsync(fetch, DateTimeOffset.UtcNow, cancellationToken);
+        if (IsUnusableSession(refresh))
         {
-            return response;
+            return refresh;
         }
 
         return await fetch(method, path, jsonBody, _accessToken, cancellationToken);
     }
 
-    private async Task<ProviderResponse> FetchSessionAsync(
+    private async Task<ProviderResponse> SharedSessionFetchAsync(
         RawAuthenticatedFetch fetch,
-        CancellationToken cancellationToken,
-        DateTimeOffset now)
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
     {
-        SessionFetchCount++;
-        var response = await fetch("GET", ChatGptEndpoints.Session, null, null, cancellationToken);
-        if (response.IsSuccess)
+        Task<ProviderResponse> flight;
+        lock (_flightLock)
         {
-            ApplySession(ChatGptJson.ParseNode(response.Body), now);
-        }
-        else
-        {
-            Invalidate();
+            if (_sessionFlight is { IsCompleted: false } existing)
+            {
+                flight = existing;
+            }
+            else
+            {
+                flight = FetchSessionCoreAsync(fetch, now);
+                _sessionFlight = flight;
+            }
         }
 
-        return response;
+        return await flight.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static bool IsFatalTransport(ProviderResponse response) =>
-        response.SchemaMismatch
+    private async Task<ProviderResponse> FetchSessionCoreAsync(RawAuthenticatedFetch fetch, DateTimeOffset now)
+    {
+        await _sessionGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            SessionFetchCount++;
+            var response = await fetch("GET", ChatGptEndpoints.Session, null, null, CancellationToken.None).ConfigureAwait(false);
+            if (response.IsSuccess)
+            {
+                ApplySession(ChatGptJson.ParseNode(response.Body), now);
+            }
+            else
+            {
+                Invalidate();
+            }
+
+            return response;
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
+    private static bool IsUnusableSession(ProviderResponse response) =>
+        !response.IsSuccess
+        || response.SchemaMismatch
         || response.IsUnauthorized
         || response.IsRateLimited
-        || response.IsOffline;
+        || response.IsOffline
+        || response.IsServerError;
 }

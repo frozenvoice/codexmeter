@@ -3,17 +3,26 @@
 ProMeter reconstructs ChatGPT Pro usage from **account conversation history**, not from local request interception. History is the reconstruction input. Only a matching server quota counter is authoritative. That is what allows company PC, home PC, and mobile usage to share one meter.
 
 ```text
-WebView2 session  →  ChatGptProvider  →  SyncEngine  →  SQLite
-                                            ↓
-                                      QuotaEngine
-                                            ↓
-                                 Tray / Flyout / Stats
+Browser companion (recommended)
+  Chrome/Edge tab  →  MV3 extension (sanitize)  →  Native Messaging
+       →  prometer-companion-host.exe  →  named pipe  →  BrowserCompanionTransport
+
+WebView2 fallback (only when that sign-in works)
+  WebView2 session  →  WebViewTransport
+
+Data Export (non-real-time)
+  conversations.json  →  ConversationExportImporter
+
+All three keep the same ChatGptProvider → SyncEngine → SQLite → QuotaEngine path.
+Transports are never swapped silently.
 ```
 
 ## Layers
 
 - `ProMeter.Core` — models, ChatGPT provider abstraction, parsers, SQLite, quota, import/export
-- `ProMeter` — WPF tray app, WebView2 login, notifications, startup
+- `ProMeter` — WPF tray app, WebView2 fallback login, companion pipe server, notifications, startup
+- `ProMeter.CompanionHost` — Chrome/Edge native messaging host (`prometer-companion-host.exe`)
+- `extension/` — Manifest V3 companion. `https://chatgpt.com/*` only. No `cookies` permission.
 
 ## Provider abstraction
 
@@ -35,7 +44,19 @@ These are unofficial internal endpoints the ChatGPT website itself uses. They ca
 
 ## Authentication
 
-A dedicated WebView2 profile under `%LOCALAPPDATA%\ProMeter\webview` holds the ChatGPT session. Access tokens stay inside the page and are never written to SQLite, logs, or exports.
+Social login must use a normal Chrome or Edge session plus the browser companion. Embedded WebView OAuth for Google, Microsoft, and Apple is unsupported. ProMeter does not spoof a user agent.
+
+The companion security model:
+
+- Native Messaging is initiated by the unpacked extension (`com.prometer.bridge`).
+- The host binds only to the current-user named pipe `ProMeterCompanion` on loopback.
+- A local pairing token authenticates host messages. It is not a ChatGPT secret.
+- The extension fetches approved same-origin paths only, strips prompt/assistant text and tokens, then sends the sanitized JSON.
+- Cookie databases are never read. Cookies and access tokens are never sent to the Windows app.
+
+WebView2 remains an optional fallback for authentication methods that actually work there. Its profile lives under `%LOCALAPPDATA%\ProMeter\webview`. Access tokens stay in process memory only.
+
+Backend fetches validate both the current HTTPS ChatGPT origin and the requested relative target before credentials or JavaScript are attached.
 
 ## Deduping
 

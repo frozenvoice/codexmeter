@@ -8,6 +8,7 @@ public partial class SettingsWindow : Window
     public event Action? ImportRequested;
     public event Action<string>? ExportRequested;
     public event Action? OpenLogsRequested;
+    public event Action<string?>? CompanionRegisterRequested;
 
     public SettingsWindow(AppSettings settings)
     {
@@ -22,6 +23,9 @@ public partial class SettingsWindow : Window
         WeekdayBox.SelectedIndex = (int)settings.ResetWeekday;
         ResetTimeBox.Text = settings.ResetTime.ToString(@"hh\:mm");
         ResetAnchorBox.IsChecked = settings.ResetAnchorConfigured;
+        TransportBox.SelectedIndex = (int)settings.AuthTransport;
+        ExtensionIdBox.Text = settings.CompanionExtensionId ?? "";
+        PairingBox.Text = CompanionPairingStore.LoadOrCreate().Token;
         AutoSyncBox.IsChecked = settings.AutoSync;
         IntervalBox.Text = settings.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture);
         StartupBox.IsChecked = settings.StartWithWindows;
@@ -77,6 +81,8 @@ public partial class SettingsWindow : Window
             ResetWeekday = (DayOfWeek)WeekdayBox.SelectedIndex,
             ResetTime = resetTime,
             ResetAnchorConfigured = ResetAnchorBox.IsChecked == true,
+            AuthTransport = (AuthTransportKind)Math.Clamp(TransportBox.SelectedIndex, 0, 2),
+            CompanionExtensionId = string.IsNullOrWhiteSpace(ExtensionIdBox.Text) ? null : ExtensionIdBox.Text.Trim(),
             AutoSync = AutoSyncBox.IsChecked == true,
             SyncIntervalMinutes = ParseInt(IntervalBox.Text, 15),
             StartWithWindows = StartupBox.IsChecked == true,
@@ -94,6 +100,9 @@ public partial class SettingsWindow : Window
         Saved?.Invoke(_settings);
         Close();
     }
+
+    private void OnRegisterCompanion(object sender, RoutedEventArgs e) =>
+        CompanionRegisterRequested?.Invoke(string.IsNullOrWhiteSpace(ExtensionIdBox.Text) ? null : ExtensionIdBox.Text.Trim());
 
     private void OnImport(object sender, RoutedEventArgs e) => ImportRequested?.Invoke();
     private void OnExportJson(object sender, RoutedEventArgs e) => ExportRequested?.Invoke("json");

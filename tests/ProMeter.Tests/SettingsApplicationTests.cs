@@ -93,6 +93,8 @@ public class SettingsApplicationTests
         ResetWeekday = settings.ResetWeekday,
         ResetTime = settings.ResetTime,
         ResetAnchorConfigured = settings.ResetAnchorConfigured,
+        AuthTransport = settings.AuthTransport,
+        CompanionExtensionId = settings.CompanionExtensionId,
         AutoSync = settings.AutoSync,
         SyncIntervalMinutes = settings.SyncIntervalMinutes,
         StartWithWindows = settings.StartWithWindows,
@@ -143,6 +145,7 @@ public class StartupConsentTests
         var settings = AppSettings.CreateDefaults();
         Assert.False(settings.AutoSync);
         Assert.False(settings.StartWithWindows);
+        Assert.Equal(AuthTransportKind.BrowserCompanion, settings.AuthTransport);
     }
 
     private sealed class RecordingStartup : IWindowsStartup

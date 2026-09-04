@@ -16,6 +16,15 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Validate companion extension
+        run: |
+          node --check extension/sanitize.js
+          node --check extension/background.js
+          node --check extension/popup.js
+          node --check extension/validate-manifest.js
+          node extension/validate-manifest.js
+          node extension/sanitize.js --self-test
+
       - name: Restore
         run: dotnet restore
 

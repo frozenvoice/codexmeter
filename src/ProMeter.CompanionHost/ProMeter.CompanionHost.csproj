@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>ProMeter.CompanionHost</RootNamespace>
+    <AssemblyName>prometer-companion-host</AssemblyName>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+    <Description>Chrome/Edge native messaging host for the ProMeter companion</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\ProMeter.Core\ProMeter.Core.csproj" />
+  </ItemGroup>
+</Project>

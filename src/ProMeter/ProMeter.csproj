@@ -23,5 +23,27 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\prometer.ico" Condition="Exists('Assets\prometer.ico')" />
+    <Content Include="..\..\extension\**\*.*">
+      <Link>extension\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
   </ItemGroup>
+  <Target Name="CopyCompanionHost" AfterTargets="Build">
+    <MSBuild Projects="..\ProMeter.CompanionHost\ProMeter.CompanionHost.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
+    <ItemGroup>
+      <_CompanionHostFiles Include="..\ProMeter.CompanionHost\bin\$(Configuration)\net8.0\prometer-companion-host*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_CompanionHostFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="PublishCompanionHost" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' != ''">
+    <MSBuild
+      Projects="..\ProMeter.CompanionHost\ProMeter.CompanionHost.csproj"
+      Targets="Restore"
+      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier)" />
+    <MSBuild
+      Projects="..\ProMeter.CompanionHost\ProMeter.CompanionHost.csproj"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(PublishDir);PublishSingleFile=$(PublishSingleFile);IncludeNativeLibrariesForSelfExtract=$(IncludeNativeLibrariesForSelfExtract)" />
+  </Target>
 </Project>

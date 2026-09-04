@@ -1,6 +1,14 @@
 # Manual validation
 
-ProMeter reconstructs usage from ChatGPT account history. These checks require a real signed-in Pro account.
+ProMeter reconstructs usage from ChatGPT account history. These checks require a real signed-in Pro account. Live ChatGPT compatibility is not claimed until they pass.
+
+## Companion pairing
+
+1. Load the unpacked `extension/` in Chrome or Edge.
+2. Register the Chrome/Edge native host from Settings with that extension ID.
+3. Sign in to ChatGPT in that normal browser. Do not use WebView2 for Google/Microsoft/Apple.
+4. Click **Connect to ProMeter** in the extension popup.
+5. Run the first manual sync. Sign-in alone must not scan history.
 
 ## Multi-device
 

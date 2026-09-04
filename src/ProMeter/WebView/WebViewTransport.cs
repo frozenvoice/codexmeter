@@ -16,8 +16,8 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
     private readonly SemaphoreSlim _ready = new(0, 1);
     private readonly SessionAuthCoordinator _auth = new();
     private readonly LoginNavigationMachine _login = new();
-    private TaskCompletionSource<bool>? _loginSignal;
     private TaskCompletionSource<bool>? _navigationSignal;
+    private int _probeGeneration;
     private bool _initialized;
     private bool _shownForLogin;
 
@@ -45,7 +45,6 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
             e.Cancel = true;
             HideLogin();
             _login.Cancel();
-            _loginSignal?.TrySetResult(false);
         };
     }
 
@@ -74,26 +73,31 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
     public async Task<bool> ShowLoginAsync(CancellationToken cancellationToken = default)
     {
         await InitializeAsync();
-        _login.Begin();
+        var (wait, started) = _login.BeginOrJoin();
+        if (!started)
+        {
+            return await wait;
+        }
+
         _auth.Invalidate();
-        _loginSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _probeGeneration = _login.Generation;
         _shownForLogin = true;
         _host.Show();
         _host.Activate();
         _webView.CoreWebView2.Navigate(ChatGptEndpoints.LoginUrl);
         using var reg = cancellationToken.Register(() =>
         {
-            _login.Cancel();
             HideLogin();
-            _loginSignal.TrySetCanceled(cancellationToken);
+            _login.Cancel();
         });
 
         try
         {
-            return await _loginSignal.Task;
+            return await wait;
         }
         catch (OperationCanceledException)
         {
+            _login.Cancel();
             return false;
         }
     }
@@ -106,7 +110,7 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
 
     public async Task<AccountStatus> ProbeSessionAsync(CancellationToken cancellationToken = default)
     {
-        if (!OriginPolicy.AllowsBackendFetch(CurrentUri))
+        if (!SessionProbePolicy.CanProbe(CurrentUri))
         {
             return new AccountStatus();
         }
@@ -123,6 +127,11 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
     public async Task<ProviderResponse> SendAsync(string method, string path, string? jsonBody = null, CancellationToken cancellationToken = default)
     {
         await InitializeAsync();
+        if (!BackendTargetPolicy.TryValidate(path, out var safePath, out var targetError))
+        {
+            return new ProviderResponse { Status = 0, Error = targetError, SchemaMismatch = true };
+        }
+
         if (_login.IsActive && !OriginPolicy.AllowsBackendFetch(CurrentUri))
         {
             return new ProviderResponse { Status = 0, Error = "backend fetch blocked during interactive login" };
@@ -134,7 +143,7 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
             return new ProviderResponse { Status = 0, Error = "unvalidated origin", SchemaMismatch = true };
         }
 
-        return await _auth.SendAsync(ExecuteRawAsync, method, path, jsonBody, cancellationToken);
+        return await _auth.SendAsync(ExecuteRawAsync, method, safePath, jsonBody, cancellationToken);
     }
 
     private async Task EnsureOriginAsync(CancellationToken cancellationToken)
@@ -164,8 +173,14 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
         }
     }
 
-    private void OnSourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e) =>
+    private void OnSourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
+    {
         _login.Observe(CurrentUri, navigationCompleted: false);
+        if (_login.ShouldStopProbe(CurrentUri))
+        {
+            _probeGeneration = -1;
+        }
+    }
 
     private void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
     {
@@ -194,24 +209,38 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
         }
 
         _navigationSignal?.TrySetResult(e.IsSuccess);
-        if (!_login.IsActive)
-        {
-            return;
-        }
-
-        if (_login.Observe(CurrentUri, navigationCompleted: true) != LoginNavigationAction.ProbeSession)
+        var generation = _login.Generation;
+        if (!_login.AcceptsProbe(generation, CurrentUri, navigationCompleted: true))
         {
             return;
         }
 
         try
         {
-            var status = await ProbeSessionAsync();
-            if (status.IsSignedIn)
+            foreach (var delay in SessionProbePolicy.Backoff)
             {
-                HideLogin();
-                _login.Complete();
-                _loginSignal?.TrySetResult(true);
+                if (generation != _login.Generation || _login.ShouldStopProbe(CurrentUri))
+                {
+                    return;
+                }
+
+                if (delay > TimeSpan.Zero)
+                {
+                    await Task.Delay(delay);
+                }
+
+                if (generation != _login.Generation || !SessionProbePolicy.CanProbe(CurrentUri))
+                {
+                    return;
+                }
+
+                var status = await ProbeSessionAsync();
+                if (status.IsSignedIn && generation == _login.Generation)
+                {
+                    HideLogin();
+                    _login.Complete(true);
+                    return;
+                }
             }
         }
         catch (Exception ex)
@@ -228,7 +257,13 @@ public sealed class WebViewTransport : IChatGptTransport, IDisposable
         CancellationToken cancellationToken)
     {
         _ = cancellationToken;
-        return ExecuteScriptFetchAsync(method, path, jsonBody, accessToken);
+        if (!BackendTargetPolicy.TryValidate(path, out var safePath, out var error)
+            || !OriginPolicy.AllowsBackendFetch(CurrentUri))
+        {
+            return Task.FromResult(new ProviderResponse { Status = 0, Error = error, SchemaMismatch = true });
+        }
+
+        return ExecuteScriptFetchAsync(method, safePath, jsonBody, accessToken);
     }
 
     private async Task<ProviderResponse> ExecuteScriptFetchAsync(string method, string path, string? body, string? accessToken)

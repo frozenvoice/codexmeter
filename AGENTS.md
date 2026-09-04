@@ -33,15 +33,25 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 
 - Interactive OAuth navigation must never be interrupted by background probes.
 - External authentication origins such as Google, Microsoft, Apple, and auth.openai.com may be visited only during an explicit interactive sign-in.
+- Embedded WebView OAuth must not be presented as a supported authentication path for Google, Microsoft, Apple, or other providers that disallow embedded user agents.
+- Never spoof a user agent or bypass an identity provider's embedded-browser restrictions.
+- Social-login support must use the user's normal browser session through an explicit browser companion integration.
+- WebView2 may remain only as an optional fallback for authentication methods that actually work in WebView2.
 - ChatGPT backend fetches must execute only from the exact validated ChatGPT application origin, never from substring-matched or arbitrary origins.
+- Backend execution origin and requested target URI must both be validated.
+- Backend fetches require HTTPS and the exact expected origin.
+- Absolute external URLs, scheme-relative URLs, non-default ports, backslashes, control characters, and path traversal must be rejected before credentials are attached.
+- A failed session refresh must return the refresh failure, not mask it as the original 401.
 - Do not fetch `/api/auth/session` before every backend request.
 - Do not use host substring matching for origin validation.
+- Login and session-probe operations must be single-flight and cancellable.
 
 ## Consent and disclosure
 
 - Start with Windows and automatic history synchronization require explicit user opt-in.
 - ChatGPT internal endpoints are unofficial and may change without notice.
 - The application must disclose that programmatic history access is unsupported and may carry account/terms risk.
+- Onboarding must never display a quota count as successfully loaded when sync failed.
 
 ## Transport
 

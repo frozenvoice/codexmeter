@@ -18,6 +18,8 @@ public sealed class AppSettings
     public bool ResetAnchorConfigured { get; set; }
     public DisplayMode DisplayMode { get; set; } = DisplayMode.TrayOnly;
     public AppTheme Theme { get; set; } = AppTheme.System;
+    public AuthTransportKind AuthTransport { get; set; } = AuthTransportKind.BrowserCompanion;
+    public string? CompanionExtensionId { get; set; }
     public bool AutoSync { get; set; }
     public int SyncIntervalMinutes { get; set; } = 15;
     public int BodyFetchDelayMilliseconds { get; set; } = 250;

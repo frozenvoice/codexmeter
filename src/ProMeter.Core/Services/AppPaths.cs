@@ -18,4 +18,6 @@ public static class AppPaths
     public static string Settings => Path.Combine(Root, "settings.json");
     public static string Logs => Directory.CreateDirectory(Path.Combine(Root, "logs")).FullName;
     public static string WebViewProfile => Directory.CreateDirectory(Path.Combine(Root, "webview")).FullName;
+    public static string CompanionPairing => Path.Combine(Root, "companion-pairing.json");
+    public static string CompanionHostManifest => Path.Combine(Root, "com.prometer.bridge.json");
 }

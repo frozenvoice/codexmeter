@@ -11,6 +11,8 @@ public sealed record SettingsEdit
     public DayOfWeek ResetWeekday { get; set; }
     public TimeSpan ResetTime { get; set; }
     public bool ResetAnchorConfigured { get; set; }
+    public AuthTransportKind AuthTransport { get; set; }
+    public string? CompanionExtensionId { get; set; }
     public bool AutoSync { get; set; }
     public int SyncIntervalMinutes { get; set; }
     public bool StartWithWindows { get; set; }
@@ -39,6 +41,8 @@ public static class SettingsApplication
         target.ResetWeekday = edit.ResetWeekday;
         target.ResetTime = edit.ResetTime;
         target.ResetAnchorConfigured = edit.ResetAnchorConfigured;
+        target.AuthTransport = edit.AuthTransport;
+        target.CompanionExtensionId = edit.CompanionExtensionId;
         target.AutoSync = edit.AutoSync;
         target.SyncIntervalMinutes = Math.Clamp(edit.SyncIntervalMinutes, 5, 180);
         target.StartWithWindows = edit.StartWithWindows;
