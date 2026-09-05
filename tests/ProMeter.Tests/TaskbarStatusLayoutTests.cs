@@ -1,3 +1,4 @@
+using System.Globalization;
 using ProMeter.Codex;
 using ProMeter.Models;
 using ProMeter.Services;
@@ -209,6 +210,99 @@ public class TaskbarStatusLayoutTests
         Assert.Contains("!", TaskbarStatusFormatter.Format(gpt, stale, TaskbarStripMode.Compact));
         Assert.Contains("C …", TaskbarStatusFormatter.Format(gpt, CodexQuotaSnapshot.Empty(CodexQuotaStatus.Refreshing), TaskbarStripMode.Full));
     }
+
+    [Fact]
+    public void ProTokens_MarkStaleWithTildeAndKeepUnknownPlain()
+    {
+        var reset = new DateTimeOffset(2026, 9, 6, 5, 20, 0, TimeSpan.Zero);
+        var time = reset.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
+        var weekly = new CodexQuotaSnapshot(
+            CodexQuotaStatus.Available,
+            null,
+            DateTimeOffset.Now,
+            DateTimeOffset.Now,
+            null,
+            null,
+            null,
+            [new CodexQuotaWindow(null, 42, 10080, null, CodexWindowKind.Weekly)],
+            null);
+
+        var restrictedFresh = Restricted(reset, stale: false);
+        Assert.Equal($"P! {time}", TaskbarStatusFormatter.ChatGptToken(restrictedFresh, TaskbarStripMode.Full));
+        Assert.Equal($"P!{time}", TaskbarStatusFormatter.ChatGptToken(restrictedFresh, TaskbarStripMode.Compact));
+        Assert.Equal("P!", TaskbarStatusFormatter.ChatGptToken(restrictedFresh, TaskbarStripMode.UltraCompact));
+        Assert.Equal($"P! {time} · C 42%", TaskbarStatusFormatter.Format(restrictedFresh, weekly, TaskbarStripMode.Full));
+        Assert.Equal($"P!{time} C42%", TaskbarStatusFormatter.Format(restrictedFresh, weekly, TaskbarStripMode.Compact));
+        Assert.Equal("P! C42", TaskbarStatusFormatter.Format(restrictedFresh, weekly, TaskbarStripMode.UltraCompact));
+
+        var restrictedStale = Restricted(reset, stale: true);
+        Assert.Equal($"P! {time}~", TaskbarStatusFormatter.ChatGptToken(restrictedStale, TaskbarStripMode.Full));
+        Assert.Equal($"P!{time}~", TaskbarStatusFormatter.ChatGptToken(restrictedStale, TaskbarStripMode.Compact));
+        Assert.Equal("P!~", TaskbarStatusFormatter.ChatGptToken(restrictedStale, TaskbarStripMode.UltraCompact));
+        Assert.Equal($"P! {time}~ · C 42%", TaskbarStatusFormatter.Format(restrictedStale, weekly, TaskbarStripMode.Full));
+        Assert.Equal($"P!{time}~ C42%", TaskbarStatusFormatter.Format(restrictedStale, weekly, TaskbarStripMode.Compact));
+        Assert.Equal("P!~ C42", TaskbarStatusFormatter.Format(restrictedStale, weekly, TaskbarStripMode.UltraCompact));
+        Assert.Contains(UiText.Stale, TaskbarStatusFormatter.Tooltip(restrictedStale, weekly), StringComparison.Ordinal);
+        Assert.DoesNotContain("P?~", TaskbarStatusFormatter.ChatGptToken(restrictedStale, TaskbarStripMode.Full), StringComparison.Ordinal);
+
+        var openFresh = Observed(stale: false);
+        Assert.Equal("P OK", TaskbarStatusFormatter.ChatGptToken(openFresh, TaskbarStripMode.Full));
+        Assert.Equal("POK", TaskbarStatusFormatter.ChatGptToken(openFresh, TaskbarStripMode.Compact));
+        Assert.Equal("POK", TaskbarStatusFormatter.ChatGptToken(openFresh, TaskbarStripMode.UltraCompact));
+        Assert.Equal("P OK · C 42%", TaskbarStatusFormatter.Format(openFresh, weekly, TaskbarStripMode.Full));
+
+        var openStale = Observed(stale: true);
+        Assert.Equal("P OK~", TaskbarStatusFormatter.ChatGptToken(openStale, TaskbarStripMode.Full));
+        Assert.Equal("POK~", TaskbarStatusFormatter.ChatGptToken(openStale, TaskbarStripMode.Compact));
+        Assert.Equal("POK~", TaskbarStatusFormatter.ChatGptToken(openStale, TaskbarStripMode.UltraCompact));
+        Assert.Equal("P OK~ · C 42%", TaskbarStatusFormatter.Format(openStale, weekly, TaskbarStripMode.Full));
+        Assert.Contains(UiText.Stale, TaskbarStatusFormatter.Tooltip(openStale, weekly), StringComparison.Ordinal);
+
+        var unknown = new QuotaSnapshot { Used = 31, Limit = 50, ReconstructedUsed = 31 };
+        var unknownStale = new QuotaSnapshot
+        {
+            Used = 31,
+            Limit = 50,
+            ReconstructedUsed = 31,
+            ProServerStatus = new ProServerStatus
+            {
+                ServerObserved = true,
+                RestrictionState = ProRestrictionState.Unknown,
+                Stale = true
+            }
+        };
+        Assert.Equal("P?", TaskbarStatusFormatter.ChatGptToken(unknown, TaskbarStripMode.Full));
+        Assert.Equal("P?", TaskbarStatusFormatter.ChatGptToken(unknownStale, TaskbarStripMode.Full));
+        Assert.Equal("P? · C 42%", TaskbarStatusFormatter.Format(unknown, weekly, TaskbarStripMode.Full));
+    }
+
+    private static QuotaSnapshot Restricted(DateTimeOffset reset, bool stale) => new()
+    {
+        Used = 31,
+        Limit = 50,
+        ReconstructedUsed = 31,
+        ProServerStatus = new ProServerStatus
+        {
+            ServerObserved = true,
+            RestrictionState = ProRestrictionState.CorrelatedRestriction,
+            ResetAt = reset,
+            ResetConfidence = ServerResetConfidence.Server,
+            Stale = stale
+        }
+    };
+
+    private static QuotaSnapshot Observed(bool stale) => new()
+    {
+        Used = 31,
+        Limit = 50,
+        ReconstructedUsed = 31,
+        ProServerStatus = new ProServerStatus
+        {
+            ServerObserved = true,
+            RestrictionState = ProRestrictionState.NoCorrelatedRestrictionObserved,
+            Stale = stale
+        }
+    };
 
     [Fact]
     public void Tooltips_ExistInKoreanAndEnglish()

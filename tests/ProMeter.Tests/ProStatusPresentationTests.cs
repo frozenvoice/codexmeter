@@ -97,7 +97,38 @@ public class ProStatusPresentationTests
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.True(presentation.ExactRemainingAvailable);
         Assert.Equal("7 / 50", DisplayFormatting.UsageLabel(snapshot));
+        Assert.Equal("4+", presentation.ReconstructedText);
+        Assert.Equal("4+", presentation.ConfirmedRequestsText);
         Assert.Equal("43", DisplayFormatting.TrayIconText(snapshot));
+    }
+
+    [Fact]
+    public void AuthoritativeServerUsed_DoesNotReplaceReconstructedHistory()
+    {
+        var snapshot = new QuotaSnapshot
+        {
+            Used = 40,
+            Limit = 50,
+            ReconstructedUsed = 0,
+            UsesServerCount = true,
+            ResetAnchorSource = ResetAnchorSource.Server,
+            ResetAt = DateTimeOffset.UtcNow.AddDays(1),
+            ProServerStatus = new ProServerStatus
+            {
+                ServerObserved = true,
+                RestrictionState = ProRestrictionState.NoCorrelatedRestrictionObserved,
+                ResetConfidence = ServerResetConfidence.Server,
+                ResetAt = DateTimeOffset.UtcNow.AddDays(1)
+            }
+        };
+        var presentation = ProStatusPresentation.From(snapshot);
+        Assert.True(presentation.ExactRemainingAvailable);
+        Assert.Equal("40 / 50", DisplayFormatting.UsageLabel(snapshot));
+        Assert.Equal("0+", presentation.ReconstructedText);
+        Assert.Equal("0+", presentation.ConfirmedRequestsText);
+        Assert.Contains("40 / 50", presentation.Headline, StringComparison.Ordinal);
+        Assert.DoesNotContain("40+", presentation.Headline, StringComparison.Ordinal);
+        Assert.DoesNotContain("40+", presentation.ConfirmedRequestsText, StringComparison.Ordinal);
     }
 
     [Fact]

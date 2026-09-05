@@ -28,11 +28,13 @@ public sealed class QuotaEngine
         var gpt6Weekly = proEvents.Count(IsGpt6Pro);
         var todaySol = todayEvents.Count(IsSolPro);
         var combinedToday = todayEvents.Count(e => e.QuotaFamily == QuotaFamily.GptPro);
-        var useServerCount = weekly is { IsAuthoritative: true };
+        var useServerWeekly = weekly is { IsAuthoritative: true };
         var allowSolDaily = AllowsDailyWindow(settings, settings.SolProDailyQuota);
         var allowCombinedDaily = AllowsDailyWindow(settings, settings.CombinedDailyQuota);
         var solWindow = allowSolDaily ? serverQuota?.SolProDaily : null;
         var combinedWindow = allowCombinedDaily ? serverQuota?.CombinedProDaily : null;
+        var useServerSol = solWindow is { IsAuthoritative: true };
+        var useServerCombined = combinedWindow is { IsAuthoritative: true };
         var resetSource = serverReset is not null
             ? ResetAnchorSource.Server
             : settings.ResetAnchorConfigured
@@ -43,8 +45,8 @@ public sealed class QuotaEngine
 
         coverage.ResetAnchorSource = resetSource;
         coverage.ResetTimeAuthoritative = resetSource == ResetAnchorSource.Server;
-        coverage.QuotaMetadataAuthoritative = useServerCount;
-        coverage.CountConfidence = useServerCount
+        coverage.QuotaMetadataAuthoritative = useServerWeekly;
+        coverage.CountConfidence = useServerWeekly
             ? CoverageConfidence.Authoritative
             : historyComplete && periodTrusted
                 ? CoverageConfidence.HighConfidence
@@ -59,13 +61,13 @@ public sealed class QuotaEngine
         coverage.DeletedChats = false;
 
         var reconstructedTop = settings.PlanPreset == SubscriptionPreset.Pro200 ? gpt6Weekly : reconstructed;
-        var used = useServerCount ? weekly!.Used!.Value : reconstructedTop;
-        var limit = useServerCount ? weekly!.Limit!.Value : Math.Max(1, settings.WeeklyProQuota);
+        var used = useServerWeekly ? weekly!.Used!.Value : reconstructedTop;
+        var limit = useServerWeekly ? weekly!.Limit!.Value : Math.Max(1, settings.WeeklyProQuota);
         var solLimit = solWindow?.Limit ?? (allowSolDaily ? settings.SolProDailyQuota : null);
         var combinedLimit = combinedWindow?.Limit ?? (allowCombinedDaily ? settings.CombinedDailyQuota : null);
-        var solUsed = solWindow is { IsAuthoritative: true } ? solWindow.Used!.Value : todaySol;
-        var combinedUsed = combinedWindow is { IsAuthoritative: true } ? combinedWindow.Used!.Value : combinedToday;
-        var usageUnavailable = !useServerCount
+        var solUsed = useServerSol ? solWindow!.Used!.Value : todaySol;
+        var combinedUsed = useServerCombined ? combinedWindow!.Used!.Value : combinedToday;
+        var usageUnavailable = !useServerWeekly
             && reconstructed == 0
             && coverage.HistoryLoadedWithoutUsage
             && (coverage.Confidence == CoverageConfidence.Incomplete || status == AppSyncStatus.ProviderSchemaMismatch);
@@ -98,7 +100,9 @@ public sealed class QuotaEngine
             CombinedToday = combinedUsed,
             Gpt6WeeklyUsed = gpt6Weekly,
             ReconstructedUsed = reconstructed,
-            UsesServerCount = useServerCount,
+            UsesServerWeeklyCount = useServerWeekly,
+            UsesServerSolDailyCount = useServerSol,
+            UsesServerCombinedDailyCount = useServerCombined,
             DisplayUsageUnavailable = usageUnavailable,
             ProServerStatus = proStatus,
             SolProDailyLimit = solLimit,

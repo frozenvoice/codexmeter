@@ -41,7 +41,6 @@ public partial class App : Application
     private TaskbarStatusStripWindow? _taskbarStrip;
     private QuotaSnapshot _snapshot = new();
     private bool _syncing;
-    private readonly WebViewOperationGate _webViewOperation = new();
     private CodexQuotaService _codex = null!;
     private CombinedRefreshCoordinator _refresh = null!;
     private ProServerStatusService _proStatus = null!;
@@ -300,7 +299,7 @@ public partial class App : Application
 
     private async Task<SyncOutcome> SyncAsync(bool force, SyncOrigin origin = SyncOrigin.Auto)
     {
-        if (_syncing || _webViewOperation.IsRunning)
+        if (_syncing)
         {
             return new SyncOutcome(_snapshot.Status, "already running", 0);
         }
@@ -510,129 +509,7 @@ public partial class App : Application
         window.ImportRequested += ImportExport;
         window.ExportRequested += format => Export(format);
         window.OpenLogsRequested += OpenLogs;
-        window.WebViewDiagnosticRequested = RunWebViewDiagnosticAsync;
-        window.FullWebViewVerificationRequested = RunFullWebViewVerificationAsync;
-        window.UseWebViewDefaultRequested = ApplyVerifiedWebViewDefault;
         window.ShowDialog();
-    }
-
-    private Task<WebViewDiagnosticResult> RunWebViewDiagnosticAsync(CancellationToken cancellationToken)
-    {
-        if (_syncing)
-        {
-            return Task.FromResult(new WebViewDiagnosticResult(
-                WebViewDiagnosticStatus.FailApi,
-                TechnicalDetail: UiText.WebViewDiagnosticTechnical("diagnostic", reason: "busy")));
-        }
-
-        return _webViewOperation.RunAsync(
-            async ct =>
-            {
-                _log.Info("webview diagnostic stage=" + WebViewDiagnosticStages.InitializeStart);
-                var diagnostic = new WebViewCompatibilityDiagnostic(
-                    _webViewTransport,
-                    _webViewTransport,
-                    _webViewTransport,
-                    stage => _log.Info("webview diagnostic stage=" + stage));
-                try
-                {
-                    var result = await diagnostic.RunAsync(ct);
-                    _log.Info(
-                        $"webview diagnostic result={result.Status} status={result.HttpStatus?.ToString(CultureInfo.InvariantCulture) ?? "none"}");
-                    return result;
-                }
-                finally
-                {
-                    if (!_webViewTransport.IsLoginVisible)
-                    {
-                        _webViewTransport.HideDiagnosticHost();
-                    }
-                }
-            },
-            () => new WebViewDiagnosticResult(
-                WebViewDiagnosticStatus.FailApi,
-                TechnicalDetail: UiText.WebViewDiagnosticTechnical("diagnostic", reason: "busy")),
-            cancellationToken);
-    }
-
-    private Task<WebViewVerificationResult> RunFullWebViewVerificationAsync(CancellationToken cancellationToken)
-    {
-        if (_syncing)
-        {
-            return Task.FromResult(BusyWebViewVerification());
-        }
-
-        return _webViewOperation.RunAsync(
-            async ct =>
-            {
-                var baseline = WebViewVerificationBaseline.Capture(
-                    _store.GetUsageEvents(),
-                    _settings,
-                    _settings.AuthTransport,
-                    _snapshot.Coverage,
-                    _sync.LastStatus,
-                    _sync.LastQuotaMetadata,
-                    DateTimeOffset.Now);
-                var service = new WebViewFullVerificationService(_log);
-                var result = await service.RunAsync(
-                    new ChatGptProvider(_webViewTransport),
-                    _settings,
-                    baseline,
-                    ct);
-                _log.Info(
-                    $"webview verification result={result.Status}" +
-                    $" browserCount={result.BrowserCompanionCount}" +
-                    $" webviewCount={result.WebViewCount?.ToString(CultureInfo.InvariantCulture) ?? "none"}" +
-                    $" difference={result.Difference?.ToString(CultureInfo.InvariantCulture) ?? "none"}" +
-                    $" isolated={result.UsedIsolatedStore}");
-                foreach (var difference in result.MetadataDifferences)
-                {
-                    _log.Info(
-                        $"webview verification difference side={difference.Side}" +
-                        $" conversationId={SanitizeMetadata(difference.ConversationId)}" +
-                        $" model={SanitizeMetadata(difference.RawModel)}" +
-                        $" createdAt={difference.CreatedAt:O}");
-                }
-
-                return result;
-            },
-            BusyWebViewVerification,
-            cancellationToken);
-    }
-
-    private static WebViewVerificationResult BusyWebViewVerification() =>
-        new(
-            WebViewVerificationStatus.Failed,
-            BrowserCompanionCount: 0,
-            WebViewCount: null,
-            Difference: null,
-            BrowserCompanionEstimated: true,
-            UsedIsolatedStore: false,
-            TechnicalDetail: UiText.WebViewVerificationBusyTechnical,
-            MetadataDifferences: []);
-
-    private bool ApplyVerifiedWebViewDefault(WebViewVerificationResult verification, bool explicitlyConfirmed)
-    {
-        if (!WebViewDefaultConnectionSelection.TryApply(_settings, verification, explicitlyConfirmed))
-        {
-            return false;
-        }
-
-        _settingsStore.Save(_settings);
-        ApplyTransport();
-        RefreshSnapshot();
-        return true;
-    }
-
-    private static string SanitizeMetadata(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "none";
-        }
-
-        var compact = new string(value.Where(ch => !char.IsControl(ch)).Take(200).ToArray());
-        return AppLog.Sanitize(compact);
     }
 
     private void OpenLogs()
@@ -691,7 +568,7 @@ public partial class App : Application
 
     private async Task SignInAsync()
     {
-        if (_webViewOperation.IsRunning || _syncing)
+        if (_syncing)
         {
             return;
         }

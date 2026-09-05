@@ -7,13 +7,11 @@ namespace ProMeter.Tests;
 public class LocalizationAndCoverageDisplayTests
 {
     [Fact]
-    public void WebViewDiagnosticAndVerificationStrings_ExistInEnglishAndKorean()
+    public void WebViewFallbackStrings_ExistInEnglishAndKorean()
     {
         UiText.SetLanguage(UiLanguage.English);
         try
         {
-            Assert.Equal("Test WebView2", UiText.TestWebView2);
-            Assert.Equal("Testing WebView2 connection...", UiText.TestingWebView2);
             Assert.Equal("Checking ChatGPT session...", UiText.CheckingChatGptSession);
             Assert.Equal("WebView2 initialization timed out.", UiText.WebViewInitializationTimedOut);
             Assert.Equal("WebView2 initialization failed.", UiText.WebViewInitializationFailed);
@@ -21,25 +19,9 @@ public class LocalizationAndCoverageDisplayTests
             Assert.Equal("WebView2 navigation failed.", UiText.WebViewNavigationFailed);
             Assert.Equal("WebView2 request timed out.", UiText.WebViewRequestTimedOut);
             Assert.Equal("WebView2 request failed.", UiText.WebViewRequestFailed);
-            Assert.Contains("WebView2 works on this PC/account.", UiText.WebViewDiagnosticPass, StringComparison.Ordinal);
-            Assert.Contains("FAIL_AUTH", UiText.WebViewDiagnosticFailAuth, StringComparison.Ordinal);
-            Assert.Contains("FAIL_SESSION", UiText.WebViewDiagnosticFailSession, StringComparison.Ordinal);
-            Assert.Contains("FAIL_API", UiText.WebViewDiagnosticFailApi, StringComparison.Ordinal);
-            Assert.Contains("HTTP 403", UiText.WebViewDiagnosticForbidden, StringComparison.Ordinal);
-            Assert.Contains("Current connection settings were not changed", UiText.WebViewDiagnosticCancelled, StringComparison.Ordinal);
-            Assert.Equal("Run full WebView2 verification sync", UiText.RunFullWebViewVerification);
-            Assert.Equal("Browser Companion count: 7", UiText.BrowserCompanionCount(7));
-            Assert.Equal("WebView2 count: 6", UiText.WebViewCount(6));
-            Assert.Equal("Difference: -1", UiText.VerificationDifference(-1));
-            Assert.Equal("Use WebView2 as default connection", UiText.UseWebViewAsDefault);
-            Assert.Contains("explicit confirmation", UiText.UseWebViewAsDefaultFailed, StringComparison.OrdinalIgnoreCase);
-            Assert.Equal(
-                "conversation index: HTTP 500; schema mismatch",
-                UiText.WebViewDiagnosticTechnical("conversation-index", 500, "schema-mismatch"));
+            Assert.Equal("WebView2 fallback", UiText.TransportWebView);
 
             UiText.SetLanguage(UiLanguage.Korean);
-            Assert.Equal("WebView2 연결 테스트", UiText.TestWebView2);
-            Assert.Equal("WebView2 연결 확인 중...", UiText.TestingWebView2);
             Assert.Equal("ChatGPT 세션을 확인하는 중...", UiText.CheckingChatGptSession);
             Assert.Equal("WebView2 초기화 시간이 초과되었습니다.", UiText.WebViewInitializationTimedOut);
             Assert.Equal("WebView2 초기화에 실패했습니다.", UiText.WebViewInitializationFailed);
@@ -47,20 +29,7 @@ public class LocalizationAndCoverageDisplayTests
             Assert.Equal("WebView2 탐색에 실패했습니다.", UiText.WebViewNavigationFailed);
             Assert.Equal("WebView2 요청 시간이 초과되었습니다.", UiText.WebViewRequestTimedOut);
             Assert.Equal("WebView2 요청에 실패했습니다.", UiText.WebViewRequestFailed);
-            Assert.Contains("이 PC와 계정에서 정상 동작합니다", UiText.WebViewDiagnosticPass, StringComparison.Ordinal);
-            Assert.Contains("로그인 방식은 WebView2에서 지원되지 않거나", UiText.WebViewDiagnosticFailAuth, StringComparison.Ordinal);
-            Assert.Contains("ChatGPT 세션을 확인하지 못했습니다", UiText.WebViewDiagnosticFailSession, StringComparison.Ordinal);
-            Assert.Contains("ChatGPT 기록 API를 사용할 수 없습니다", UiText.WebViewDiagnosticFailApi, StringComparison.Ordinal);
-            Assert.Contains("HTTP 403", UiText.WebViewDiagnosticForbidden, StringComparison.Ordinal);
-            Assert.Contains("현재 연결 설정은 변경되지 않았습니다", UiText.WebViewDiagnosticCancelled, StringComparison.Ordinal);
-            Assert.Equal("WebView2 전체 검증 동기화", UiText.RunFullWebViewVerification);
-            Assert.Equal("Browser Companion 사용량: 7", UiText.BrowserCompanionCount(7));
-            Assert.Equal("WebView2 사용량: 6", UiText.WebViewCount(6));
-            Assert.Equal("차이: -1", UiText.VerificationDifference(-1));
-            Assert.Equal("WebView2를 기본 연결로 사용", UiText.UseWebViewAsDefault);
-            Assert.Equal(
-                "대화 목록: HTTP 500; 응답 형식 불일치",
-                UiText.WebViewDiagnosticTechnical("conversation-index", 500, "schema-mismatch"));
+            Assert.Equal("WebView2 대체 경로", UiText.TransportWebView);
         }
         finally
         {
@@ -193,6 +162,7 @@ public class LocalizationAndCoverageDisplayTests
         {
             Used = 28,
             Limit = 50,
+            ReconstructedUsed = 28,
             LastSync = DateTimeOffset.UtcNow,
             IsSyncing = true,
             Coverage = new CoverageInfo

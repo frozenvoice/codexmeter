@@ -67,20 +67,20 @@ public static class TaskbarStatusFormatter
             return "P?";
         }
 
+        var stale = presentation.Stale ? "~" : "";
         if (presentation.Restricted)
         {
-            var stale = presentation.Stale && mode != TaskbarStripMode.Full ? "" : "";
             if (presentation.HasServerReset && mode != TaskbarStripMode.UltraCompact)
             {
                 return mode == TaskbarStripMode.Full
-                    ? $"P! {presentation.ResetCompactTime}"
+                    ? $"P! {presentation.ResetCompactTime}{stale}"
                     : $"P!{presentation.ResetCompactTime}{stale}";
             }
 
-            return "P!";
+            return $"P!{stale}";
         }
 
-        return mode == TaskbarStripMode.Full ? "P OK" : "POK";
+        return mode == TaskbarStripMode.Full ? $"P OK{stale}" : $"POK{stale}";
     }
 
     private static string CodexToken(CodexQuotaSnapshot snapshot, TaskbarStripMode mode)

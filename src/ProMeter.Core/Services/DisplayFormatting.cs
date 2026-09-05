@@ -116,6 +116,11 @@ public static class DisplayFormatting
         _ => UiText.Idle
     };
 
+    public static string WindowUsage(int used, int? limit, bool authoritative) =>
+        authoritative && limit is int value
+            ? $"{used} / {value}"
+            : $"{used}+";
+
     public static string UsageLabel(QuotaSnapshot snapshot)
     {
         var presentation = ProStatusPresentation.From(snapshot);

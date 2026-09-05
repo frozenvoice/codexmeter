@@ -61,30 +61,35 @@ public static class ProServerStatusParser
         int? limitHint = null;
         string? blockReason = null;
         string? description = null;
-        var restriction = ProRestrictionState.NoCorrelatedRestrictionObserved;
+        var restriction = limits.Count == 0
+            ? ProRestrictionState.Unknown
+            : ProRestrictionState.NoCorrelatedRestrictionObserved;
 
-        foreach (var item in ChatGptJson.Enumerate(root["blocked_features"]))
+        if (limits.Count > 0)
         {
-            var featureReset = ReadReset(item);
-            if (featureReset is null)
+            foreach (var item in ChatGptJson.Enumerate(root["blocked_features"]))
             {
-                continue;
-            }
+                var featureReset = ReadReset(item);
+                if (featureReset is null)
+                {
+                    continue;
+                }
 
-            var matches = resetAt is DateTimeOffset canonical
-                ? WithinTolerance(featureReset.Value, canonical)
-                : resets.Any(reset => WithinTolerance(featureReset.Value, reset));
-            if (!matches)
-            {
-                continue;
-            }
+                var matches = resetAt is DateTimeOffset canonical
+                    ? WithinTolerance(featureReset.Value, canonical)
+                    : resets.Any(reset => WithinTolerance(featureReset.Value, reset));
+                if (!matches)
+                {
+                    continue;
+                }
 
-            restriction = ProRestrictionState.CorrelatedRestriction;
-            correlatedName = SafeText(ChatGptJson.GetString(item, "name", "feature_name"));
-            limitHint = (int?)ChatGptJson.GetDouble(item, "limit");
-            blockReason = SafeText(ChatGptJson.GetString(item, "block_reason"));
-            description = SafeText(ChatGptJson.GetString(item, "description"));
-            break;
+                restriction = ProRestrictionState.CorrelatedRestriction;
+                correlatedName = SafeText(ChatGptJson.GetString(item, "name", "feature_name"));
+                limitHint = (int?)ChatGptJson.GetDouble(item, "limit");
+                blockReason = SafeText(ChatGptJson.GetString(item, "block_reason"));
+                description = SafeText(ChatGptJson.GetString(item, "description"));
+                break;
+            }
         }
 
         return new ProServerStatus

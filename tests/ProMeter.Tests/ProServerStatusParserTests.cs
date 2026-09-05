@@ -23,6 +23,8 @@ public class ProServerStatusParserTests
         Assert.Null(parsed.ProServerStatus.BlockReason);
         Assert.Equal("server supplied restriction notice", parsed.ProServerStatus.RestrictionDescription);
         Assert.False(parsed.ProServerStatus.HasAmbiguousResets);
+        Assert.Equal(ProRestrictionState.CorrelatedRestriction, parsed.ProServerStatus.RestrictionState);
+        Assert.Equal("P!", ProStatusPresentation.From(new QuotaSnapshot { ProServerStatus = parsed.ProServerStatus }).ProCompactToken);
         Assert.Equal(3, parsed.ProServerStatus.ModelLimits.Count);
         Assert.Contains(parsed.ProServerStatus.ModelLimits, limit => limit.Slug == "gpt-5-5-pro");
         Assert.Contains(parsed.ProServerStatus.ModelLimits, limit => limit.Slug == "gpt-5-6-pro");
@@ -94,7 +96,43 @@ public class ProServerStatusParserTests
             }
         });
         Assert.Empty(parsed.ModelLimits);
+        Assert.True(parsed.ServerObserved);
+        Assert.Equal(ProRestrictionState.Unknown, parsed.RestrictionState);
+        Assert.Equal("P?", ProStatusPresentation.From(new QuotaSnapshot { ProServerStatus = parsed }).ProCompactToken);
+    }
+
+    [Fact]
+    public void MissingOrEmptyModelLimits_AreUnknown()
+    {
+        foreach (var root in new JsonNode?[] { new JsonObject(), new JsonObject { ["model_limits"] = new JsonArray() } })
+        {
+            var parsed = ProServerStatusParser.Parse(root);
+            Assert.True(parsed.ServerObserved);
+            Assert.Empty(parsed.ModelLimits);
+            Assert.Equal(ProRestrictionState.Unknown, parsed.RestrictionState);
+            var presentation = ProStatusPresentation.From(new QuotaSnapshot { ProServerStatus = parsed });
+            Assert.Equal("P?", presentation.ProCompactToken);
+            Assert.Equal(UiText.Unavailable, presentation.ProStateText);
+            Assert.False(presentation.ServerStatusKnown);
+        }
+    }
+
+    [Fact]
+    public void RecognizedProLimitWithoutBlock_IsObservedAvailable()
+    {
+        var parsed = ProServerStatusParser.Parse(new JsonObject
+        {
+            ["model_limits"] = new JsonArray
+            {
+                new JsonObject { ["model_slug"] = "gpt-6-pro", ["resets_after"] = "2026-09-06T05:20:13Z" }
+            }
+        });
+        Assert.True(parsed.ServerObserved);
         Assert.Equal(ProRestrictionState.NoCorrelatedRestrictionObserved, parsed.RestrictionState);
+        var presentation = ProStatusPresentation.From(new QuotaSnapshot { ProServerStatus = parsed });
+        Assert.Equal("POK", presentation.ProCompactToken);
+        Assert.Equal(UiText.ProNoServerRestriction, presentation.ProStateText);
+        Assert.True(presentation.ServerStatusKnown);
     }
 
     [Fact]

@@ -147,6 +147,9 @@ public class QuotaCoverageTests
         var coverage = new CoverageInfo { NormalChats = true, ArchivedChats = true, Projects = true };
         var snapshot = new QuotaEngine().Build(events, settings, now, now, coverage, new QuotaMetadataSet(), AppSyncStatus.UpToDate);
         Assert.False(snapshot.UsesServerCount);
+        Assert.False(snapshot.UsesServerWeeklyCount);
+        Assert.False(snapshot.UsesServerSolDailyCount);
+        Assert.False(snapshot.UsesServerCombinedDailyCount);
         Assert.Equal(1, snapshot.Used);
         Assert.Equal(200, snapshot.Limit);
         Assert.Equal(1, snapshot.Gpt6WeeklyUsed);
@@ -197,6 +200,9 @@ public class QuotaCoverageTests
             var now = new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero);
             var snapshot = new QuotaEngine().Build([], settings, now, now, new CoverageInfo { NormalChats = true }, parsed, AppSyncStatus.UpToDate);
             Assert.True(snapshot.UsesServerCount);
+            Assert.True(snapshot.UsesServerWeeklyCount);
+            Assert.True(snapshot.UsesServerSolDailyCount);
+            Assert.True(snapshot.UsesServerCombinedDailyCount);
             Assert.Equal(11, snapshot.Used);
             Assert.Equal(200, snapshot.Limit);
             Assert.Equal(4, snapshot.TodaySolPro);

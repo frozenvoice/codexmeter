@@ -20,7 +20,7 @@ public static class QuotaNotificationPolicy
         {
             if (settings.NotifyReset
                 && !string.IsNullOrWhiteSpace(settings.LastNotifiedPeriodKey)
-                && snapshot.UsesServerCount)
+                && snapshot.UsesServerWeeklyCount)
             {
                 notifications.Add(new QuotaNotification(QuotaNotificationKind.PeriodChanged, UiText.ProductName, UiText.ToastNewPeriod));
             }
@@ -30,7 +30,7 @@ public static class QuotaNotificationPolicy
             settings.LastNotifiedExhausted = false;
         }
 
-        if (snapshot.UsesServerCount)
+        if (snapshot.UsesServerWeeklyCount)
         {
             AddLimit(
                 notifications,
@@ -57,7 +57,7 @@ public static class QuotaNotificationPolicy
             settings.LastNotifiedCombinedDailyExhausted = false;
         }
 
-        if (snapshot.SolProDailyLimit is int solLimit && snapshot.UsesServerCount)
+        if (snapshot.SolProDailyLimit is int solLimit && snapshot.UsesServerSolDailyCount)
         {
             AddLimit(
                 notifications,
@@ -73,7 +73,7 @@ public static class QuotaNotificationPolicy
                 at20: UiText.ToastSol20);
         }
 
-        if (snapshot.CombinedDailyLimit is int combinedLimit && snapshot.UsesServerCount)
+        if (snapshot.CombinedDailyLimit is int combinedLimit && snapshot.UsesServerCombinedDailyCount)
         {
             AddLimit(
                 notifications,

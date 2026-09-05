@@ -9,7 +9,7 @@ using ProMeter.Services;
 
 namespace ProMeter.WebView;
 
-public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLogin, IWebViewDiagnosticHost, IDisposable
+public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLogin, IDisposable
 {
     private readonly AppLog _log;
     private readonly Window _host;

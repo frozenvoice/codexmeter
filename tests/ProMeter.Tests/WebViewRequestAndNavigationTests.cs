@@ -9,65 +9,23 @@ namespace ProMeter.Tests;
 public class WebViewRequestAndNavigationTests
 {
     [Fact]
-    public async Task RequestTimeout_ReturnsFailApiWithRequestSpecificText()
-    {
-        var host = new RecordingHost();
-        var transport = new ScriptedTransport();
-        transport.SetQueue(
-            ChatGptEndpoints.Session,
-            new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.RequestTimeout });
-        var stages = new List<string>();
-
-        UiText.SetLanguage(UiLanguage.English);
-        try
-        {
-            var result = await new WebViewCompatibilityDiagnostic(
-                transport,
-                host,
-                host,
-                stages.Add).RunAsync();
-
-            Assert.Equal(WebViewDiagnosticStatus.FailApi, result.Status);
-            Assert.Equal("WebView2 request timed out.", result.TechnicalDetail);
-            Assert.NotEqual(UiText.WebViewInitializationTimedOut, result.TechnicalDetail);
-            Assert.Contains(WebViewDiagnosticStages.RequestTimeoutFor("session"), stages);
-            Assert.DoesNotContain(stages, stage => stage == WebViewDiagnosticStages.InitializeTimeout);
-
-            UiText.SetLanguage(UiLanguage.Korean);
-            var korean = WebViewCompatibilityDiagnostic.MapInitializationFailure(
-                new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.RequestTimeout });
-            Assert.Equal("WebView2 요청 시간이 초과되었습니다.", korean?.TechnicalDetail);
-            Assert.NotEqual(UiText.WebViewInitializationTimedOut, korean?.TechnicalDetail);
-        }
-        finally
-        {
-            UiText.SetLanguage(UiLanguage.English);
-        }
-    }
-
-    [Fact]
     public void NavigationAndRequestFailures_AreDistinctFromInitializationTimeout()
     {
         UiText.SetLanguage(UiLanguage.English);
         try
         {
-            var navigationTimeout = WebViewCompatibilityDiagnostic.MapInitializationFailure(
-                new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.NavigationTimeout });
-            var navigationFailed = WebViewCompatibilityDiagnostic.MapInitializationFailure(
-                new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.NavigationFailed });
-            var requestTimeout = WebViewCompatibilityDiagnostic.MapInitializationFailure(
-                new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.RequestTimeout });
-            var scriptTimeout = WebViewCompatibilityDiagnostic.MapInitializationFailure(
-                new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.ScriptExecutionTimeout });
-            var initTimeout = WebViewCompatibilityDiagnostic.MapInitializationFailure(
-                new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.Timeout });
+            Assert.Equal("WebView2 navigation timed out.", UiText.WebViewNavigationTimedOut);
+            Assert.Equal("WebView2 navigation failed.", UiText.WebViewNavigationFailed);
+            Assert.Equal("WebView2 request timed out.", UiText.WebViewRequestTimedOut);
+            Assert.Equal("WebView2 request failed.", UiText.WebViewRequestFailed);
+            Assert.Equal("WebView2 initialization timed out.", UiText.WebViewInitializationTimedOut);
+            Assert.NotEqual(UiText.WebViewInitializationTimedOut, UiText.WebViewRequestTimedOut);
+            Assert.NotEqual(UiText.WebViewInitializationTimedOut, UiText.WebViewNavigationTimedOut);
 
-            Assert.Equal(WebViewDiagnosticStatus.FailApi, navigationTimeout?.Status);
-            Assert.Equal("WebView2 navigation timed out.", navigationTimeout?.TechnicalDetail);
-            Assert.Equal("WebView2 navigation failed.", navigationFailed?.TechnicalDetail);
-            Assert.Equal("WebView2 request timed out.", requestTimeout?.TechnicalDetail);
-            Assert.Equal("WebView2 request timed out.", scriptTimeout?.TechnicalDetail);
-            Assert.Equal("WebView2 initialization timed out.", initTimeout?.TechnicalDetail);
+            UiText.SetLanguage(UiLanguage.Korean);
+            Assert.Equal("WebView2 요청 시간이 초과되었습니다.", UiText.WebViewRequestTimedOut);
+            Assert.Equal("WebView2 초기화 시간이 초과되었습니다.", UiText.WebViewInitializationTimedOut);
+            Assert.NotEqual(UiText.WebViewInitializationTimedOut, UiText.WebViewRequestTimedOut);
         }
         finally
         {
@@ -76,98 +34,18 @@ public class WebViewRequestAndNavigationTests
     }
 
     [Fact]
-    public async Task CancelledRequest_ReturnsPromptlyAndReleasesGate()
+    public async Task CancelledRequest_ReturnsPromptly()
     {
-        var gate = new WebViewOperationGate();
         using var cts = new CancellationTokenSource();
-        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var clock = Stopwatch.StartNew();
-
-        var run = gate.RunAsync(
-            async ct =>
-            {
-                started.SetResult();
-                try
-                {
-                    await WebViewBoundedWait.WaitRequestAsync(
-                        Task.Delay(Timeout.Infinite, CancellationToken.None),
-                        TimeSpan.FromSeconds(25),
-                        ct);
-                    return new WebViewDiagnosticResult(WebViewDiagnosticStatus.Pass);
-                }
-                catch (OperationCanceledException)
-                {
-                    return new WebViewDiagnosticResult(WebViewDiagnosticStatus.Cancelled);
-                }
-            },
-            () => new WebViewDiagnosticResult(WebViewDiagnosticStatus.FailApi),
+        var pending = WebViewBoundedWait.WaitRequestAsync(
+            Task.Delay(Timeout.Infinite, CancellationToken.None),
+            TimeSpan.FromSeconds(25),
             cts.Token);
-
-        await started.Task;
-        Assert.True(gate.IsRunning);
         cts.Cancel();
-        var result = await run;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
         clock.Stop();
-
-        Assert.Equal(WebViewDiagnosticStatus.Cancelled, result.Status);
-        Assert.False(gate.IsRunning);
         Assert.True(clock.Elapsed < TimeSpan.FromSeconds(2));
-    }
-
-    [Fact]
-    public async Task TimedOutRequest_ReleasesGateAndAllowsALaterDiagnostic()
-    {
-        var gate = new WebViewOperationGate();
-        var host = new RecordingHost();
-        var timedOut = new ScriptedTransport();
-        timedOut.SetQueue(
-            ChatGptEndpoints.Session,
-            new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.RequestTimeout });
-
-        var first = await gate.RunAsync(
-            ct => new WebViewCompatibilityDiagnostic(timedOut, host, host).RunAsync(ct),
-            () => new WebViewDiagnosticResult(WebViewDiagnosticStatus.FailApi),
-            CancellationToken.None);
-
-        Assert.Equal(WebViewDiagnosticStatus.FailApi, first.Status);
-        Assert.Equal(UiText.WebViewRequestTimedOut, first.TechnicalDetail);
-        Assert.False(gate.IsRunning);
-
-        var second = await gate.RunAsync(
-            ct => new WebViewCompatibilityDiagnostic(PassingTransport(), host, host).RunAsync(ct),
-            () => new WebViewDiagnosticResult(WebViewDiagnosticStatus.FailApi),
-            CancellationToken.None);
-
-        Assert.Equal(WebViewDiagnosticStatus.Pass, second.Status);
-        Assert.False(gate.IsRunning);
-    }
-
-    [Fact]
-    public async Task CancelledDiagnostic_ReleasesGateAndAllowsALaterDiagnostic()
-    {
-        var gate = new WebViewOperationGate();
-        var host = new RecordingHost();
-        var holding = new ScriptedTransport { Hold = true };
-        holding.SetQueue(ChatGptEndpoints.Session, SignedInSession());
-        using var cts = new CancellationTokenSource();
-
-        var first = gate.RunAsync(
-            ct => new WebViewCompatibilityDiagnostic(holding, host, host).RunAsync(ct),
-            () => new WebViewDiagnosticResult(WebViewDiagnosticStatus.FailApi),
-            cts.Token);
-        await holding.Entered.Task;
-        cts.Cancel();
-
-        Assert.Equal(WebViewDiagnosticStatus.Cancelled, (await first).Status);
-        Assert.False(gate.IsRunning);
-
-        var second = await gate.RunAsync(
-            ct => new WebViewCompatibilityDiagnostic(PassingTransport(), host, host).RunAsync(ct),
-            () => new WebViewDiagnosticResult(WebViewDiagnosticStatus.FailApi),
-            CancellationToken.None);
-
-        Assert.Equal(WebViewDiagnosticStatus.Pass, second.Status);
-        Assert.False(gate.IsRunning);
     }
 
     [Fact]
@@ -324,130 +202,11 @@ public class WebViewRequestAndNavigationTests
     }
 
     [Fact]
-    public async Task TimeoutDiagnostics_ContainNoUserContentOrSecrets()
-    {
-        const string secret = "user-prompt-and-cookie-value";
-        var host = new RecordingHost();
-        var transport = new ScriptedTransport();
-        transport.SetQueue(
-            ChatGptEndpoints.Session,
-            new ProviderResponse
-            {
-                Status = 0,
-                Error = WebViewInitializationCodes.RequestTimeout,
-                Body = $"{{\"prompt\":\"{secret}\",\"assistant\":\"{secret}\",\"Authorization\":\"Bearer {secret}\"}}"
-            });
-
-        var result = await new WebViewCompatibilityDiagnostic(transport, host, host).RunAsync();
-        var serialized = JsonSerializer.Serialize(result);
-
-        Assert.Equal(WebViewDiagnosticStatus.FailApi, result.Status);
-        Assert.DoesNotContain(secret, serialized, StringComparison.Ordinal);
-        Assert.DoesNotContain("prompt", serialized, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("assistant", serialized, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Authorization", serialized, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("Cookie", serialized, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("chatgpt.com", serialized, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public async Task RequestTimeout_LeavesCompanionSettingsAndWatermarksUntouched()
-    {
-        var directory = Path.Combine(Path.GetTempPath(), "prometer-tests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
-        using var store = new SqliteStore(Path.Combine(directory, "production.db"));
-        store.SetState("last_index_sync", "watermark-before");
-        var settings = AppSettings.CreateDefaults();
-        settings.AuthTransport = AuthTransportKind.BrowserCompanion;
-        settings.AutoSync = false;
-        settings.StartWithWindows = false;
-        var before = JsonSerializer.Serialize(settings);
-        var transport = new ScriptedTransport();
-        transport.SetQueue(
-            ChatGptEndpoints.Session,
-            new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.RequestTimeout });
-
-        var result = await new WebViewCompatibilityDiagnostic(transport, new RecordingHost(), new RecordingHost()).RunAsync();
-
-        Assert.Equal(WebViewDiagnosticStatus.FailApi, result.Status);
-        Assert.Equal(before, JsonSerializer.Serialize(settings));
-        Assert.Equal(AuthTransportKind.BrowserCompanion, settings.AuthTransport);
-        Assert.False(settings.AutoSync);
-        Assert.False(settings.StartWithWindows);
-        Assert.Equal("watermark-before", store.GetState("last_index_sync"));
-    }
-
-    [Fact]
     public void FetchTimeoutConstants_MatchRequiredBounds()
     {
         Assert.Equal(20_000, WebViewFetchScript.RequestTimeoutMilliseconds);
         Assert.Equal(TimeSpan.FromSeconds(20), WebViewFetchScript.RequestTimeout);
         Assert.Equal(TimeSpan.FromSeconds(25), WebViewFetchScript.ScriptGuardTimeout);
         Assert.True(WebViewFetchScript.ScriptGuardTimeout > WebViewFetchScript.RequestTimeout);
-    }
-
-    private static ScriptedTransport PassingTransport()
-    {
-        var transport = new ScriptedTransport();
-        transport.SetQueue(ChatGptEndpoints.Session, SignedInSession());
-        transport.SetQueue(ChatGptEndpoints.AccountsCheck, Ok("{\"accounts\":{}}"));
-        transport.SetQueue(ChatGptEndpoints.Models, Ok("{\"models\":[]}"));
-        transport.SetQueue(
-            ChatGptEndpoints.ConversationsPage(0, ConversationIndexPager.RequestedLimit, archived: false),
-            Ok("{\"items\":[],\"total\":0,\"offset\":0,\"limit\":100,\"has_more\":false}"));
-        return transport;
-    }
-
-    private static ProviderResponse SignedInSession() => Ok("{\"user\":{\"id\":\"synthetic-user\"}}");
-
-    private static ProviderResponse Ok(string body) => new() { Status = 200, Body = body };
-
-    private sealed class RecordingHost : IWebViewInteractiveLogin, IWebViewDiagnosticHost
-    {
-        public WebViewHostSession Session { get; } = new();
-
-        public void RealizeDiagnosticHost() => Session.RealizeForDiagnostic();
-        public void HideDiagnosticHost() => Session.HideAfterSuccessfulSession();
-        public void PrepareLoginOnSameHost() => Session.ShowLoginOnSameHost();
-
-        public Task<WebViewInteractiveLoginResult> ShowInteractiveLoginAsync(
-            CancellationToken cancellationToken = default)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult(WebViewInteractiveLoginResult.SignedIn);
-        }
-    }
-
-    private sealed class ScriptedTransport : IChatGptTransport
-    {
-        private readonly Dictionary<string, Queue<ProviderResponse>> _responses = new(StringComparer.Ordinal);
-        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public bool Hold { get; set; }
-
-        public void SetQueue(string path, params ProviderResponse[] responses) =>
-            _responses[path] = new Queue<ProviderResponse>(responses);
-
-        public async Task<ProviderResponse> SendAsync(
-            string method,
-            string path,
-            string? jsonBody = null,
-            CancellationToken cancellationToken = default)
-        {
-            _ = method;
-            _ = jsonBody;
-            Entered.TrySetResult();
-            if (Hold)
-            {
-                await Task.Delay(Timeout.Infinite, cancellationToken);
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-            if (_responses.TryGetValue(path, out var queue) && queue.Count > 0)
-            {
-                return queue.Dequeue();
-            }
-
-            return new ProviderResponse { Status = 500, Error = "unexpected diagnostic operation" };
-        }
     }
 }

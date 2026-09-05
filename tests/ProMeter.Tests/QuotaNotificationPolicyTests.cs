@@ -38,6 +38,74 @@ public class QuotaNotificationPolicyTests
     }
 
     [Fact]
+    public void WeeklyAuthority_DoesNotGateSolDailyThreshold()
+    {
+        var settings = NotifyAll();
+        var snapshot = new QuotaSnapshot
+        {
+            Used = 10,
+            Limit = 50,
+            UsesServerWeeklyCount = true,
+            UsesServerSolDailyCount = false,
+            TodaySolPro = 95,
+            SolProDailyLimit = 100,
+            PeriodStart = DateTimeOffset.UtcNow.AddDays(-2)
+        };
+        var notifications = QuotaNotificationPolicy.Evaluate(snapshot, settings);
+        Assert.DoesNotContain(notifications, item => item.Body == UiText.ToastSol10 || item.Body == UiText.ToastSol20);
+    }
+
+    [Fact]
+    public void WeeklyAuthority_DoesNotGateCombinedDailyThreshold()
+    {
+        var settings = NotifyAll();
+        var snapshot = new QuotaSnapshot
+        {
+            Used = 10,
+            Limit = 50,
+            UsesServerWeeklyCount = true,
+            UsesServerCombinedDailyCount = false,
+            CombinedToday = 190,
+            CombinedDailyLimit = 200,
+            PeriodStart = DateTimeOffset.UtcNow.AddDays(-2)
+        };
+        var notifications = QuotaNotificationPolicy.Evaluate(snapshot, settings);
+        Assert.DoesNotContain(
+            notifications,
+            item => item.Body == UiText.ToastCombined10 || item.Body == UiText.ToastCombined20);
+    }
+
+    [Fact]
+    public void SolDailyAuthoritative_PermitsThresholdNotification()
+    {
+        var settings = NotifyAll();
+        var snapshot = new QuotaSnapshot
+        {
+            UsesServerSolDailyCount = true,
+            TodaySolPro = 90,
+            SolProDailyLimit = 100,
+            PeriodStart = DateTimeOffset.UtcNow.AddDays(-2)
+        };
+        var first = QuotaNotificationPolicy.Evaluate(snapshot, settings);
+        Assert.Contains(first, item => item.Kind == QuotaNotificationKind.Threshold && item.Body == UiText.ToastSol10);
+    }
+
+    [Fact]
+    public void CombinedDailyAuthoritative_PermitsThresholdNotification()
+    {
+        var settings = NotifyAll();
+        var snapshot = new QuotaSnapshot
+        {
+            UsesServerCombinedDailyCount = true,
+            CombinedToday = 180,
+            CombinedDailyLimit = 200,
+            PeriodStart = DateTimeOffset.UtcNow.AddDays(-2)
+        };
+        var first = QuotaNotificationPolicy.Evaluate(snapshot, settings);
+        Assert.Contains(first, item => item.Kind == QuotaNotificationKind.Threshold && item.Body == UiText.ToastCombined10);
+    }
+
+    [Fact]
     public void NewCorrelatedRestriction_NotifiesOnce()
     {
         var settings = NotifyAll();

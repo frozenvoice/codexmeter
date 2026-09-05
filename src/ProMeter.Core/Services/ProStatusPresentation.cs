@@ -32,11 +32,10 @@ public sealed class ProStatusPresentation
         var stale = status.Stale;
         var ambiguous = status.HasAmbiguousResets || status.ResetConfidence == ServerResetConfidence.Ambiguous;
         var hasServerReset = status.ResetConfidence == ServerResetConfidence.Server && status.ResetAt is not null;
-        var exact = snapshot.UsesServerCount && !snapshot.DisplayUsageUnavailable;
-        var reconstructedCount = snapshot.ReconstructedUsed > 0 ? snapshot.ReconstructedUsed : snapshot.Used;
+        var exact = snapshot.UsesServerWeeklyCount && !snapshot.DisplayUsageUnavailable;
         var reconstructed = snapshot.DisplayUsageUnavailable
             ? "?"
-            : reconstructedCount.ToString(CultureInfo.InvariantCulture) + "+";
+            : snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture) + "+";
         var stateText = status.RestrictionState switch
         {
             ProRestrictionState.CorrelatedRestriction => UiText.ProRestricted,

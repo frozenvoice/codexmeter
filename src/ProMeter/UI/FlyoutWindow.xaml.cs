@@ -58,18 +58,15 @@ public partial class FlyoutWindow : Window
         Pro200Panel.Visibility = showPro200 ? Visibility.Visible : Visibility.Collapsed;
         if (showPro200)
         {
-            Gpt6WeekText.Text = snapshot.UsesServerCount
-                ? $"{snapshot.Gpt6WeeklyUsed} / {snapshot.Limit}"
-                : $"{snapshot.Gpt6WeeklyUsed}+";
+            Gpt6WeekText.Text = DisplayFormatting.WindowUsage(
+                snapshot.UsesServerWeeklyCount ? snapshot.Used : snapshot.Gpt6WeeklyUsed,
+                snapshot.Limit,
+                snapshot.UsesServerWeeklyCount);
             SolDailyText.Text = snapshot.SolProDailyLimit is int sol
-                ? snapshot.UsesServerCount
-                    ? $"{snapshot.TodaySolPro} / {sol}"
-                    : $"{snapshot.TodaySolPro}+"
+                ? DisplayFormatting.WindowUsage(snapshot.TodaySolPro, sol, snapshot.UsesServerSolDailyCount)
                 : "—";
             CombinedDailyText.Text = snapshot.CombinedDailyLimit is int combined
-                ? snapshot.UsesServerCount
-                    ? $"{snapshot.CombinedToday} / {combined}"
-                    : $"{snapshot.CombinedToday}+"
+                ? DisplayFormatting.WindowUsage(snapshot.CombinedToday, combined, snapshot.UsesServerCombinedDailyCount)
                 : "—";
         }
 

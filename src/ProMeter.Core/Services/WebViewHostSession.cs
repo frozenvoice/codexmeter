@@ -1,7 +1,7 @@
 namespace ProMeter.Services;
 
 /// <summary>
-/// Tracks a single realized WebView2 host Window. Diagnostic checking and
+/// Tracks a single realized WebView2 host Window. Session checking and
 /// interactive login must reuse this host; a hidden/unrealized window is not
 /// a valid first-initialization surface.
 /// </summary>
@@ -53,32 +53,14 @@ public sealed class WebViewHostSession
     }
 }
 
-/// <summary>
-/// Ensures Settings cancellation or a finished diagnostic always releases the
-/// "diagnostic running" flag so the Test WebView2 button can be used again.
-/// </summary>
-public sealed class WebViewOperationGate
+public enum WebViewInteractiveLoginResult
 {
-    public bool IsRunning { get; private set; }
+    SignedIn,
+    Cancelled,
+    Unsupported
+}
 
-    public async Task<T> RunAsync<T>(
-        Func<CancellationToken, Task<T>> work,
-        Func<T> busy,
-        CancellationToken cancellationToken)
-    {
-        if (IsRunning)
-        {
-            return busy();
-        }
-
-        IsRunning = true;
-        try
-        {
-            return await work(cancellationToken);
-        }
-        finally
-        {
-            IsRunning = false;
-        }
-    }
+public interface IWebViewInteractiveLogin
+{
+    Task<WebViewInteractiveLoginResult> ShowInteractiveLoginAsync(CancellationToken cancellationToken = default);
 }

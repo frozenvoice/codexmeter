@@ -22,7 +22,14 @@ public sealed class QuotaSnapshot
     public int CombinedToday { get; set; }
     public int Gpt6WeeklyUsed { get; set; }
     public int ReconstructedUsed { get; set; }
-    public bool UsesServerCount { get; set; }
+    public bool UsesServerWeeklyCount { get; set; }
+    public bool UsesServerSolDailyCount { get; set; }
+    public bool UsesServerCombinedDailyCount { get; set; }
+    public bool UsesServerCount
+    {
+        get => UsesServerWeeklyCount;
+        set => UsesServerWeeklyCount = value;
+    }
     public bool DisplayUsageUnavailable { get; set; }
     public ProServerStatus ProServerStatus { get; set; } = ProServerStatus.Unknown();
     public bool IsSyncing { get; set; }

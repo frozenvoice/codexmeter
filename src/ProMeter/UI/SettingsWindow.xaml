@@ -67,14 +67,6 @@
             <TextBlock x:Name="PairingHint" Foreground="{DynamicResource MutedBrush}" Text="Local pairing token (not a ChatGPT secret). The native host attaches it automatically." Margin="0,0,0,4"/>
             <TextBox x:Name="PairingBox" Margin="0,0,0,8" IsReadOnly="True"/>
             <Button x:Name="RegisterButton" Style="{StaticResource GhostButton}" Content="Register Chrome/Edge native host" Click="OnRegisterCompanion" HorizontalAlignment="Left" Margin="0,0,0,8"/>
-            <WrapPanel Margin="0,0,0,4">
-                <Button x:Name="TestWebViewButton" Style="{StaticResource GhostButton}" Click="OnTestWebView" Margin="0,0,8,8"/>
-                <Button x:Name="FullWebViewVerificationButton" Style="{StaticResource GhostButton}" Click="OnFullWebViewVerification" Margin="0,0,8,8" Visibility="Collapsed"/>
-                <Button x:Name="UseWebViewDefaultButton" Style="{StaticResource GhostButton}" Click="OnUseWebViewDefault" Margin="0,0,8,8" Visibility="Collapsed"/>
-            </WrapPanel>
-            <TextBlock x:Name="WebViewResultText" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" Margin="0,0,0,4" Visibility="Collapsed"/>
-            <TextBlock x:Name="WebViewComparisonText" Foreground="{DynamicResource TextBrush}" TextWrapping="Wrap" Margin="0,0,0,4" Visibility="Collapsed"/>
-            <TextBlock x:Name="WebViewTechnicalDetailText" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
 
             <TextBlock x:Name="AppTitle" Style="{StaticResource SectionTitle}" Text="APP"/>
             <TextBlock x:Name="AppHint" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"
