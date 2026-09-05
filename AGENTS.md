@@ -162,6 +162,12 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - A click intended to inspect status must not accidentally begin a long sync.
 - All new UI strings must use the existing Korean/English localization system.
 - Stateful controls and buttons must remain visible in dark, light and system themes.
+- Manual refresh must provide unmistakable visible progress feedback.
+- A static color change alone is not sufficient progress feedback.
+- Codex fixtures must match the official generated app-server protocol shape.
+- Root response metadata and selected rate-limit bucket metadata must not be conflated.
+- SystemEvents callbacks must marshal to the owning WPF Dispatcher before touching windows, controls, DispatcherTimer or presentation state.
+- Taskbar auto-hide state must affect overlay visibility.
 - Commit, push, remote SHA verification and pushed CI verification remain mandatory.
 
 ## Testing and completion

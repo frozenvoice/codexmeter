@@ -5,7 +5,91 @@ namespace ProMeter.Tests;
 public class CodexRateLimitParserTests
 {
     [Fact]
-    public void RateLimitsOnly_ParsesPrimaryAndSecondaryByDuration()
+    public void OfficialGetAccountRateLimitsResponse_ReadsRootMetadataAndSelectedSnapshot()
+    {
+        var parsed = CodexRateLimitParser.Parse(
+            null,
+            JsonNode.Parse("""
+            {
+              "result": {
+                "ordinaryUsageAllowed": true,
+                "rateLimits": {
+                  "limitId": "codex",
+                  "primary": {
+                    "usedPercent": 42,
+                    "windowDurationMins": 300,
+                    "resetsAt": 1893456000
+                  },
+                  "secondary": {
+                    "usedPercent": 31,
+                    "windowDurationMins": 10080,
+                    "resetsAt": 1894051200
+                  },
+                  "planType": "pro",
+                  "rateLimitReachedType": null
+                },
+                "rateLimitsByLimitId": {
+                  "codex": {
+                    "limitId": "codex",
+                    "primary": {
+                      "usedPercent": 42,
+                      "windowDurationMins": 300,
+                      "resetsAt": 1893456000
+                    },
+                    "secondary": {
+                      "usedPercent": 31,
+                      "windowDurationMins": 10080,
+                      "resetsAt": 1894051200
+                    },
+                    "planType": "pro",
+                    "rateLimitReachedType": null
+                  }
+                },
+                "rateLimitResetCredits": {
+                  "availableCount": 1,
+                  "credits": null
+                },
+                "accountId": "must-not-be-persisted"
+              }
+            }
+            """));
+        Assert.Equal(CodexQuotaStatus.Available, parsed.Status);
+        Assert.Equal(42, parsed.Windows[0].UsedPercent);
+        Assert.Equal(CodexWindowKind.FiveHour, parsed.Windows[0].Kind);
+        Assert.Equal(31, parsed.Windows[1].UsedPercent);
+        Assert.Equal(CodexWindowKind.Weekly, parsed.Windows[1].Kind);
+        Assert.True(parsed.OrdinaryUsageAllowed);
+        Assert.Equal(1, parsed.ResetCreditsAvailable);
+        Assert.Equal("pro", parsed.PlanType);
+        Assert.Null(parsed.RateLimitReachedType);
+        Assert.DoesNotContain("must-not-be-persisted", parsed.Detail ?? "", StringComparison.Ordinal);
+        Assert.DoesNotContain("accountId", parsed.Detail ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "must-not-be-persisted",
+            CodexProtocol.SanitizeDiagnostic("""{"accountId":"must-not-be-persisted"}"""),
+            StringComparison.Ordinal);
+
+        var path = Path.Combine(Path.GetTempPath(), $"prometer-codex-official-{Guid.NewGuid():N}.json");
+        var store = new CodexSnapshotStore(path);
+        store.Save(new CodexQuotaSnapshot(
+            parsed.Status,
+            parsed.PlanType,
+            DateTimeOffset.Parse("2026-09-05T02:00:00Z"),
+            DateTimeOffset.Parse("2026-09-05T02:00:00Z"),
+            parsed.OrdinaryUsageAllowed,
+            parsed.RateLimitReachedType,
+            parsed.ResetCreditsAvailable,
+            parsed.Windows,
+            parsed.Detail));
+        var json = File.ReadAllText(path);
+        Assert.DoesNotContain("accountId", json, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("must-not-be-persisted", json, StringComparison.Ordinal);
+        Assert.Equal("pro", store.Load()?.PlanType);
+        File.Delete(path);
+    }
+
+    [Fact]
+    public void NestedBucketMetadata_RemainsBackwardCompatible()
     {
         var parsed = CodexRateLimitParser.Parse(null, JsonNode.Parse("""
             {
@@ -18,15 +102,29 @@ public class CodexRateLimitParserTests
               }
             }
             """));
-        Assert.Equal(CodexQuotaStatus.Available, parsed.Status);
-        Assert.Equal(2, parsed.Windows.Count);
-        Assert.Equal(CodexWindowKind.FiveHour, parsed.Windows[0].Kind);
-        Assert.Equal(42, parsed.Windows[0].UsedPercent);
-        Assert.Equal(58, parsed.Windows[0].RemainingPercent);
-        Assert.Equal(CodexWindowKind.Weekly, parsed.Windows[1].Kind);
         Assert.True(parsed.OrdinaryUsageAllowed);
         Assert.Equal(1, parsed.ResetCreditsAvailable);
         Assert.Equal("none", parsed.RateLimitReachedType);
+    }
+
+    [Fact]
+    public void SnapshotPlanType_FallsBackFromSelectedRateLimitBucket()
+    {
+        var parsed = CodexRateLimitParser.Parse(null, JsonNode.Parse("""
+            {
+              "ordinaryUsageAllowed": false,
+              "rateLimitsByLimitId": {
+                "codex": {
+                  "primary": { "usedPercent": 8, "windowDurationMins": 300 },
+                  "planType": "pro"
+                }
+              },
+              "rateLimitResetCredits": { "availableCount": 2 }
+            }
+            """));
+        Assert.Equal("pro", parsed.PlanType);
+        Assert.False(parsed.OrdinaryUsageAllowed);
+        Assert.Equal(2, parsed.ResetCreditsAvailable);
     }
 
     [Fact]

@@ -27,17 +27,38 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.DoesNotContain("Visibility=\"Collapsed\"", button.ToString(), StringComparison.Ordinal);
         Assert.Contains("CODEX", document.ToString(), StringComparison.Ordinal);
         Assert.Contains("CodexRows", document.ToString(), StringComparison.Ordinal);
+        Assert.Contains("RefreshProgressText", document.ToString(), StringComparison.Ordinal);
+        var icon = document.Descendants(ns + "TextBlock")
+            .Single(element => (string?)element.Attribute(x + "Name") == "RefreshAllIcon");
+        Assert.Equal("↻", (string?)icon.Attribute("Text") ?? icon.Value.Trim());
+        Assert.Equal("0.5,0.5", (string?)icon.Attribute("RenderTransformOrigin"));
+        Assert.Contains("RotateTransform", icon.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("IsMouseOver", icon.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Storyboard", button.ToString(), StringComparison.Ordinal);
+        var flyoutCode = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
+        Assert.Contains("RefreshIndicatorController", flyoutCode, StringComparison.Ordinal);
+        Assert.Contains("RepeatBehavior.Forever", flyoutCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("EasingFunction", flyoutCode, StringComparison.Ordinal);
+        Assert.Contains("_suppressDeactivateClose = true", flyoutCode, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void RefreshPresentation_DisablesOnlyWhenBothBusy_AndRestores()
+    public void RefreshPresentation_DisablesDuringCombinedManual_AndKeepsProviderText()
     {
-        Assert.True(CombinedRefreshCoordinator.Present(false, false).Enabled);
-        Assert.True(CombinedRefreshCoordinator.Present(true, false).Enabled);
-        Assert.True(CombinedRefreshCoordinator.Present(false, true).Enabled);
-        var both = CombinedRefreshCoordinator.Present(true, true);
-        Assert.False(both.Enabled);
-        Assert.True(both.Active);
+        var idle = CombinedRefreshCoordinator.Present(false, false);
+        Assert.True(idle.Enabled);
+        Assert.False(idle.Active);
+        Assert.Equal("", idle.ProgressText);
+
+        var autoCodex = CombinedRefreshCoordinator.Present(false, true);
+        Assert.True(autoCodex.Enabled);
+        Assert.True(autoCodex.Active);
+
+        var manual = CombinedRefreshCoordinator.Present(true, true, combinedManual: true);
+        Assert.False(manual.Enabled);
+        Assert.True(manual.Active);
+        Assert.Equal(UiText.RefreshAllProgress, manual.ProgressText);
+
         var restored = CombinedRefreshCoordinator.Present(false, false);
         Assert.True(restored.Enabled);
         Assert.False(restored.Active);
@@ -89,6 +110,8 @@ public class FlyoutRefreshAndLocalizationTests
         {
             Assert.Equal("Always show taskbar status", UiText.TaskbarStatusEnabled);
             Assert.Equal("Refresh all", UiText.RefreshAll);
+            Assert.Equal("Refreshing...", UiText.RefreshAllProgress);
+            Assert.Equal("Syncing", UiText.Syncing);
             Assert.Equal("Codex usage", UiText.CodexUsage);
             Assert.Equal("5-hour used", UiText.FiveHourUsed);
             Assert.Equal("5-hour remaining", UiText.FiveHourRemaining);
@@ -106,6 +129,8 @@ public class FlyoutRefreshAndLocalizationTests
             UiText.SetLanguage(UiLanguage.Korean);
             Assert.Equal("작업표시줄 상시 표시", UiText.TaskbarStatusEnabled);
             Assert.Equal("모두 새로고침", UiText.RefreshAll);
+            Assert.Equal("동기화 중...", UiText.RefreshAllProgress);
+            Assert.Equal("동기화 중", UiText.Syncing);
             Assert.Equal("5시간 사용량", UiText.FiveHourUsed);
             Assert.Equal("주간 남음", UiText.WeeklyRemaining);
             Assert.Equal("리셋권", UiText.ResetCredits);
@@ -152,6 +177,83 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.DoesNotContain("SetWindowsHook", win32, StringComparison.Ordinal);
         Assert.Contains("WsExNoActivate", win32, StringComparison.Ordinal);
         Assert.Contains("~WsExTransparent", win32, StringComparison.Ordinal);
+        Assert.Contains("UiCallbackMarshal.TryPost", source, StringComparison.Ordinal);
+        Assert.Contains("Dispatcher.BeginInvoke", source, StringComparison.Ordinal);
+        Assert.Contains("HasShutdownStarted", source, StringComparison.Ordinal);
+        Assert.Contains("HasShutdownFinished", source, StringComparison.Ordinal);
+        var systemHandler = source[source.IndexOf("private void OnSystemLayout", StringComparison.Ordinal)..];
+        Assert.DoesNotContain("RequestReposition();", systemHandler.Split("Dispatcher.BeginInvoke")[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CombinedManualRefresh_DisablesButtonUntilFinished()
+    {
+        var gate = new TaskCompletionSource();
+        var coordinator = new CombinedRefreshCoordinator(
+            async (_, _) =>
+            {
+                await gate.Task;
+                return new SyncOutcome(AppSyncStatus.UpToDate, null, 1);
+            },
+            async _ =>
+            {
+                await gate.Task;
+                return new CodexRefreshResult(
+                    CodexQuotaSnapshot.Empty(CodexQuotaStatus.Available),
+                    false,
+                    null);
+            });
+
+        var running = coordinator.RefreshAllAsync(true, CancellationToken.None);
+        Assert.True(coordinator.ManualRefreshInProgress);
+        Assert.False(coordinator.RefreshButtonEnabled);
+        var busy = CombinedRefreshCoordinator.Present(
+            coordinator.ChatGptRefreshing,
+            coordinator.CodexRefreshing,
+            coordinator.ManualRefreshInProgress);
+        Assert.False(busy.Enabled);
+        Assert.True(busy.Active);
+        Assert.Equal(UiText.RefreshAllProgress, busy.ProgressText);
+        gate.SetResult();
+        await running;
+        Assert.False(coordinator.ManualRefreshInProgress);
+        Assert.True(coordinator.RefreshButtonEnabled);
+        var restored = CombinedRefreshCoordinator.Present(false, false, coordinator.ManualRefreshInProgress);
+        Assert.True(restored.Enabled);
+        Assert.False(restored.Active);
+    }
+
+    [Fact]
+    public async Task CombinedManualRefresh_CancellationReenablesButton()
+    {
+        using var cts = new CancellationTokenSource();
+        var coordinator = new CombinedRefreshCoordinator(
+            async (_, token) =>
+            {
+                await Task.Delay(Timeout.Infinite, token);
+                return new SyncOutcome(AppSyncStatus.UpToDate, null, 0);
+            },
+            async token =>
+            {
+                await Task.Delay(Timeout.Infinite, token);
+                return new CodexRefreshResult(
+                    CodexQuotaSnapshot.Empty(CodexQuotaStatus.Cancelled),
+                    false,
+                    "cancelled");
+            });
+        var running = coordinator.RefreshAllAsync(true, cts.Token);
+        Assert.False(coordinator.RefreshButtonEnabled);
+        cts.Cancel();
+        try
+        {
+            await running;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        Assert.False(coordinator.ManualRefreshInProgress);
+        Assert.True(coordinator.RefreshButtonEnabled);
     }
 
     private static string Find(string relative)

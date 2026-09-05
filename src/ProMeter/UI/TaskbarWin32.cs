@@ -24,7 +24,10 @@ internal static class TaskbarWin32
     {
         var taskbarHwnd = FindWindow("Shell_TrayWnd", null);
         var pos = GetTaskbarPos(taskbarHwnd);
-        var monitor = MonitorFromPoint(new POINT { X = pos.Bounds.X + 1, Y = pos.Bounds.Y + 1 });
+        var actual = taskbarHwnd != IntPtr.Zero && GetWindowRect(taskbarHwnd, out var trayRect)
+            ? ToRect(trayRect)
+            : pos.Bounds;
+        var monitor = MonitorFromPoint(new POINT { X = actual.X + 1, Y = actual.Y + 1 });
         var work = WorkArea(monitor);
         var scale = DpiScale(stripHwnd != IntPtr.Zero ? stripHwnd : taskbarHwnd);
         var notify = ChildRect(taskbarHwnd, "TrayNotifyWnd");
@@ -36,7 +39,7 @@ internal static class TaskbarWin32
         return new TaskbarLayoutInput(
             monitor.Monitor,
             work,
-            pos.Bounds,
+            actual,
             notify?.Rect,
             clock?.Rect,
             taskList?.Rect,

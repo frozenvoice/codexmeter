@@ -164,7 +164,7 @@ internal static class CodexScript
             "account/rateLimits/read" =>
             [
                 "{\"method\":\"item/completed\",\"params\":{}}",
-                "{\"id\":" + id + ",\"result\":{\"rateLimits\":{\"primary\":{\"usedPercent\":42,\"windowDurationMins\":300,\"resetsAt\":1893456000},\"secondary\":{\"usedPercent\":31,\"windowDurationMins\":10080,\"resetsAt\":1894051200},\"ordinaryUsageAllowed\":true,\"rateLimitResetCredits\":{\"availableCount\":1}}}}"
+                "{\"id\":" + id + ",\"result\":{\"ordinaryUsageAllowed\":true,\"rateLimits\":{\"limitId\":\"codex\",\"primary\":{\"usedPercent\":42,\"windowDurationMins\":300,\"resetsAt\":1893456000},\"secondary\":{\"usedPercent\":31,\"windowDurationMins\":10080,\"resetsAt\":1894051200},\"planType\":\"pro\",\"rateLimitReachedType\":null},\"rateLimitsByLimitId\":{\"codex\":{\"limitId\":\"codex\",\"primary\":{\"usedPercent\":42,\"windowDurationMins\":300,\"resetsAt\":1893456000},\"secondary\":{\"usedPercent\":31,\"windowDurationMins\":10080,\"resetsAt\":1894051200},\"planType\":\"pro\",\"rateLimitReachedType\":null}},\"rateLimitResetCredits\":{\"availableCount\":1,\"credits\":null}}}"
             ],
             _ => []
         };

@@ -24,14 +24,16 @@ public sealed class CombinedRefreshCoordinator
 
     public bool ChatGptRefreshing { get; private set; }
     public bool CodexRefreshing { get; private set; }
+    public bool ManualRefreshInProgress { get; private set; }
     public bool BothRefreshing => ChatGptRefreshing && CodexRefreshing;
-    public bool RefreshButtonEnabled => !BothRefreshing;
-    public bool RefreshButtonActive => ChatGptRefreshing || CodexRefreshing;
+    public bool RefreshButtonEnabled => !ManualRefreshInProgress;
+    public bool RefreshButtonActive => ManualRefreshInProgress || ChatGptRefreshing || CodexRefreshing;
 
     public event Action? StateChanged;
 
     public async Task<CombinedRefreshResult> RefreshAllAsync(bool forceChatGpt, CancellationToken cancellationToken)
     {
+        ManualRefreshInProgress = true;
         var chatStarted = !ChatGptRefreshing;
         var codexStarted = !CodexRefreshing;
         if (chatStarted)
@@ -51,7 +53,7 @@ public sealed class CombinedRefreshCoordinator
                 ? SafeChatGpt(forceChatGpt, cancellationToken)
                 : Task.FromResult<SyncOutcome?>(null);
             var codexTask = codexStarted
-                ? _codex(cancellationToken)
+                ? SafeCodex(cancellationToken)
                 : Task.FromResult(new CodexRefreshResult(
                     CodexQuotaSnapshot.Empty(CodexQuotaStatus.Refreshing),
                     UsedCache: true,
@@ -80,12 +82,36 @@ public sealed class CombinedRefreshCoordinator
                 CodexRefreshing = false;
             }
 
+            ManualRefreshInProgress = false;
             Raise();
         }
     }
 
-    public static FlyoutRefreshPresentation Present(bool chatGptRefreshing, bool codexRefreshing) =>
-        new(!chatGptRefreshing || !codexRefreshing, chatGptRefreshing || codexRefreshing);
+    public static FlyoutRefreshPresentation Present(
+        bool chatGptRefreshing,
+        bool codexRefreshing,
+        bool combinedManual = false) =>
+        new(
+            !combinedManual,
+            combinedManual || chatGptRefreshing || codexRefreshing,
+            combinedManual || chatGptRefreshing || codexRefreshing ? UiText.RefreshAllProgress : "");
+
+    private async Task<CodexRefreshResult> SafeCodex(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _codex(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return new CodexRefreshResult(
+                CodexQuotaSnapshot.Empty(
+                    cancellationToken.IsCancellationRequested ? CodexQuotaStatus.Cancelled : CodexQuotaStatus.TimedOut,
+                    cancellationToken.IsCancellationRequested ? "cancelled" : "timed-out"),
+                UsedCache: true,
+                cancellationToken.IsCancellationRequested ? "cancelled" : "timed-out");
+        }
+    }
 
     private async Task<SyncOutcome?> SafeChatGpt(bool force, CancellationToken cancellationToken)
     {
@@ -122,4 +148,4 @@ public sealed class CombinedRefreshCoordinator
     private void Raise() => StateChanged?.Invoke();
 }
 
-public readonly record struct FlyoutRefreshPresentation(bool Enabled, bool Active);
+public readonly record struct FlyoutRefreshPresentation(bool Enabled, bool Active, string ProgressText);

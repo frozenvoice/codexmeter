@@ -1,6 +1,7 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using ProMeter.Codex;
 
 namespace ProMeter.UI;
@@ -11,11 +12,20 @@ public partial class FlyoutWindow : Window
     public event Action? SyncRequested;
     public bool CloseOnDeactivate { get; set; } = true;
     private bool _suppressDeactivateClose;
+    private readonly RefreshIndicatorController _refreshIndicator = new();
+    private Storyboard? _refreshStoryboard;
+    private bool _refreshActive;
 
     public FlyoutWindow()
     {
         InitializeComponent();
         ApplyLocalizedTexts();
+        IsVisibleChanged += (_, _) => ApplyRefreshIndicator(IsVisible && _refreshActive);
+        Closed += (_, _) =>
+        {
+            _refreshActive = false;
+            ApplyRefreshIndicator(false);
+        };
     }
 
     public void Bind(
@@ -23,7 +33,8 @@ public partial class FlyoutWindow : Window
         AppSettings settings,
         CodexQuotaSnapshot? codex = null,
         bool chatGptRefreshing = false,
-        bool codexRefreshing = false)
+        bool codexRefreshing = false,
+        bool combinedManual = false)
     {
         ApplyLocalizedTexts();
         StatusText.Text = DisplayFormatting.StatusLabel(snapshot);
@@ -77,7 +88,7 @@ public partial class FlyoutWindow : Window
         }
 
         BindCodex(codex ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable));
-        SetRefreshPresentation(CombinedRefreshCoordinator.Present(chatGptRefreshing, codexRefreshing));
+        SetRefreshPresentation(CombinedRefreshCoordinator.Present(chatGptRefreshing, codexRefreshing, combinedManual));
 
         Dispatcher.BeginInvoke(() =>
         {
@@ -108,6 +119,51 @@ public partial class FlyoutWindow : Window
         RefreshAllIcon.Foreground = presentation.Active
             ? (Brush)FindResource("AccentBrush")
             : (Brush)FindResource("TextBrush");
+        RefreshProgressText.Text = presentation.ProgressText;
+        RefreshProgressText.Visibility = presentation.Active && !string.IsNullOrWhiteSpace(presentation.ProgressText)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        _refreshActive = presentation.Active;
+        ApplyRefreshIndicator(presentation.Active);
+    }
+
+    public RefreshIndicatorController RefreshIndicator => _refreshIndicator;
+
+    private void ApplyRefreshIndicator(bool active)
+    {
+        var transition = active && IsVisible
+            ? _refreshIndicator.Apply(true)
+            : _refreshIndicator.Reset();
+        if (transition == RefreshIndicatorTransition.Started)
+        {
+            EnsureRefreshStoryboard().Begin(this, true);
+        }
+        else if (transition == RefreshIndicatorTransition.Stopped)
+        {
+            _refreshStoryboard?.Stop(this);
+            RefreshAllRotate.Angle = 0;
+        }
+    }
+
+    private Storyboard EnsureRefreshStoryboard()
+    {
+        if (_refreshStoryboard is not null)
+        {
+            return _refreshStoryboard;
+        }
+
+        var animation = new DoubleAnimation
+        {
+            From = 0,
+            To = 360,
+            Duration = TimeSpan.FromSeconds(RefreshIndicatorController.DurationSeconds),
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        Storyboard.SetTarget(animation, RefreshAllRotate);
+        Storyboard.SetTargetProperty(animation, new PropertyPath(RotateTransform.AngleProperty));
+        _refreshStoryboard = new Storyboard();
+        _refreshStoryboard.Children.Add(animation);
+        return _refreshStoryboard;
     }
 
     public void ApplyLocalizedTexts()

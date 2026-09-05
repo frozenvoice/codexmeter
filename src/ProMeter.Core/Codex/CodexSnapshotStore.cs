@@ -65,7 +65,8 @@ public sealed class CodexSnapshotStore
                || json.Contains("refresh_token", StringComparison.OrdinalIgnoreCase)
                || json.Contains("\"cookie\"", StringComparison.OrdinalIgnoreCase)
                || json.Contains("@")
-               || json.Contains("Bearer ", StringComparison.OrdinalIgnoreCase);
+               || json.Contains("Bearer ", StringComparison.OrdinalIgnoreCase)
+               || json.Contains("accountId", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class PersistedSnapshot

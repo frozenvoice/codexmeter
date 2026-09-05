@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace ProMeter.Codex;
 
@@ -24,6 +25,10 @@ public static class CodexProtocol
         "turn/start",
         "turn/interrupt"
     };
+
+    private static readonly Regex AccountIdAssignment = new(
+        """(?i)["']?accountId["']?\s*[:=]\s*["'][^"']*["']""",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public static string BuildInitialize(string version)
     {
@@ -125,12 +130,14 @@ public static class CodexProtocol
             return "";
         }
 
-        var sanitized = text
+        var sanitized = AccountIdAssignment.Replace(text, "\"[redacted]\":\"[redacted]\"");
+        sanitized = sanitized
             .Replace("Authorization", "[redacted]", StringComparison.OrdinalIgnoreCase)
             .Replace("Bearer ", "[redacted] ", StringComparison.OrdinalIgnoreCase)
             .Replace("access_token", "[redacted]", StringComparison.OrdinalIgnoreCase)
             .Replace("refresh_token", "[redacted]", StringComparison.OrdinalIgnoreCase)
-            .Replace("auth.json", "[redacted]", StringComparison.OrdinalIgnoreCase);
+            .Replace("auth.json", "[redacted]", StringComparison.OrdinalIgnoreCase)
+            .Replace("accountId", "[redacted]", StringComparison.OrdinalIgnoreCase);
 
         var utf8 = System.Text.Encoding.UTF8;
         var bytes = utf8.GetBytes(sanitized);

@@ -16,6 +16,7 @@ public partial class TaskbarStatusStripWindow : Window
     private readonly DispatcherTimer _layoutTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly DispatcherTimer _fullscreenTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private HwndSource? _hwnd;
+    private bool _closed;
     private QuotaSnapshot _chatgpt = new();
     private CodexQuotaSnapshot _codex = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
     private TaskbarLayoutResult _layout;
@@ -86,7 +87,7 @@ public partial class TaskbarStatusStripWindow : Window
             Top = dip.Top;
             Width = Math.Max(1, dip.Width);
             Height = Math.Max(1, dip.Height);
-            Topmost = input.TaskbarVisible && !input.ExclusiveFullscreenOnMonitor;
+            Topmost = TaskbarStatusPositioner.ShouldShow(input);
             ApplyText();
             if (!IsVisible)
             {
@@ -149,12 +150,31 @@ public partial class TaskbarStatusStripWindow : Window
         }
     }
 
-    private void OnSystemLayout(object? sender, EventArgs e) => RequestReposition();
+    private void OnSystemLayout(object? sender, EventArgs e)
+    {
+        UiCallbackMarshal.TryPost(
+            Dispatcher.HasShutdownStarted,
+            Dispatcher.HasShutdownFinished,
+            _closed,
+            () => Dispatcher.BeginInvoke(() =>
+            {
+                if (!UiCallbackMarshal.CanPost(
+                        Dispatcher.HasShutdownStarted,
+                        Dispatcher.HasShutdownFinished,
+                        _closed))
+                {
+                    return;
+                }
+
+                RequestReposition();
+            }));
+    }
 
     private void OnLanguageChanged() => Dispatcher.BeginInvoke(ApplyText);
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
         _fullscreenTimer.Stop();
         _layoutTimer.Stop();
         SystemEvents.DisplaySettingsChanged -= OnSystemLayout;

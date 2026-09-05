@@ -23,6 +23,7 @@ public static class CodexRateLimitParser
             return new CodexParseResult(CodexQuotaStatus.ProtocolMismatch, SafePlanType(accountResult), null, null, null, [], "protocol-error");
         }
 
+        var root = UnwrapResult(rateLimitsResult);
         var bucket = SelectBucket(rateLimitsResult);
         if (bucket is null)
         {
@@ -30,10 +31,12 @@ public static class CodexRateLimitParser
         }
 
         var windows = ReadWindows(bucket);
-        var ordinary = ReadBool(bucket, "ordinaryUsageAllowed", "ordinary_usage_allowed");
+        var ordinary = (root is null ? null : ReadBool(root, "ordinaryUsageAllowed", "ordinary_usage_allowed"))
+                       ?? ReadBool(bucket, "ordinaryUsageAllowed", "ordinary_usage_allowed");
         var reached = ReadString(bucket, "rateLimitReachedType", "rate_limit_reached_type");
-        var credits = ReadResetCredits(bucket);
-        var plan = SafePlanType(accountResult);
+        var credits = (root is null ? null : ReadResetCredits(root))
+                      ?? ReadResetCredits(bucket);
+        var plan = SafePlanType(accountResult) ?? SafePlanTypeFromNode(bucket);
         return new CodexParseResult(
             CodexQuotaStatus.Available,
             plan,
@@ -375,16 +378,22 @@ public static class CodexRateLimitParser
     {
         var root = UnwrapResult(accountResult);
         var account = root?["account"] ?? root;
-        if (account is null)
+        return SafePlanTypeFromNode(account);
+    }
+
+    private static string? SafePlanTypeFromNode(JsonNode? node)
+    {
+        if (node is null)
         {
             return null;
         }
 
-        var plan = ReadString(account, "planType", "plan_type", "plan");
+        var plan = ReadString(node, "planType", "plan_type", "plan");
         if (string.IsNullOrWhiteSpace(plan)
             || plan.Contains('@', StringComparison.Ordinal)
             || plan.Contains("token", StringComparison.OrdinalIgnoreCase)
-            || plan.Contains("cookie", StringComparison.OrdinalIgnoreCase))
+            || plan.Contains("cookie", StringComparison.OrdinalIgnoreCase)
+            || plan.Contains("accountId", StringComparison.OrdinalIgnoreCase))
         {
             return null;
         }

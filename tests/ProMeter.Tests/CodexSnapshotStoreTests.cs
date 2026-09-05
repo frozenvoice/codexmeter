@@ -80,6 +80,7 @@ public class CodexSnapshotStoreTests
         Assert.True(CodexSnapshotStore.ContainsForbiddenPayload("""{"email":"user@example.com"}"""));
         Assert.True(CodexSnapshotStore.ContainsForbiddenPayload("""{"Authorization":"Bearer abc"}"""));
         Assert.True(CodexSnapshotStore.ContainsForbiddenPayload("""{"access_token":"x"}"""));
+        Assert.True(CodexSnapshotStore.ContainsForbiddenPayload("""{"accountId":"must-not-be-persisted"}"""));
         Assert.False(CodexSnapshotStore.ContainsForbiddenPayload("""{"status":"Available","usedPercent":42}"""));
     }
 

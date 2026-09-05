@@ -174,6 +174,7 @@ public static class UiText
     public static string FloatingWidget => T("Floating widget", "플로팅 위젯");
     public static string TaskbarStatusEnabled => T("Always show taskbar status", "작업표시줄 상시 표시");
     public static string RefreshAll => T("Refresh all", "모두 새로고침");
+    public static string RefreshAllProgress => T("Refreshing...", "동기화 중...");
     public static string CodexUsage => T("Codex usage", "Codex 사용량");
     public static string FiveHourUsed => T("5-hour used", "5시간 사용량");
     public static string FiveHourRemaining => T("5-hour remaining", "5시간 남음");

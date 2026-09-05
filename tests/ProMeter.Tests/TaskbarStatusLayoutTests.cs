@@ -106,6 +106,63 @@ public class TaskbarStatusLayoutTests
         Assert.Equal(TaskbarStripMode.Hidden, TaskbarStatusPositioner.Place(input).Mode);
     }
 
+    [Theory]
+    [InlineData(TaskbarEdge.Bottom)]
+    [InlineData(TaskbarEdge.Top)]
+    [InlineData(TaskbarEdge.Left)]
+    [InlineData(TaskbarEdge.Right)]
+    public void AutoHide_HidesWhenPeekOrOffScreen(TaskbarEdge edge)
+    {
+        var peek = AutoHide(edge, revealed: false, peek: true);
+        var offScreen = AutoHide(edge, revealed: false, peek: false);
+        Assert.False(TaskbarStatusPositioner.ShouldShow(peek));
+        Assert.False(TaskbarStatusPositioner.ShouldShow(offScreen));
+        Assert.Equal(TaskbarStripMode.Hidden, TaskbarStatusPositioner.Place(peek).Mode);
+        Assert.Equal(TaskbarStripMode.Hidden, TaskbarStatusPositioner.Place(offScreen).Mode);
+        Assert.True(TaskbarVisibilityDetector.ExposedThickness(peek.Taskbar, peek.Monitor, edge)
+                    < TaskbarVisibilityDetector.RevealedThicknessPx);
+    }
+
+    [Theory]
+    [InlineData(TaskbarEdge.Bottom)]
+    [InlineData(TaskbarEdge.Top)]
+    [InlineData(TaskbarEdge.Left)]
+    [InlineData(TaskbarEdge.Right)]
+    public void AutoHide_ShowsWhenTaskbarIsRevealed(TaskbarEdge edge)
+    {
+        var revealed = AutoHide(edge, revealed: true);
+        Assert.True(TaskbarVisibilityDetector.IsRevealed(true, revealed.Taskbar, revealed.Monitor, edge));
+        Assert.True(TaskbarStatusPositioner.ShouldShow(revealed));
+        Assert.True(TaskbarStatusPositioner.Place(revealed).Visible);
+        Assert.NotEqual(TaskbarStripMode.Hidden, TaskbarStatusPositioner.Place(revealed).Mode);
+    }
+
+    [Fact]
+    public void AutoHide_ExplorerRestartUsesFreshRectangles()
+    {
+        var hidden = AutoHide(TaskbarEdge.Bottom, revealed: false);
+        var afterRestart = AutoHide(TaskbarEdge.Bottom, revealed: true);
+        Assert.False(TaskbarStatusPositioner.Place(hidden).Visible);
+        Assert.True(TaskbarStatusPositioner.Place(afterRestart).Visible);
+        Assert.NotEqual(hidden.Taskbar, afterRestart.Taskbar);
+    }
+
+    [Fact]
+    public void AutoHide_ExclusiveFullscreenHidesEvenWhenRevealed()
+    {
+        var revealed = AutoHide(TaskbarEdge.Bottom, revealed: true) with { ExclusiveFullscreenOnMonitor = true };
+        Assert.False(TaskbarStatusPositioner.ShouldShow(revealed));
+        Assert.Equal(TaskbarStripMode.Hidden, TaskbarStatusPositioner.Place(revealed).Mode);
+    }
+
+    [Fact]
+    public void NonAutoHide_KeepsNormalVisibility()
+    {
+        Assert.True(TaskbarStatusPositioner.Place(Bottom(gap: 400)).Visible);
+        var missing = Bottom(gap: 400) with { TaskbarVisible = false };
+        Assert.False(TaskbarStatusPositioner.ShouldShow(missing));
+    }
+
     [Fact]
     public void DisplayAndExplorerSignals_AreDebounced()
     {
@@ -204,6 +261,55 @@ public class TaskbarStatusLayoutTests
         Assert.Equal(TaskbarStripMode.Compact, TaskbarStatusPositioner.ChooseMode(100, 1));
         Assert.Equal(TaskbarStripMode.UltraCompact, TaskbarStatusPositioner.ChooseMode(80, 1));
         Assert.Equal(TaskbarStripMode.AboveTaskbar, TaskbarStatusPositioner.ChooseMode(20, 1));
+    }
+
+    private static TaskbarLayoutInput AutoHide(TaskbarEdge edge, bool revealed, bool peek = true)
+    {
+        const int width = 1920;
+        const int height = 1080;
+        const int full = 48;
+        var thickness = revealed ? full : peek ? TaskbarVisibilityDetector.HiddenPeekThicknessPx : full;
+        ScreenRect taskbar = edge switch
+        {
+            TaskbarEdge.Top => revealed
+                ? new ScreenRect(0, 0, width, full)
+                : peek
+                    ? new ScreenRect(0, 0, width, thickness)
+                    : new ScreenRect(0, -full, width, full),
+            TaskbarEdge.Left => revealed
+                ? new ScreenRect(0, 0, full, height)
+                : peek
+                    ? new ScreenRect(0, 0, thickness, height)
+                    : new ScreenRect(-full, 0, full, height),
+            TaskbarEdge.Right => revealed
+                ? new ScreenRect(width - full, 0, full, height)
+                : peek
+                    ? new ScreenRect(width - thickness, 0, thickness, height)
+                    : new ScreenRect(width, 0, full, height),
+            _ => revealed
+                ? new ScreenRect(0, height - full, width, full)
+                : peek
+                    ? new ScreenRect(0, height - thickness, width, thickness)
+                    : new ScreenRect(0, height, width, full)
+        };
+        var notify = edge switch
+        {
+            TaskbarEdge.Left => new ScreenRect(taskbar.X, height - 100, taskbar.Width, 100),
+            TaskbarEdge.Right => new ScreenRect(taskbar.X, height - 100, taskbar.Width, 100),
+            _ => new ScreenRect(width - 160, taskbar.Y, 160, taskbar.Height)
+        };
+        return new TaskbarLayoutInput(
+            new ScreenRect(0, 0, width, height),
+            new ScreenRect(0, 0, width, height),
+            taskbar,
+            notify,
+            notify,
+            taskbar,
+            edge,
+            1,
+            true,
+            true,
+            false);
     }
 
     private static TaskbarLayoutInput Bottom(int gap, double scale = 1, int width = 1920, int height = 1080, int taskbarHeight = 48)

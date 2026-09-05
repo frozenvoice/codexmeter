@@ -65,6 +65,15 @@ public static class TaskbarStatusPositioner
         bool taskbarVisible) =>
         enabled && !exclusiveFullscreenOnMonitor && taskbarVisible;
 
+    public static bool ShouldShow(TaskbarLayoutInput input) =>
+        TaskbarVisibilityDetector.ShouldShowOverlay(
+            input.ExclusiveFullscreenOnMonitor,
+            input.TaskbarAutoHide,
+            input.TaskbarVisible,
+            input.Taskbar,
+            input.Monitor,
+            input.Edge);
+
     public static bool IsExclusiveFullscreen(
         ScreenRect foreground,
         ScreenRect monitor,
@@ -92,8 +101,7 @@ public static class TaskbarStatusPositioner
         int? ultraWidthDip = null,
         int? heightDip = null)
     {
-        if (!ShouldShow(true, input.ExclusiveFullscreenOnMonitor, input.TaskbarVisible)
-            && (input.ExclusiveFullscreenOnMonitor || !input.TaskbarVisible))
+        if (!ShouldShow(input))
         {
             return new TaskbarLayoutResult(default, TaskbarStripMode.Hidden, false, false, false);
         }

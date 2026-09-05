@@ -310,7 +310,8 @@ public partial class App : Application
             _settings,
             _codex.Snapshot,
             _syncing || _refresh.ChatGptRefreshing,
-            _codex.IsRefreshing || _refresh.CodexRefreshing);
+            _codex.IsRefreshing || _refresh.CodexRefreshing,
+            _refresh.ManualRefreshInProgress);
         _widget?.Bind(_snapshot);
         _taskbarStrip?.Bind(_snapshot, _codex.Snapshot);
         if (_main is { IsVisible: true })
