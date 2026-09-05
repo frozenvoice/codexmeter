@@ -17,5 +17,9 @@
   <ItemGroup>
     <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\src\ProMeter\UI\Themes.xaml" Link="Themes.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\ProMeter\UI\FlyoutWindow.xaml" Link="FlyoutWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\ProMeter\UI\TaskbarStatusStripWindow.xaml" Link="TaskbarStatusStripWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\fake-codex-app-server.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\hang-codex-app-server.js" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

@@ -21,6 +21,8 @@
                     <StackPanel Margin="0,12,0,0">
                         <TextBlock x:Name="PeriodText" Foreground="{DynamicResource MutedBrush}"/>
                         <ItemsControl x:Name="ModelList" Margin="0,12,0,0"/>
+                        <TextBlock x:Name="CodexSectionTitle" Style="{StaticResource SectionTitle}" Text="CODEX"/>
+                        <TextBlock x:Name="CodexText" TextWrapping="Wrap"/>
                         <TextBlock x:Name="ReasoningSectionTitle" Style="{StaticResource SectionTitle}" Text="SOL REASONING"/>
                         <TextBlock x:Name="ReasonText"/>
                         <TextBlock x:Name="StatusSectionTitle" Style="{StaticResource SectionTitle}" Text="STATUS"/>

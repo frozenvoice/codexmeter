@@ -102,6 +102,7 @@ public class ThemeSelectionStateTests
         settings.AutoSync = false;
         settings.StartWithWindows = false;
         settings.FloatingWidgetEnabled = true;
+        settings.TaskbarStatusEnabled = false;
         settings.FlyoutCloseOnDeactivate = true;
         settings.NotifyAt20 = true;
         settings.NotifyAt10 = false;
@@ -114,6 +115,7 @@ public class ThemeSelectionStateTests
             ("AutoSync", settings.AutoSync),
             ("StartWithWindows", settings.StartWithWindows),
             ("FloatingWidgetEnabled", settings.FloatingWidgetEnabled),
+            ("TaskbarStatusEnabled", settings.TaskbarStatusEnabled),
             ("FlyoutCloseOnDeactivate", settings.FlyoutCloseOnDeactivate),
             ("NotifyAt20", settings.NotifyAt20),
             ("NotifyAt10", settings.NotifyAt10),

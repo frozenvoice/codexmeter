@@ -101,6 +101,8 @@ public class SettingsApplicationTests
         SyncIntervalMinutes = settings.SyncIntervalMinutes,
         StartWithWindows = settings.StartWithWindows,
         FloatingWidgetEnabled = settings.FloatingWidgetEnabled,
+        TaskbarStatusEnabled = settings.TaskbarStatusEnabled,
+        CodexExePath = settings.CodexExePath,
         Theme = settings.Theme,
         TrayIconStyle = settings.TrayIconStyle,
         FlyoutCloseOnDeactivate = settings.FlyoutCloseOnDeactivate,
@@ -147,6 +149,8 @@ public class StartupConsentTests
         var settings = AppSettings.CreateDefaults();
         Assert.False(settings.AutoSync);
         Assert.False(settings.StartWithWindows);
+        Assert.False(settings.TaskbarStatusEnabled);
+        Assert.True(string.IsNullOrWhiteSpace(settings.CodexExePath));
         Assert.Equal(AuthTransportKind.BrowserCompanion, settings.AuthTransport);
     }
 

@@ -1,8 +1,10 @@
+using ProMeter.Codex;
+
 namespace ProMeter.UI;
 
 public partial class CoverageWindow : Window
 {
-    public CoverageWindow(CoverageInfo coverage)
+    public CoverageWindow(CoverageInfo coverage, CodexQuotaSnapshot? codex = null, bool executableFound = false)
     {
         InitializeComponent();
         Title = UiText.DataStatus;
@@ -21,6 +23,12 @@ public partial class CoverageWindow : Window
         NotesText.Text = coverage.Notes == SyncEngine.MissingAssistantUsageDiagnostic
             ? UiText.HistoryLoadedWithoutUsage
             : coverage.Notes ?? UiText.TemporaryDeletedNote;
+        CodexTitle.Text = CodexDisplayFormatting.SectionTitle;
+        CodexText.Text = string.Join(
+            Environment.NewLine,
+            CodexDisplayFormatting.DiagnosticLines(
+                codex ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable),
+                executableFound));
         CloseButton.Content = UiText.Close;
     }
 

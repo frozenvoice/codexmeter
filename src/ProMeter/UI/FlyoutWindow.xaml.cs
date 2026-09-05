@@ -1,13 +1,16 @@
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using ProMeter.Codex;
 
 namespace ProMeter.UI;
 
 public partial class FlyoutWindow : Window
 {
     public event Action? CoverageRequested;
+    public event Action? SyncRequested;
     public bool CloseOnDeactivate { get; set; } = true;
+    private bool _suppressDeactivateClose;
 
     public FlyoutWindow()
     {
@@ -15,7 +18,12 @@ public partial class FlyoutWindow : Window
         ApplyLocalizedTexts();
     }
 
-    public void Bind(QuotaSnapshot snapshot, AppSettings settings)
+    public void Bind(
+        QuotaSnapshot snapshot,
+        AppSettings settings,
+        CodexQuotaSnapshot? codex = null,
+        bool chatGptRefreshing = false,
+        bool codexRefreshing = false)
     {
         ApplyLocalizedTexts();
         StatusText.Text = DisplayFormatting.StatusLabel(snapshot);
@@ -68,6 +76,9 @@ public partial class FlyoutWindow : Window
             ReasonLimitPanel.Visibility = Visibility.Collapsed;
         }
 
+        BindCodex(codex ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable));
+        SetRefreshPresentation(CombinedRefreshCoordinator.Present(chatGptRefreshing, codexRefreshing));
+
         Dispatcher.BeginInvoke(() =>
         {
             var width = Math.Max(8, (ProBar.Parent as FrameworkElement)?.ActualWidth * snapshot.PercentUsed ?? 0);
@@ -91,12 +102,21 @@ public partial class FlyoutWindow : Window
         }
     }
 
+    public void SetRefreshPresentation(FlyoutRefreshPresentation presentation)
+    {
+        RefreshAllButton.IsEnabled = presentation.Enabled;
+        RefreshAllIcon.Foreground = presentation.Active
+            ? (Brush)FindResource("AccentBrush")
+            : (Brush)FindResource("TextBrush");
+    }
+
     public void ApplyLocalizedTexts()
     {
         RemainingLabel.Text = UiText.Remaining;
         Gpt6WeekLabel.Text = UiText.Gpt6ProWeek;
         SolDailyLabel.Text = UiText.SolProDaily;
         CombinedDailyLabel.Text = UiText.CombinedDaily;
+        CodexSectionTitle.Text = CodexDisplayFormatting.SectionTitle;
         ReasoningSectionTitle.Text = UiText.SolReasoning;
         ReasonTodayLabel.Text = UiText.Today;
         ReasonWeekLabel.Text = UiText.ThisWeek;
@@ -108,6 +128,8 @@ public partial class FlyoutWindow : Window
         StatusSectionTitle.Text = UiText.Status;
         LastSyncLabel.Text = UiText.LastSync;
         CoverageLabel.Text = UiText.DataStatus;
+        RefreshAllButton.ToolTip = UiText.RefreshAll;
+        System.Windows.Automation.AutomationProperties.SetName(RefreshAllButton, UiText.RefreshAll);
     }
 
     public void PlaceNearTaskbar()
@@ -124,8 +146,67 @@ public partial class FlyoutWindow : Window
         Top = Math.Max(topLeft.Y + 8, bottomRight.Y - ActualHeight - 12);
     }
 
+    public void PlaceNear(Rect anchor, TaskbarEdge edge)
+    {
+        UpdateLayout();
+        var work = System.Windows.Forms.Screen.FromPoint(
+            new System.Drawing.Point((int)anchor.X, (int)anchor.Y)).WorkingArea;
+        var source = PresentationSource.FromVisual(this);
+        var fromDevice = source?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+        var workTopLeft = fromDevice.Transform(new System.Windows.Point(work.Left, work.Top));
+        var workBottomRight = fromDevice.Transform(new System.Windows.Point(work.Right, work.Bottom));
+        var (left, top) = FlyoutPlacement.PlaceNear(
+            new ScreenRect((int)anchor.X, (int)anchor.Y, (int)anchor.Width, (int)anchor.Height),
+            edge,
+            Width,
+            ActualHeight,
+            new ScreenRect(
+                (int)workTopLeft.X,
+                (int)workTopLeft.Y,
+                (int)(workBottomRight.X - workTopLeft.X),
+                (int)(workBottomRight.Y - workTopLeft.Y)));
+        Left = left;
+        Top = top;
+    }
+
+    private void BindCodex(CodexQuotaSnapshot snapshot)
+    {
+        CodexStatusText.Text = CodexDisplayFormatting.StatusText(snapshot);
+        CodexStatusText.Visibility = string.IsNullOrWhiteSpace(CodexStatusText.Text)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        CodexRows.Items.Clear();
+        foreach (var item in CodexDisplayFormatting.Rows(snapshot))
+        {
+            var row = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
+            row.Children.Add(new TextBlock
+            {
+                Text = item.Label,
+                Foreground = (Brush)FindResource("MutedBrush")
+            });
+            var value = new TextBlock
+            {
+                Text = item.Value,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                Style = (Style)FindResource("FlyoutValueText"),
+                Foreground = item.EmphasizeDanger
+                    ? (Brush)FindResource("DangerBrush")
+                    : (Brush)FindResource("TextBrush")
+            };
+            DockPanel.SetDock(value, Dock.Right);
+            row.Children.Add(value);
+            CodexRows.Items.Add(row);
+        }
+    }
+
     private void OnDeactivated(object sender, EventArgs e)
     {
+        if (_suppressDeactivateClose)
+        {
+            _suppressDeactivateClose = false;
+            return;
+        }
+
         if (CloseOnDeactivate)
         {
             Hide();
@@ -138,6 +219,17 @@ public partial class FlyoutWindow : Window
         {
             Hide();
         }
+    }
+
+    private void OnRefreshPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _suppressDeactivateClose = true;
+    }
+
+    private void OnRefreshAllClick(object sender, RoutedEventArgs e)
+    {
+        _suppressDeactivateClose = true;
+        SyncRequested?.Invoke();
     }
 
     private void OnCoverageClick(object sender, RoutedEventArgs e) => CoverageRequested?.Invoke();

@@ -1,0 +1,226 @@
+using ProMeter.Codex;
+using ProMeter.Models;
+using ProMeter.Services;
+
+namespace ProMeter.Tests;
+
+public class TaskbarStatusLayoutTests
+{
+    [Fact]
+    public void BottomTaskbar_PlacesFullModeLeftOfNotify()
+    {
+        var result = TaskbarStatusPositioner.Place(Bottom(gap: 400));
+        Assert.Equal(TaskbarStripMode.Full, result.Mode);
+        Assert.True(result.Visible);
+        Assert.False(result.OverlapsNotify);
+        Assert.False(result.OverlapsClock);
+        Assert.True(result.Bounds.Right <= 1760);
+        Assert.True(result.Bounds.Y >= 1032);
+        Assert.True(result.Bounds.Bottom <= 1080);
+    }
+
+    [Fact]
+    public void CompactAndUltra_FallBackWhenGapShrinks()
+    {
+        Assert.Equal(TaskbarStripMode.Compact, TaskbarStatusPositioner.Place(Bottom(gap: 100)).Mode);
+        Assert.Equal(TaskbarStripMode.UltraCompact, TaskbarStatusPositioner.Place(Bottom(gap: 80)).Mode);
+        var above = TaskbarStatusPositioner.Place(Bottom(gap: 20));
+        Assert.Equal(TaskbarStripMode.AboveTaskbar, above.Mode);
+        Assert.True(above.Bounds.Bottom <= 1032);
+    }
+
+    [Fact]
+    public void TopLeftRight_StayOffClock()
+    {
+        var top = TaskbarStatusPositioner.Place(new TaskbarLayoutInput(
+            new ScreenRect(0, 0, 1920, 1080),
+            new ScreenRect(0, 40, 1920, 1040),
+            new ScreenRect(0, 0, 1920, 40),
+            new ScreenRect(1760, 0, 160, 40),
+            new ScreenRect(1840, 0, 80, 40),
+            new ScreenRect(0, 0, 1400, 40),
+            TaskbarEdge.Top,
+            1,
+            false,
+            true,
+            false));
+        Assert.True(top.Bounds.Right <= 1760);
+        Assert.True(top.Visible);
+
+        var left = TaskbarStatusPositioner.Place(new TaskbarLayoutInput(
+            new ScreenRect(0, 0, 1920, 1080),
+            new ScreenRect(72, 0, 1848, 1080),
+            new ScreenRect(0, 0, 72, 1080),
+            new ScreenRect(0, 980, 72, 100),
+            new ScreenRect(0, 1020, 72, 60),
+            new ScreenRect(0, 0, 72, 800),
+            TaskbarEdge.Left,
+            1,
+            false,
+            true,
+            false));
+        Assert.True(left.Visible);
+        Assert.True(left.Bounds.Bottom <= 980 || left.Mode == TaskbarStripMode.AboveTaskbar);
+
+        var right = TaskbarStatusPositioner.Place(new TaskbarLayoutInput(
+            new ScreenRect(0, 0, 1920, 1080),
+            new ScreenRect(0, 0, 1848, 1080),
+            new ScreenRect(1848, 0, 72, 1080),
+            new ScreenRect(1848, 980, 72, 100),
+            new ScreenRect(1848, 1020, 72, 60),
+            new ScreenRect(1848, 0, 72, 800),
+            TaskbarEdge.Right,
+            1,
+            false,
+            true,
+            false));
+        Assert.True(right.Visible);
+        Assert.False(right.OverlapsClock);
+    }
+
+    [Fact]
+    public void HighDpi_ConvertsPhysicalBoundsToDip()
+    {
+        var placed = TaskbarStatusPositioner.Place(Bottom(gap: 400, scale: 2, width: 3840, height: 2160, taskbarHeight: 56));
+        var dip = TaskbarStatusPositioner.ToDip(placed.Bounds, 2);
+        Assert.Equal(placed.Bounds.Width / 2d, dip.Width);
+        Assert.True(dip.Height <= 30);
+    }
+
+    [Fact]
+    public void ExclusiveFullscreenHides_MaximizedDoesNot()
+    {
+        var monitor = new ScreenRect(0, 0, 1920, 1080);
+        var work = new ScreenRect(0, 0, 1920, 1040);
+        Assert.True(TaskbarStatusPositioner.IsExclusiveFullscreen(monitor, monitor, work, taskbarVisible: false));
+        Assert.False(TaskbarStatusPositioner.IsExclusiveFullscreen(work, monitor, work, taskbarVisible: true));
+        Assert.False(TaskbarStatusPositioner.ShouldShow(true, true, false));
+        Assert.True(TaskbarStatusPositioner.ShouldShow(true, false, true));
+        Assert.False(TaskbarStatusPositioner.ShouldShow(false, false, true));
+    }
+
+    [Fact]
+    public void HiddenWhenTaskbarAutoHideAndInvisible()
+    {
+        var input = Bottom(gap: 400) with { TaskbarVisible = false, TaskbarAutoHide = true };
+        Assert.Equal(TaskbarStripMode.Hidden, TaskbarStatusPositioner.Place(input).Mode);
+    }
+
+    [Fact]
+    public void DisplayAndExplorerSignals_AreDebounced()
+    {
+        var debounce = new LayoutSignalDebouncer();
+        var now = DateTimeOffset.Parse("2026-09-05T01:00:00Z");
+        Assert.True(debounce.ShouldHandle(now, TimeSpan.FromMilliseconds(200)));
+        Assert.False(debounce.ShouldHandle(now.AddMilliseconds(50), TimeSpan.FromMilliseconds(200)));
+        Assert.True(debounce.ShouldHandle(now.AddMilliseconds(250), TimeSpan.FromMilliseconds(200)));
+    }
+
+    [Fact]
+    public void Clicks_MapToFlyoutRefreshAndMenu()
+    {
+        Assert.Equal(TaskbarStripAction.ToggleFlyout, TaskbarStripInteraction.FromButton(TaskbarStripInteraction.Left));
+        Assert.Equal(TaskbarStripAction.CombinedRefresh, TaskbarStripInteraction.FromButton(TaskbarStripInteraction.Middle));
+        Assert.Equal(TaskbarStripAction.ContextMenu, TaskbarStripInteraction.FromButton(TaskbarStripInteraction.Right));
+    }
+
+    [Fact]
+    public void Formatting_CoversUnavailableStaleRefreshingAndModes()
+    {
+        var gpt = new QuotaSnapshot { Used = 31, Limit = 50 };
+        var weekly = new CodexQuotaSnapshot(
+            CodexQuotaStatus.Available,
+            null,
+            DateTimeOffset.Now,
+            DateTimeOffset.Now,
+            null,
+            null,
+            null,
+            [new CodexQuotaWindow(null, 42, 10080, null, CodexWindowKind.Weekly)],
+            null);
+        Assert.Equal("P 31/50 · C 42%", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.Full));
+        Assert.Equal("P31  C42%", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.Compact));
+        Assert.Equal("P31 C42", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.UltraCompact));
+
+        var missing = new QuotaSnapshot { DisplayUsageUnavailable = true, Limit = 50 };
+        var none = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
+        Assert.Contains("P?", TaskbarStatusFormatter.Format(missing, none, TaskbarStripMode.Compact));
+        Assert.Contains("C?", TaskbarStatusFormatter.Format(missing, none, TaskbarStripMode.Compact));
+
+        var stale = weekly with { Status = CodexQuotaStatus.Stale };
+        Assert.Contains("!", TaskbarStatusFormatter.Format(gpt, stale, TaskbarStripMode.Compact));
+        Assert.Contains("C …", TaskbarStatusFormatter.Format(gpt, CodexQuotaSnapshot.Empty(CodexQuotaStatus.Refreshing), TaskbarStripMode.Full));
+    }
+
+    [Fact]
+    public void Tooltips_ExistInKoreanAndEnglish()
+    {
+        var gpt = new QuotaSnapshot { Used = 31, Limit = 50 };
+        var weekly = new CodexQuotaSnapshot(
+            CodexQuotaStatus.Available,
+            null,
+            new DateTimeOffset(2026, 9, 5, 1, 15, 0, TimeSpan.Zero),
+            DateTimeOffset.Now,
+            null,
+            null,
+            null,
+            [new CodexQuotaWindow(null, 42, 10080, null, CodexWindowKind.Weekly)],
+            null);
+        UiText.SetLanguage(UiLanguage.English);
+        var english = TaskbarStatusFormatter.Tooltip(gpt, weekly);
+        Assert.Contains("GPT Pro usage 31/50", english, StringComparison.Ordinal);
+        Assert.Contains("weekly", english, StringComparison.OrdinalIgnoreCase);
+        UiText.SetLanguage(UiLanguage.Korean);
+        try
+        {
+            var korean = TaskbarStatusFormatter.Tooltip(gpt, weekly);
+            Assert.Contains("GPT Pro 사용 31/50", korean, StringComparison.Ordinal);
+            Assert.Contains("주간", korean, StringComparison.Ordinal);
+            Assert.Contains("마지막 확인", korean, StringComparison.Ordinal);
+        }
+        finally
+        {
+            UiText.SetLanguage(UiLanguage.English);
+        }
+    }
+
+    [Fact]
+    public void FlyoutPlacement_StaysInWorkArea()
+    {
+        var (left, top) = FlyoutPlacement.PlaceNear(
+            new ScreenRect(1700, 1050, 120, 26),
+            TaskbarEdge.Bottom,
+            320,
+            400,
+            new ScreenRect(0, 0, 1920, 1040));
+        Assert.InRange(left, 8, 1920 - 328);
+        Assert.InRange(top, 8, 1040 - 408);
+    }
+
+    [Fact]
+    public void WidthDecision_UsesAvailableGap()
+    {
+        Assert.Equal(TaskbarStripMode.Full, TaskbarStatusPositioner.ChooseMode(200, 1));
+        Assert.Equal(TaskbarStripMode.Compact, TaskbarStatusPositioner.ChooseMode(100, 1));
+        Assert.Equal(TaskbarStripMode.UltraCompact, TaskbarStatusPositioner.ChooseMode(80, 1));
+        Assert.Equal(TaskbarStripMode.AboveTaskbar, TaskbarStatusPositioner.ChooseMode(20, 1));
+    }
+
+    private static TaskbarLayoutInput Bottom(int gap, double scale = 1, int width = 1920, int height = 1080, int taskbarHeight = 48)
+    {
+        var notifyWidth = 160;
+        var taskListWidth = width - notifyWidth - gap;
+        return new TaskbarLayoutInput(
+            new ScreenRect(0, 0, width, height),
+            new ScreenRect(0, 0, width, height - taskbarHeight),
+            new ScreenRect(0, height - taskbarHeight, width, taskbarHeight),
+            new ScreenRect(width - notifyWidth, height - taskbarHeight, notifyWidth, taskbarHeight),
+            new ScreenRect(width - 80, height - taskbarHeight, 80, taskbarHeight),
+            new ScreenRect(0, height - taskbarHeight, taskListWidth, taskbarHeight),
+            TaskbarEdge.Bottom,
+            scale,
+            false,
+            true,
+            false);
+    }
+}

@@ -1,6 +1,7 @@
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using ProMeter.Codex;
 
 namespace ProMeter.UI;
 
@@ -22,6 +23,7 @@ public partial class MainWindow : Window
         OverviewTab.Header = UiText.Overview;
         TrendsTab.Header = UiText.Trends;
         BreakdownTab.Header = UiText.Breakdown;
+        CodexSectionTitle.Text = CodexDisplayFormatting.SectionTitle;
         ReasoningSectionTitle.Text = UiText.SolReasoning;
         StatusSectionTitle.Text = UiText.Status;
         TimeColumn.Header = UiText.TimeColumn;
@@ -32,7 +34,11 @@ public partial class MainWindow : Window
         SourceColumn.Header = UiText.SourceColumn;
     }
 
-    public void Bind(QuotaSnapshot snapshot, IReadOnlyList<UsageEvent> events, IReadOnlyList<DailyTrendPoint> trend)
+    public void Bind(
+        QuotaSnapshot snapshot,
+        IReadOnlyList<UsageEvent> events,
+        IReadOnlyList<DailyTrendPoint> trend,
+        CodexQuotaSnapshot? codex = null)
     {
         ApplyLocalizedTexts();
         Headline.Text = DisplayFormatting.Headline(snapshot);
@@ -41,6 +47,7 @@ public partial class MainWindow : Window
             ? $"{UiText.CurrentPeriod(DisplayFormatting.FormatDay(snapshot.PeriodStart), DisplayFormatting.FormatDay(snapshot.PeriodEnd))}   ·   {UiText.Gpt6Pro} {snapshot.Gpt6WeeklyUsed}   ·   {UiText.SolPro} {snapshot.TodaySolPro}/{sol}   ·   {UiText.CombinedDaily} {snapshot.CombinedToday}/{combined}"
             : $"{UiText.CurrentPeriod(DisplayFormatting.FormatDay(snapshot.PeriodStart), DisplayFormatting.FormatDay(snapshot.PeriodEnd))}   ·   {UiText.Today} {snapshot.TodayPro}";
         StatusText.Text = $"{DisplayFormatting.StatusLabel(snapshot)}   ·   {reset.TimeLabel} {reset.TimeValue}{(reset.EstimateValue is null ? "" : $"   ·   {reset.EstimateLabel} {reset.EstimateValue}")}   ·   {UiText.DataStatus} {DisplayFormatting.CoverageFlyoutValue(snapshot)}";
+        CodexText.Text = CodexDisplayFormatting.OverviewText(codex ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable));
         ReasonText.Text = snapshot.Reasoning.Limit is int limit
             ? $"{UiText.Today} {snapshot.Reasoning.Today}   {UiText.ThisWeek} {snapshot.Reasoning.ThisWeek}   {UiText.Medium} {snapshot.Reasoning.Medium}   {UiText.High} {snapshot.Reasoning.High}   {UiText.ExtraHigh} {snapshot.Reasoning.ExtraHigh}   {UiText.LimitInfo} {limit}   ·   {UiText.ReasoningReconstructedNote}"
             : $"{UiText.Today} {snapshot.Reasoning.Today}   {UiText.ThisWeek} {snapshot.Reasoning.ThisWeek}   {UiText.Medium} {snapshot.Reasoning.Medium}   {UiText.High} {snapshot.Reasoning.High}   {UiText.ExtraHigh} {snapshot.Reasoning.ExtraHigh}   {UiText.LimitInfo} {UiText.NotAvailable}   ·   {UiText.ReasoningReconstructedNote}";

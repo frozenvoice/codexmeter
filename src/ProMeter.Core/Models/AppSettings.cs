@@ -28,6 +28,8 @@ public sealed class AppSettings
     public int BodyFetchDelayMilliseconds { get; set; } = 250;
     public bool StartWithWindows { get; set; }
     public bool FloatingWidgetEnabled { get; set; }
+    public bool TaskbarStatusEnabled { get; set; }
+    public string? CodexExePath { get; set; }
     public double WidgetLeft { get; set; } = 40;
     public double WidgetTop { get; set; } = 40;
     public double WidgetOpacity { get; set; } = 0.92;

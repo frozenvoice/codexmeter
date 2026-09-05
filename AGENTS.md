@@ -144,6 +144,25 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Korean and English are supported UI languages.
 - Model names, raw model slugs and product names are not translated.
 - If Windows UI culture is Korean on a new install, default UI language to Korean; otherwise English.
+- Codex quota data must come from the installed Codex App Server protocol.
+- Do not read, copy, parse, monitor, or persist Codex auth.json, OAuth tokens, access tokens, cookies, Authorization headers, prompts, responses, projects, rollouts, or conversation files.
+- Do not invoke a Codex model turn merely to measure quota.
+- Rate-limit windows must be identified by `windowDurationMins`, not by assuming `primary` always means five hours or `secondary` always means weekly.
+- A missing optional rate-limit window is not a provider failure.
+- Never convert an unavailable percentage into zero.
+- Preserve the last valid Codex snapshot on transient failure and mark it stale.
+- Every spawned Codex App Server process must have bounded startup, request, shutdown, and cancellation behavior.
+- Child processes must not be leaked after refresh, cancellation, app exit, or protocol failure.
+- The taskbar status strip must not inject code or DLLs into explorer.exe.
+- The taskbar status strip must not replace, subclass, or parent itself into an undocumented Explorer taskbar window.
+- The taskbar status strip must never cover the clock or notification icons.
+- If there is insufficient horizontal space, automatically use a more compact layout or place the strip immediately above the taskbar.
+- Taskbar, DPI, display, Explorer restart, auto-hide and fullscreen changes must not leave the strip stranded or permanently visible in the wrong location.
+- User-visible status must distinguish fresh, stale, unavailable, refreshing and failed data.
+- A click intended to inspect status must not accidentally begin a long sync.
+- All new UI strings must use the existing Korean/English localization system.
+- Stateful controls and buttons must remain visible in dark, light and system themes.
+- Commit, push, remote SHA verification and pushed CI verification remain mandatory.
 
 ## Testing and completion
 

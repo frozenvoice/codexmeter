@@ -65,6 +65,17 @@ public sealed class TrayController : IDisposable
         });
     }
 
+    public void ShowContextMenu()
+    {
+        var menu = _icon.ContextMenuStrip;
+        if (menu is null)
+        {
+            return;
+        }
+
+        menu.Show(System.Windows.Forms.Control.MousePosition);
+    }
+
     public void Balloon(string title, string body)
     {
         _icon.BalloonTipTitle = title;

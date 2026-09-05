@@ -1,0 +1,403 @@
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+
+namespace ProMeter.Codex;
+
+public static class CodexRateLimitParser
+{
+    public static CodexParseResult Parse(JsonNode? accountResult, JsonNode? rateLimitsResult)
+    {
+        if (IsSignedOut(accountResult))
+        {
+            return new CodexParseResult(CodexQuotaStatus.SignedOut, null, null, null, null, [], "signed-out");
+        }
+
+        if (rateLimitsResult is null)
+        {
+            return new CodexParseResult(CodexQuotaStatus.Unavailable, SafePlanType(accountResult), null, null, null, [], "rate-limits-missing");
+        }
+
+        if (HasProtocolError(rateLimitsResult) || HasProtocolError(accountResult))
+        {
+            return new CodexParseResult(CodexQuotaStatus.ProtocolMismatch, SafePlanType(accountResult), null, null, null, [], "protocol-error");
+        }
+
+        var bucket = SelectBucket(rateLimitsResult);
+        if (bucket is null)
+        {
+            return new CodexParseResult(CodexQuotaStatus.Unavailable, SafePlanType(accountResult), null, null, null, [], "rate-limits-unavailable");
+        }
+
+        var windows = ReadWindows(bucket);
+        var ordinary = ReadBool(bucket, "ordinaryUsageAllowed", "ordinary_usage_allowed");
+        var reached = ReadString(bucket, "rateLimitReachedType", "rate_limit_reached_type");
+        var credits = ReadResetCredits(bucket);
+        var plan = SafePlanType(accountResult);
+        return new CodexParseResult(
+            CodexQuotaStatus.Available,
+            plan,
+            ordinary,
+            reached,
+            credits,
+            windows,
+            null);
+    }
+
+    public static JsonNode? SelectBucket(JsonNode? result)
+    {
+        var root = UnwrapResult(result);
+        if (root is not JsonObject obj)
+        {
+            return null;
+        }
+
+        if (TryGet(obj, out var byId, "rateLimitsByLimitId", "rate_limits_by_limit_id")
+            && byId is JsonObject map)
+        {
+            if (TryGet(map, out var codex, "codex", "Codex") && codex is JsonObject)
+            {
+                return codex;
+            }
+        }
+
+        if (TryGet(obj, out var top, "rateLimits", "rate_limits") && top is JsonObject)
+        {
+            return top;
+        }
+
+        if (LooksLikeWindowContainer(obj))
+        {
+            return obj;
+        }
+
+        return null;
+    }
+
+    public static IReadOnlyList<CodexQuotaWindow> ReadWindows(JsonNode bucket)
+    {
+        var windows = new List<CodexQuotaWindow>();
+        AddWindow(windows, bucket["primary"], null);
+        AddWindow(windows, bucket["secondary"], null);
+
+        if (bucket["windows"] is JsonArray array)
+        {
+            foreach (var item in array)
+            {
+                AddWindow(windows, item, null);
+            }
+        }
+
+        if (windows.Count == 0 && LooksLikeSingleWindow(bucket))
+        {
+            AddWindow(windows, bucket, ReadString(bucket, "limitId", "limit_id"));
+        }
+
+        return windows;
+    }
+
+    public static CodexQuotaWindow? TryReadWindow(JsonNode? node, string? fallbackLimitId)
+    {
+        if (node is null || node.GetValueKind() == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        if (node is not JsonObject)
+        {
+            return null;
+        }
+
+        var minutes = ReadPositiveInt(node, "windowDurationMins", "windowDurationMinutes", "window_duration_mins");
+        var used = ReadPercent(node, "usedPercent", "used_percent");
+        var resetsAt = ReadUnixSeconds(node, "resetsAt", "resets_at");
+        var limitId = ReadString(node, "limitId", "limit_id") ?? fallbackLimitId;
+        if (minutes is null && used is null && resetsAt is null && limitId is null)
+        {
+            return null;
+        }
+
+        return new CodexQuotaWindow(
+            limitId,
+            used,
+            minutes,
+            resetsAt,
+            CodexWindowClassifier.FromDurationMinutes(minutes));
+    }
+
+    private static void AddWindow(List<CodexQuotaWindow> windows, JsonNode? node, string? fallbackLimitId)
+    {
+        var window = TryReadWindow(node, fallbackLimitId);
+        if (window is not null)
+        {
+            windows.Add(window);
+        }
+    }
+
+    public static double? ReadPercent(JsonNode node, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = node[name];
+            if (value is null || value.GetValueKind() is JsonValueKind.Null)
+            {
+                continue;
+            }
+
+            if (!TryReadDouble(value, out var number) || !double.IsFinite(number))
+            {
+                return null;
+            }
+
+            return Math.Clamp(number, 0, 100);
+        }
+
+        return null;
+    }
+
+    public static DateTimeOffset? ReadUnixSeconds(JsonNode node, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = node[name];
+            if (value is null || value.GetValueKind() is JsonValueKind.Null)
+            {
+                continue;
+            }
+
+            if (!TryReadDouble(value, out var number) || !double.IsFinite(number))
+            {
+                return null;
+            }
+
+            if (number is <= 0 or > 4_102_444_800)
+            {
+                return null;
+            }
+
+            try
+            {
+                return DateTimeOffset.FromUnixTimeSeconds((long)number);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private static int? ReadPositiveInt(JsonNode node, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = node[name];
+            if (value is null)
+            {
+                continue;
+            }
+
+            if (TryReadDouble(value, out var number) && double.IsFinite(number) && number > 0)
+            {
+                return (int)number;
+            }
+        }
+
+        return null;
+    }
+
+    private static int? ReadResetCredits(JsonNode bucket)
+    {
+        var credits = bucket["rateLimitResetCredits"] ?? bucket["rate_limit_reset_credits"];
+        if (credits is null)
+        {
+            return null;
+        }
+
+        var count = credits["availableCount"] ?? credits["available_count"];
+        if (count is null || !TryReadDouble(count, out var number) || !double.IsFinite(number))
+        {
+            return null;
+        }
+
+        return (int)number;
+    }
+
+    private static bool? ReadBool(JsonNode node, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = node[name];
+            if (value is null)
+            {
+                continue;
+            }
+
+            if (value.GetValueKind() == JsonValueKind.True)
+            {
+                return true;
+            }
+
+            if (value.GetValueKind() == JsonValueKind.False)
+            {
+                return false;
+            }
+
+            if (bool.TryParse(value.ToString(), out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ReadString(JsonNode node, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var value = node[name];
+            if (value is null || value.GetValueKind() is JsonValueKind.Null)
+            {
+                continue;
+            }
+
+            var text = value.GetValueKind() == JsonValueKind.String
+                ? value.GetValue<string>()
+                : value.ToString();
+            if (!string.IsNullOrWhiteSpace(text) && text != "null")
+            {
+                return text;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryReadDouble(JsonNode value, out double number)
+    {
+        number = 0;
+        try
+        {
+            number = value.GetValue<double>();
+            return true;
+        }
+        catch
+        {
+            return double.TryParse(value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out number);
+        }
+    }
+
+    private static bool TryGet(JsonObject obj, out JsonNode? value, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (obj.TryGetPropertyValue(name, out value) && value is not null && value.GetValueKind() != JsonValueKind.Null)
+            {
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static JsonNode? UnwrapResult(JsonNode? node)
+    {
+        if (node is JsonObject obj && obj.TryGetPropertyValue("result", out var result) && result is not null)
+        {
+            return result;
+        }
+
+        return node;
+    }
+
+    private static bool LooksLikeWindowContainer(JsonObject obj) =>
+        obj.ContainsKey("primary")
+        || obj.ContainsKey("secondary")
+        || obj.ContainsKey("windows")
+        || obj.ContainsKey("usedPercent")
+        || obj.ContainsKey("windowDurationMins");
+
+    private static bool LooksLikeSingleWindow(JsonNode bucket) =>
+        bucket["usedPercent"] is not null || bucket["windowDurationMins"] is not null;
+
+    private static bool HasProtocolError(JsonNode? node) =>
+        node is JsonObject obj && obj.TryGetPropertyValue("error", out var error) && error is not null;
+
+    private static bool IsSignedOut(JsonNode? accountResult)
+    {
+        var root = UnwrapResult(accountResult);
+        if (root is null)
+        {
+            return false;
+        }
+
+        if (root["loggedIn"] is { } loggedIn)
+        {
+            if (loggedIn.GetValueKind() == JsonValueKind.False)
+            {
+                return true;
+            }
+
+            if (bool.TryParse(loggedIn.ToString(), out var parsed) && !parsed)
+            {
+                return true;
+            }
+        }
+
+        if (root["signedIn"] is { } signedIn
+            && (signedIn.GetValueKind() == JsonValueKind.False
+                || (bool.TryParse(signedIn.ToString(), out var signed) && !signed)))
+        {
+            return true;
+        }
+
+        if (HasProtocolError(accountResult) && LooksLikeAuthError(accountResult?["error"]))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool LooksLikeAuthError(JsonNode? error)
+    {
+        var text = error?.ToString() ?? "";
+        return text.Contains("signed out", StringComparison.OrdinalIgnoreCase)
+               || text.Contains("not logged", StringComparison.OrdinalIgnoreCase)
+               || text.Contains("unauthenticated", StringComparison.OrdinalIgnoreCase)
+               || text.Contains("ACCOUNT_NOT_FOUND", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? SafePlanType(JsonNode? accountResult)
+    {
+        var root = UnwrapResult(accountResult);
+        var account = root?["account"] ?? root;
+        if (account is null)
+        {
+            return null;
+        }
+
+        var plan = ReadString(account, "planType", "plan_type", "plan");
+        if (string.IsNullOrWhiteSpace(plan)
+            || plan.Contains('@', StringComparison.Ordinal)
+            || plan.Contains("token", StringComparison.OrdinalIgnoreCase)
+            || plan.Contains("cookie", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return plan;
+    }
+}
+
+public sealed record CodexParseResult(
+    CodexQuotaStatus Status,
+    string? PlanType,
+    bool? OrdinaryUsageAllowed,
+    string? RateLimitReachedType,
+    int? ResetCreditsAvailable,
+    IReadOnlyList<CodexQuotaWindow> Windows,
+    string? Detail);

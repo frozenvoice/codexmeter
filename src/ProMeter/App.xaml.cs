@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using ProMeter.Codex;
 using ProMeter.Companion;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
@@ -31,12 +32,18 @@ public partial class App : Application
     private TrayController _tray = null!;
     private ToastNotificationService _toasts = null!;
     private readonly DispatcherTimer _timer = new();
+    private readonly DispatcherTimer _codexTimer = new();
     private FlyoutWindow? _flyout;
     private MainWindow? _main;
     private FloatingWidget? _widget;
+    private TaskbarStatusStripWindow? _taskbarStrip;
     private QuotaSnapshot _snapshot = new();
     private bool _syncing;
     private readonly WebViewOperationGate _webViewOperation = new();
+    private CodexQuotaService _codex = null!;
+    private CombinedRefreshCoordinator _refresh = null!;
+    private readonly CodexExecutableLocator _codexLocator = new(new WindowsCodexFileSystem());
+    private readonly CancellationTokenSource _lifetime = new();
 
     public bool IsExiting { get; private set; }
 
@@ -83,7 +90,18 @@ public partial class App : Application
         _tray.LeftClick += ToggleFlyout;
         _tray.OpenRequested += ShowMain;
         _tray.StatisticsRequested += ShowMain;
-        _tray.SyncRequested += () => _ = SyncAsync(true);
+        _tray.SyncRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
+        _codex = new CodexQuotaService(
+            _codexLocator,
+            new CodexAppServerClient(),
+            new CodexSnapshotStore(),
+            version);
+        _codex.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
+        _refresh = new CombinedRefreshCoordinator(
+            (force, _) => SyncAsync(force),
+            ct => _codex.RefreshAsync(_settings.CodexExePath, ct));
+        _refresh.StateChanged += () => Dispatcher.BeginInvoke(RefreshSnapshot);
         _tray.LoginRequested += () => _ = SignInAsync();
         _tray.SettingsRequested += ShowSettings;
         _tray.OpenLogsRequested += OpenLogs;
@@ -106,6 +124,15 @@ public partial class App : Application
             }
         };
         _timer.Start();
+        _codexTimer.Interval = CodexQuotaService.TaskbarRefreshInterval;
+        _codexTimer.Tick += async (_, _) =>
+        {
+            if (_settings.TaskbarStatusEnabled)
+            {
+                await _codex.RefreshAsync(_settings.CodexExePath, _lifetime.Token);
+            }
+        };
+        ApplyCodexTimer();
 
         if (!_settings.FirstRunCompleted)
         {
@@ -117,6 +144,14 @@ public partial class App : Application
         }
 
         ApplyWidget();
+        ApplyTaskbarStrip();
+        var startupCodex = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        startupCodex.Tick += async (_, _) =>
+        {
+            startupCodex.Stop();
+            await _codex.RefreshAsync(_settings.CodexExePath, _lifetime.Token);
+        };
+        startupCodex.Start();
     }
 
     private void RunWelcome()
@@ -270,16 +305,27 @@ public partial class App : Application
         }
         _tray.Update(_snapshot, _settings.TrayIconStyle);
         _toasts.Evaluate(_snapshot, _settings);
-        _flyout?.Bind(_snapshot, _settings);
+        _flyout?.Bind(
+            _snapshot,
+            _settings,
+            _codex.Snapshot,
+            _syncing || _refresh.ChatGptRefreshing,
+            _codex.IsRefreshing || _refresh.CodexRefreshing);
         _widget?.Bind(_snapshot);
+        _taskbarStrip?.Bind(_snapshot, _codex.Snapshot);
         if (_main is { IsVisible: true })
         {
             var trend = _quota.BuildTrend(events, DateTimeOffset.UtcNow.AddDays(-30), DateTimeOffset.UtcNow.AddDays(1));
-            _main.Bind(_snapshot, events, trend);
+            _main.Bind(_snapshot, events, trend, _codex.Snapshot);
         }
     }
 
-    private void ToggleFlyout()
+    private Task RefreshAllAsync(bool forceChatGpt, CancellationToken cancellationToken) =>
+        _refresh.RefreshAllAsync(forceChatGpt, cancellationToken);
+
+    private void ToggleFlyout() => ToggleFlyout(FlyoutOpenSource.Tray, null, null);
+
+    private void ToggleFlyout(FlyoutOpenSource source, Rect? anchor, TaskbarEdge? edge)
     {
         if (_flyout is { IsVisible: true })
         {
@@ -290,18 +336,35 @@ public partial class App : Application
         if (_flyout is null)
         {
             _flyout = new FlyoutWindow();
-            _flyout.CoverageRequested += () => new CoverageWindow(_snapshot.Coverage).Show();
+            _flyout.CoverageRequested += () => new CoverageWindow(
+                _snapshot.Coverage,
+                _codex.Snapshot,
+                _codexLocator.Locate(_settings.CodexExePath) is not null).Show();
+            _flyout.SyncRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
         }
         _flyout.CloseOnDeactivate = _settings.FlyoutCloseOnDeactivate;
         RefreshSnapshot();
-        _flyout.Bind(_snapshot, _settings);
         _flyout.Show();
-        _flyout.PlaceNearTaskbar();
+        if (source == FlyoutOpenSource.TaskbarStrip && anchor is { } strip)
+        {
+            _flyout.PlaceNear(strip, edge ?? TaskbarEdge.Bottom);
+        }
+        else
+        {
+            _flyout.PlaceNearTaskbar();
+        }
+
         _flyout.Activate();
-        if (_settings.AutoSync
+        if (source != FlyoutOpenSource.TaskbarStrip
+            && _settings.AutoSync
             && (_snapshot.LastSync is null || DateTimeOffset.Now - _snapshot.LastSync > TimeSpan.FromMinutes(_settings.SyncIntervalMinutes)))
         {
             _ = SyncAsync(false);
+        }
+
+        if (CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now))
+        {
+            _ = _codex.RefreshAsync(_settings.CodexExePath, _lifetime.Token);
         }
     }
 
@@ -310,7 +373,7 @@ public partial class App : Application
         if (_main is null)
         {
             _main = new MainWindow();
-            _main.SyncRequested += () => _ = SyncAsync(true);
+            _main.SyncRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
             _main.SettingsRequested += ShowSettings;
             _main.Closing += (_, e) =>
             {
@@ -343,6 +406,9 @@ public partial class App : Application
             _flyout?.ApplyLocalizedTexts();
             _main?.ApplyLocalizedTexts();
             ApplyWidget();
+            ApplyCodexTimer();
+            ApplyTaskbarStrip();
+            _taskbarStrip?.ApplyThemeResources();
             RefreshSnapshot();
         };
         window.CompanionRegisterRequested += (chromeId, edgeId) =>
@@ -617,6 +683,44 @@ public partial class App : Application
         new AboutWindow(version, DisplayFormatting.StatusLabel(_snapshot.Status)).ShowDialog();
     }
 
+    private void ApplyCodexTimer()
+    {
+        if (_settings.TaskbarStatusEnabled)
+        {
+            _codexTimer.Start();
+        }
+        else
+        {
+            _codexTimer.Stop();
+        }
+    }
+
+    private void ApplyTaskbarStrip()
+    {
+        if (!_settings.TaskbarStatusEnabled)
+        {
+            if (_taskbarStrip is not null)
+            {
+                _taskbarStrip.Close();
+                _taskbarStrip = null;
+            }
+
+            return;
+        }
+
+        if (_taskbarStrip is null)
+        {
+            _taskbarStrip = new TaskbarStatusStripWindow();
+            _taskbarStrip.FlyoutRequested += () =>
+                ToggleFlyout(FlyoutOpenSource.TaskbarStrip, _taskbarStrip.LastBounds, _taskbarStrip.LastEdge);
+            _taskbarStrip.RefreshRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
+            _taskbarStrip.ContextMenuRequested += () => _tray.ShowContextMenu();
+        }
+
+        _taskbarStrip.Bind(_snapshot, _codex.Snapshot);
+        _taskbarStrip.Reposition();
+    }
+
     private void ApplyWidget()
     {
         if (!_settings.FloatingWidgetEnabled)
@@ -674,7 +778,11 @@ public partial class App : Application
     private void ExitApp()
     {
         IsExiting = true;
+        _lifetime.Cancel();
         _timer.Stop();
+        _codexTimer.Stop();
+        _taskbarStrip?.Close();
+        _taskbarStrip = null;
         _tray.Dispose();
         _companionServer?.Dispose();
         _webViewTransport.Dispose();

@@ -37,6 +37,8 @@ public partial class SettingsWindow : Window
         IntervalBox.Text = settings.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture);
         StartupBox.IsChecked = settings.StartWithWindows;
         WidgetBox.IsChecked = settings.FloatingWidgetEnabled;
+        TaskbarStatusBox.IsChecked = settings.TaskbarStatusEnabled;
+        CodexExeBox.Text = settings.CodexExePath ?? "";
         ThemeBox.SelectedIndex = (int)settings.Theme;
         LanguageBox.SelectedIndex = settings.UiLanguage == UiLanguage.Korean ? 0 : 1;
         IconBox.SelectedIndex = (int)settings.TrayIconStyle;
@@ -98,6 +100,8 @@ public partial class SettingsWindow : Window
             SyncIntervalMinutes = ParseInt(IntervalBox.Text, 15),
             StartWithWindows = StartupBox.IsChecked == true,
             FloatingWidgetEnabled = WidgetBox.IsChecked == true,
+            TaskbarStatusEnabled = TaskbarStatusBox.IsChecked == true,
+            CodexExePath = TrimOrNull(CodexExeBox.Text),
             Theme = (AppTheme)ThemeBox.SelectedIndex,
             TrayIconStyle = (TrayIconStyle)IconBox.SelectedIndex,
             UiLanguage = LanguageBox.SelectedIndex == 0 ? UiLanguage.Korean : UiLanguage.English,
@@ -293,6 +297,9 @@ public partial class SettingsWindow : Window
         IntervalLabel.Text = UiText.SyncInterval;
         StartupBox.Content = UiText.StartWithWindows;
         WidgetBox.Content = UiText.FloatingWidget;
+        TaskbarStatusBox.Content = UiText.TaskbarStatusEnabled;
+        CodexExeLabel.Text = UiText.CodexExePath;
+        CodexExeHint.Text = UiText.CodexExePathHint;
         LanguageLabel.Text = UiText.LanguageCaption;
         SetCombo(LanguageBox, UiText.Korean, UiText.English);
         SetCombo(ThemeBox, UiText.ThemeSystem, UiText.ThemeLight, UiText.ThemeDark);

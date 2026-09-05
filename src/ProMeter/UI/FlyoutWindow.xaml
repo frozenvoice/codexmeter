@@ -25,9 +25,48 @@
             Padding="16">
         <StackPanel>
             <DockPanel>
-                <TextBlock Text="ProMeter" FontWeight="SemiBold" FontSize="16" Foreground="{DynamicResource TextBrush}"/>
+                <Button x:Name="RefreshAllButton"
+                        DockPanel.Dock="Right"
+                        Click="OnRefreshAllClick"
+                        PreviewMouseDown="OnRefreshPreviewMouseDown"
+                        ToolTip="Refresh all"
+                        AutomationProperties.Name="Refresh all"
+                        MinWidth="28"
+                        MinHeight="28"
+                        Padding="6,2"
+                        Margin="8,0,0,0"
+                        Cursor="Hand"
+                        Background="{DynamicResource GhostBrush}"
+                        Foreground="{DynamicResource TextBrush}"
+                        BorderThickness="0"
+                        Focusable="True">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="RefreshChrome"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="RefreshChrome" Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="RefreshChrome" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Foreground" Value="{DynamicResource DisabledBrush}"/>
+                                    <Setter TargetName="RefreshChrome" Property="Background" Value="{DynamicResource GhostBrush}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <TextBlock x:Name="RefreshAllIcon" Text="↻" FontSize="14" Foreground="{DynamicResource TextBrush}"/>
+                </Button>
                 <TextBlock x:Name="StatusText" DockPanel.Dock="Right" HorizontalAlignment="Right"
                            Foreground="{DynamicResource MutedBrush}" FontSize="11"/>
+                <TextBlock Text="ProMeter" FontWeight="SemiBold" FontSize="16" Foreground="{DynamicResource TextBrush}"/>
             </DockPanel>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="GPT PRO"/>
@@ -57,6 +96,10 @@
                 </DockPanel>
             </StackPanel>
             <ItemsControl x:Name="ModelRows" Margin="0,8,0,0"/>
+
+            <TextBlock x:Name="CodexSectionTitle" Style="{StaticResource SectionTitle}" Text="CODEX"/>
+            <TextBlock x:Name="CodexStatusText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap"/>
+            <ItemsControl x:Name="CodexRows" Margin="0,4,0,0"/>
 
             <TextBlock x:Name="ReasoningSectionTitle" Style="{StaticResource SectionTitle}" Text="SOL REASONING"/>
             <DockPanel><TextBlock x:Name="ReasonTodayLabel" Text="Today" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ReasonToday" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>

@@ -19,6 +19,8 @@ public sealed record SettingsEdit
     public int SyncIntervalMinutes { get; set; }
     public bool StartWithWindows { get; set; }
     public bool FloatingWidgetEnabled { get; set; }
+    public bool TaskbarStatusEnabled { get; set; }
+    public string? CodexExePath { get; set; }
     public AppTheme Theme { get; set; }
     public TrayIconStyle TrayIconStyle { get; set; }
     public UiLanguage UiLanguage { get; set; }
@@ -52,6 +54,8 @@ public static class SettingsApplication
         target.SyncIntervalMinutes = Math.Clamp(edit.SyncIntervalMinutes, 5, 180);
         target.StartWithWindows = edit.StartWithWindows;
         target.FloatingWidgetEnabled = edit.FloatingWidgetEnabled;
+        target.TaskbarStatusEnabled = edit.TaskbarStatusEnabled;
+        target.CodexExePath = string.IsNullOrWhiteSpace(edit.CodexExePath) ? null : edit.CodexExePath.Trim();
         target.DisplayMode = edit.FloatingWidgetEnabled ? DisplayMode.TrayAndWidget : DisplayMode.TrayOnly;
         target.Theme = edit.Theme;
         target.TrayIconStyle = edit.TrayIconStyle;

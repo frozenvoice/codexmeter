@@ -86,6 +86,10 @@
             </DockPanel>
             <CheckBox x:Name="StartupBox" Content="Start with Windows" Foreground="{DynamicResource TextBrush}" Margin="0,8,0,4"/>
             <CheckBox x:Name="WidgetBox" Content="Floating widget" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
+            <CheckBox x:Name="TaskbarStatusBox" Content="Always show taskbar status" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
+            <TextBlock x:Name="CodexExeLabel" Text="Codex executable path (optional)" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,4"/>
+            <TextBox x:Name="CodexExeBox" Margin="0,0,0,4"/>
+            <TextBlock x:Name="CodexExeHint" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,4"/>
             <TextBlock x:Name="LanguageLabel" Text="Language / 언어" Margin="0,8,0,4" Foreground="{DynamicResource MutedBrush}"/>
             <ComboBox x:Name="LanguageBox" Margin="0,0,0,0">
                 <ComboBoxItem Content="한국어"/>

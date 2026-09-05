@@ -172,6 +172,34 @@ public static class UiText
     public static string TransportWebView => T("WebView2 fallback", "WebView2 대체 경로");
     public static string TransportExport => T("Data Export only", "데이터 내보내기만");
     public static string FloatingWidget => T("Floating widget", "플로팅 위젯");
+    public static string TaskbarStatusEnabled => T("Always show taskbar status", "작업표시줄 상시 표시");
+    public static string RefreshAll => T("Refresh all", "모두 새로고침");
+    public static string CodexUsage => T("Codex usage", "Codex 사용량");
+    public static string FiveHourUsed => T("5-hour used", "5시간 사용량");
+    public static string FiveHourRemaining => T("5-hour remaining", "5시간 남음");
+    public static string WeeklyUsed => T("Weekly used", "주간 사용량");
+    public static string WeeklyRemaining => T("Weekly remaining", "주간 남음");
+    public static string LastChecked => T("Last checked", "마지막 확인");
+    public static string ResetCredits => T("Reset credits", "리셋권");
+    public static string CodexNotFound => T("Codex not found", "Codex를 찾을 수 없음");
+    public static string CodexSignIn => T("Sign in to Codex", "Codex에 로그인하세요");
+    public static string CodexDataStale => T("Last data shown · stale", "마지막 데이터 표시 · 오래됨");
+    public static string CodexProtocolChanged => T("Protocol changed", "프로토콜이 변경됨");
+    public static string CodexTimedOut => T("Request timed out", "요청 시간이 초과됨");
+    public static string CodexRefreshing => T("Refreshing...", "새로고침 중...");
+    public static string CodexUnavailable => T("Data unavailable", "데이터를 사용할 수 없음");
+    public static string CodexCancelled => T("Cancelled", "취소됨");
+    public static string CodexExecutable => T("Codex executable", "Codex 실행 파일");
+    public static string CodexExePath => T("Codex executable path (optional)", "Codex 실행 파일 경로 (선택)");
+    public static string CodexExePathHint => T(
+        "Leave blank to auto-discover Codex. Use an absolute .exe, .cmd, or .bat path only when discovery cannot find it.",
+        "비워 두면 Codex를 자동으로 찾습니다. 자동 검색이 실패할 때만 절대 경로의 .exe, .cmd, .bat를 지정하세요.");
+    public static string Found => T("Found", "찾음");
+    public static string NotFound => T("Not found", "없음");
+    public static string CodexSignInState => T("Codex sign-in", "Codex 로그인");
+    public static string CodexFreshness => T("Codex freshness", "Codex 최신 여부");
+    public static string CodexWindows => T("Codex windows", "Codex 기간");
+    public static string CodexFailureCategory => T("Codex status detail", "Codex 상태 세부 정보");
     public static string Plan => T("PLAN", "요금제");
     public static string ResetAnchor => T("RESET ANCHOR", "리셋 기준");
     public static string Connection => T("CONNECTION", "연결");
