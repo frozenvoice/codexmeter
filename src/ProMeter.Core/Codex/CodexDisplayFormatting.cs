@@ -7,13 +7,49 @@ public sealed record CodexDisplayRow(string Label, string Value, bool EmphasizeD
 
 public static class CodexDisplayFormatting
 {
+    private static string FormatStale(CodexQuotaSnapshot snapshot)
+    {
+        var recent = RecentFailureText(snapshot.TechnicalDetail);
+        return string.IsNullOrWhiteSpace(recent)
+            ? UiText.CodexDataStale
+            : $"{UiText.CodexDataStale}{Environment.NewLine}{UiText.CodexRecentRefreshError}: {recent}";
+    }
+
+    public static string? RecentFailureText(string? detail)
+    {
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return null;
+        }
+
+        if (detail.Contains("protocol", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("response-error", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("root-keys", StringComparison.OrdinalIgnoreCase))
+        {
+            return UiText.CodexProtocolChanged;
+        }
+
+        if (detail.Contains("timed-out", StringComparison.OrdinalIgnoreCase)
+            || detail.Contains("timeout", StringComparison.OrdinalIgnoreCase))
+        {
+            return UiText.CodexTimedOut;
+        }
+
+        if (detail.Contains("cancelled", StringComparison.OrdinalIgnoreCase))
+        {
+            return UiText.CodexCancelled;
+        }
+
+        return null;
+    }
+
     public static string SectionTitle => "CODEX";
 
     public static string StatusText(CodexQuotaSnapshot snapshot) => snapshot.Status switch
     {
         CodexQuotaStatus.Refreshing when !snapshot.HasUsablePercentages => UiText.CodexRefreshing,
         CodexQuotaStatus.Refreshing => UiText.CodexRefreshing,
-        CodexQuotaStatus.Stale => UiText.CodexDataStale,
+        CodexQuotaStatus.Stale => FormatStale(snapshot),
         CodexQuotaStatus.CodexNotFound => UiText.CodexNotFound,
         CodexQuotaStatus.SignedOut => UiText.CodexSignIn,
         CodexQuotaStatus.ProtocolMismatch => UiText.CodexProtocolChanged,

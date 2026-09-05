@@ -231,4 +231,8 @@ public sealed class CombinedRefreshCoordinator
     private void Raise() => StateChanged?.Invoke();
 }
 
-public readonly record struct FlyoutRefreshPresentation(bool Enabled, bool Active, string ProgressText);
+public readonly record struct FlyoutRefreshPresentation(bool Enabled, bool Active, string ProgressText)
+{
+    public bool ShowNormalStatus => !Active;
+    public bool ShowRefreshProgress => Active && !string.IsNullOrWhiteSpace(ProgressText);
+}

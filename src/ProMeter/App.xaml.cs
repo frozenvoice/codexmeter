@@ -99,10 +99,11 @@ public partial class App : Application
             _codexLocator,
             new CodexAppServerClient(),
             new CodexSnapshotStore(),
-            version);
+            version,
+            message => _log.Info(message));
         _codex.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
         _refresh = new CombinedRefreshCoordinator(
-            (force, _) => SyncAsync(force, SyncOrigin.Manual),
+            (bypassPause, _) => SyncAsync(SyncRunOptions.Manual(bypassPause)),
             ct => _codex.RefreshAsync(_settings.CodexExePath, ct));
         _refresh.StateChanged += () => Dispatcher.BeginInvoke(RefreshSnapshot);
         _proStatus = new ProServerStatusService();
@@ -125,7 +126,7 @@ public partial class App : Application
         {
             if (_settings.AutoSync)
             {
-                await SyncAsync(false, SyncOrigin.Auto);
+                await SyncAsync(SyncRunOptions.Auto);
             }
         };
         _timer.Start();
@@ -163,7 +164,7 @@ public partial class App : Application
         }
         else if (_settings.AutoSync)
         {
-            _ = SyncAsync(true, SyncOrigin.Startup);
+            _ = SyncAsync(SyncRunOptions.StartupIncremental);
         }
 
         ApplyWidget();
@@ -277,7 +278,7 @@ public partial class App : Application
             }
 
             welcome.SetBusy(UiText.RunningFirstSync);
-            var outcome = await SyncAsync(true, SyncOrigin.Manual);
+            var outcome = await SyncAsync(SyncRunOptions.ManualIncremental);
             welcome.ApplyOutcome(OnboardingOutcomeMapper.From(
                 outcome.Status,
                 _snapshot.Used,
@@ -297,7 +298,7 @@ public partial class App : Application
         }
     }
 
-    private async Task<SyncOutcome> SyncAsync(bool force, SyncOrigin origin = SyncOrigin.Auto)
+    private async Task<SyncOutcome> SyncAsync(SyncRunOptions options)
     {
         if (_syncing)
         {
@@ -308,14 +309,10 @@ public partial class App : Application
         RefreshSnapshot();
         try
         {
-            var outcome = await _sync.SyncAsync(
-                _provider,
-                _settings,
-                force,
-                new SyncRunOptions { Origin = origin });
+            var outcome = await _sync.SyncAsync(_provider, _settings, options);
             _proStatus.ApplyFromMetadata(_sync.LastQuotaMetadata);
             ScheduleProResetRecheck();
-            ApplySyncFailurePresentation(outcome, origin);
+            ApplySyncFailurePresentation(outcome, options.Origin);
             return outcome;
         }
         finally
@@ -440,7 +437,7 @@ public partial class App : Application
                 _settings.SyncIntervalMinutes,
                 FlyoutAutoSyncPolicy.ParseTimestamp(_settings.LastSyncFailureAt)))
         {
-            _ = SyncAsync(false, SyncOrigin.FlyoutStaleRefresh);
+            _ = SyncAsync(SyncRunOptions.FlyoutStale);
         }
 
         if (CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now))
@@ -595,7 +592,7 @@ public partial class App : Application
 
         if (_settings.AutoSync)
         {
-            await SyncAsync(true, SyncOrigin.Manual);
+            await SyncAsync(SyncRunOptions.ManualIncremental);
         }
     }
 
@@ -731,7 +728,10 @@ public partial class App : Application
 
         if (_taskbarStrip is null)
         {
-            _taskbarStrip = new TaskbarStatusStripWindow();
+            _taskbarStrip = new TaskbarStatusStripWindow
+            {
+                VisibilityLog = message => _log.Info(message)
+            };
             _taskbarStrip.FlyoutRequested += () =>
                 ToggleFlyout(FlyoutOpenSource.TaskbarStrip, _taskbarStrip.LastBounds, _taskbarStrip.LastEdge);
             _taskbarStrip.RefreshRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);

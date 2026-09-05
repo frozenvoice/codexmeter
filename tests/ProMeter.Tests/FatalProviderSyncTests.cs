@@ -211,7 +211,6 @@ public class FatalProviderSyncTests
     [Theory]
     [InlineData(CompanionBridgeProtocol.NotConnectedError, AppSyncStatus.CompanionDisconnected)]
     [InlineData(CompanionBridgeProtocol.DisconnectedError, AppSyncStatus.CompanionDisconnected)]
-    [InlineData(CompanionBridgeProtocol.TimeoutError, AppSyncStatus.BridgeTimeout)]
     [InlineData(CompanionBridgeProtocol.WriteFailedError, AppSyncStatus.BridgeWriteFailed)]
     public async Task LocalBridgeFailureDuringBodyFetch_IsNotOffline(string message, AppSyncStatus expected)
     {

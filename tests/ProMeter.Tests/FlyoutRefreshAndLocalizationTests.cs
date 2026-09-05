@@ -49,23 +49,59 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.True(idle.Enabled);
         Assert.False(idle.Active);
         Assert.Equal("", idle.ProgressText);
+        Assert.True(idle.ShowNormalStatus);
+        Assert.False(idle.ShowRefreshProgress);
 
         var autoCodex = CombinedRefreshCoordinator.Present(false, true);
         Assert.True(autoCodex.Enabled);
         Assert.True(autoCodex.Active);
+        Assert.False(autoCodex.ShowNormalStatus);
+        Assert.True(autoCodex.ShowRefreshProgress);
 
         var bothBackground = CombinedRefreshCoordinator.Present(true, true);
         Assert.False(bothBackground.Enabled);
         Assert.True(bothBackground.Active);
+        Assert.False(bothBackground.ShowNormalStatus);
+        Assert.True(bothBackground.ShowRefreshProgress);
 
         var manual = CombinedRefreshCoordinator.Present(true, true, combinedManual: true);
         Assert.False(manual.Enabled);
         Assert.True(manual.Active);
         Assert.Equal(UiText.RefreshAllProgress, manual.ProgressText);
+        Assert.False(manual.ShowNormalStatus);
+        Assert.True(manual.ShowRefreshProgress);
 
         var restored = CombinedRefreshCoordinator.Present(false, false);
         Assert.True(restored.Enabled);
         Assert.False(restored.Active);
+        Assert.True(restored.ShowNormalStatus);
+        Assert.False(restored.ShowRefreshProgress);
+    }
+
+    [Fact]
+    public void FlyoutHeader_ShowsExactlyOneActiveRefreshLabel()
+    {
+        var idle = CombinedRefreshCoordinator.Present(false, false);
+        Assert.True(idle.ShowNormalStatus);
+        Assert.False(idle.ShowRefreshProgress);
+
+        var chatgpt = CombinedRefreshCoordinator.Present(true, false);
+        Assert.False(chatgpt.ShowNormalStatus);
+        Assert.True(chatgpt.ShowRefreshProgress);
+
+        var combined = CombinedRefreshCoordinator.Present(true, true, combinedManual: true);
+        Assert.False(combined.ShowNormalStatus);
+        Assert.True(combined.ShowRefreshProgress);
+
+        var done = CombinedRefreshCoordinator.Present(false, false);
+        Assert.True(done.ShowNormalStatus);
+        Assert.False(done.ShowRefreshProgress);
+
+        var flyoutCode = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
+        Assert.Contains("StatusText.Visibility = presentation.ShowNormalStatus", flyoutCode, StringComparison.Ordinal);
+        Assert.Contains("RefreshProgressText.Visibility = presentation.ShowRefreshProgress", flyoutCode, StringComparison.Ordinal);
+        Assert.Contains("ApplyRefreshIndicator(presentation.Active)", flyoutCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("Margin=\"0,0,-", File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml")), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -126,6 +162,7 @@ public class FlyoutRefreshAndLocalizationTests
             Assert.Equal("Codex not found", UiText.CodexNotFound);
             Assert.Equal("Sign in to Codex", UiText.CodexSignIn);
             Assert.Equal("Last data shown · stale", UiText.CodexDataStale);
+            Assert.Equal("Recent refresh error", UiText.CodexRecentRefreshError);
             Assert.Equal("Protocol changed", UiText.CodexProtocolChanged);
             Assert.Equal("Request timed out", UiText.CodexTimedOut);
             Assert.Equal("Refreshing...", UiText.CodexRefreshing);
@@ -141,6 +178,7 @@ public class FlyoutRefreshAndLocalizationTests
             Assert.Equal("Codex를 찾을 수 없음", UiText.CodexNotFound);
             Assert.Equal("Codex에 로그인하세요", UiText.CodexSignIn);
             Assert.Equal("마지막 데이터 표시 · 오래됨", UiText.CodexDataStale);
+            Assert.Equal("최근 새로고침 오류", UiText.CodexRecentRefreshError);
             Assert.Equal("프로토콜이 변경됨", UiText.CodexProtocolChanged);
             Assert.Equal("요청 시간이 초과됨", UiText.CodexTimedOut);
             Assert.Equal("새로고침 중...", UiText.CodexRefreshing);

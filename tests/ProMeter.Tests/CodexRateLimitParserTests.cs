@@ -239,4 +239,42 @@ public class CodexRateLimitParserTests
         Assert.Equal(CodexQuotaStatus.SignedOut, parsed.Status);
         Assert.Empty(parsed.Windows);
     }
+
+    [Fact]
+    public void AccountReadProtocolError_DoesNotFailWhenRateLimitsParse()
+    {
+        var parsed = CodexRateLimitParser.Parse(
+            JsonNode.Parse("""{"id":2,"error":{"code":-32600,"message":"Invalid request: missing field `params`"}}"""),
+            JsonNode.Parse("""
+            {
+              "id": 3,
+              "result": {
+                "rateLimits": {
+                  "primary": { "usedPercent": 97, "windowDurationMins": 10080, "resetsAt": 1893456000 },
+                  "secondary": null
+                },
+                "rateLimitsByLimitId": {
+                  "codex_extra": { "primary": { "usedPercent": 0, "windowDurationMins": 300 } },
+                  "codex": { "primary": { "usedPercent": 97, "windowDurationMins": 10080, "resetsAt": 1893456000 } }
+                },
+                "rateLimitResetCredits": { "availableCount": 3 }
+              }
+            }
+            """));
+        Assert.Equal(CodexQuotaStatus.Available, parsed.Status);
+        Assert.Equal(97, parsed.Windows[0].UsedPercent);
+        Assert.Equal(CodexWindowKind.Weekly, parsed.Windows[0].Kind);
+        Assert.Equal(3, parsed.ResetCreditsAvailable);
+    }
+
+    [Fact]
+    public void LiveAccountShapeWithoutLoggedIn_ReadsPlanType()
+    {
+        var parsed = CodexRateLimitParser.Parse(
+            JsonNode.Parse("""{"id":2,"result":{"account":{"planType":"plus"},"requiresOpenaiAuth":true}}"""),
+            JsonNode.Parse("""{"id":3,"result":{"rateLimits":{"primary":{"usedPercent":12,"windowDurationMins":300}}}}"""));
+        Assert.Equal(CodexQuotaStatus.Available, parsed.Status);
+        Assert.Equal("plus", parsed.PlanType);
+        Assert.Null(parsed.OrdinaryUsageAllowed);
+    }
 }

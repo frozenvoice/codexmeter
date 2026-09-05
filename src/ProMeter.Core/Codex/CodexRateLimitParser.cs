@@ -18,13 +18,18 @@ public static class CodexRateLimitParser
             return new CodexParseResult(CodexQuotaStatus.Unavailable, SafePlanType(accountResult), null, null, null, [], "rate-limits-missing");
         }
 
-        if (HasProtocolError(rateLimitsResult) || HasProtocolError(accountResult))
+        if (HasProtocolError(rateLimitsResult))
         {
             return new CodexParseResult(CodexQuotaStatus.ProtocolMismatch, SafePlanType(accountResult), null, null, null, [], "protocol-error");
         }
 
         var root = UnwrapResult(rateLimitsResult);
         var bucket = SelectBucket(rateLimitsResult);
+        if (HasProtocolError(accountResult) && bucket is null)
+        {
+            return new CodexParseResult(CodexQuotaStatus.ProtocolMismatch, SafePlanType(accountResult), null, null, null, [], "protocol-error");
+        }
+
         if (bucket is null)
         {
             return new CodexParseResult(CodexQuotaStatus.Unavailable, SafePlanType(accountResult), null, null, null, [], "rate-limits-unavailable");

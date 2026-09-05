@@ -13,6 +13,7 @@ public partial class TaskbarStatusStripWindow : Window
     public event Action? ContextMenuRequested;
 
     private readonly LayoutSignalDebouncer _debounce = new();
+    private readonly TaskbarStripVisibilityGate _visibility = new();
     private readonly DispatcherTimer _layoutTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private readonly DispatcherTimer _fullscreenTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private HwndSource? _hwnd;
@@ -20,6 +21,7 @@ public partial class TaskbarStatusStripWindow : Window
     private QuotaSnapshot _chatgpt = new();
     private CodexQuotaSnapshot _codex = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
     private TaskbarLayoutResult _layout;
+    public Action<string>? VisibilityLog { get; set; }
     public TaskbarEdge LastEdge { get; private set; } = TaskbarEdge.Bottom;
     public Rect LastBounds => new(Left, Top, Width, Height);
 
@@ -48,7 +50,6 @@ public partial class TaskbarStatusStripWindow : Window
         _chatgpt = chatgpt;
         _codex = codex;
         ApplyText();
-        Reposition();
     }
 
     public void ApplyThemeResources() => ApplyText();
@@ -75,19 +76,34 @@ public partial class TaskbarStatusStripWindow : Window
             var hwnd = _hwnd?.Handle ?? IntPtr.Zero;
             var input = TaskbarWin32.Capture(hwnd);
             LastEdge = input.Edge;
-            _layout = TaskbarStatusPositioner.Place(input);
-            if (!_layout.Visible)
+            var placed = TaskbarStatusPositioner.Place(input);
+            var decision = _visibility.Observe(input, placed.Visible ? placed.Mode : TaskbarStripMode.Hidden);
+            if (!string.IsNullOrWhiteSpace(decision.LogLine))
             {
-                Hide();
+                VisibilityLog?.Invoke(decision.LogLine);
+            }
+
+            if (!decision.OverlayVisible)
+            {
+                if (decision.Action == TaskbarStripVisibilityAction.Hide && IsVisible)
+                {
+                    Hide();
+                }
+
                 return;
             }
 
-            var dip = TaskbarStatusPositioner.ToDip(_layout.Bounds, input.DpiScale);
-            Left = dip.Left;
-            Top = dip.Top;
-            Width = Math.Max(1, dip.Width);
-            Height = Math.Max(1, dip.Height);
-            Topmost = TaskbarStatusPositioner.ShouldShow(input);
+            if (placed.Visible)
+            {
+                _layout = placed;
+                var dip = TaskbarStatusPositioner.ToDip(_layout.Bounds, input.DpiScale);
+                Left = dip.Left;
+                Top = dip.Top;
+                Width = Math.Max(1, dip.Width);
+                Height = Math.Max(1, dip.Height);
+            }
+
+            Topmost = decision.OverlayVisible;
             ApplyText();
             if (!IsVisible)
             {

@@ -212,8 +212,8 @@ public class SyncFailureNotificationTests
     {
         var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
         Assert.Contains("FlyoutAutoSyncPolicy.ShouldStartStaleAutoSync", app, StringComparison.Ordinal);
-        Assert.Contains("SyncOrigin.FlyoutStaleRefresh", app, StringComparison.Ordinal);
-        Assert.Contains("SyncOrigin.Manual", app, StringComparison.Ordinal);
+        Assert.Contains("SyncRunOptions.FlyoutStale", app, StringComparison.Ordinal);
+        Assert.Contains("SyncRunOptions.Manual", app, StringComparison.Ordinal);
         Assert.Contains("TrySyncError", app, StringComparison.Ordinal);
         Assert.Contains("ResetSyncErrorSuppression", app, StringComparison.Ordinal);
         var engine = File.ReadAllText(Find("src/ProMeter.Core/Services/SyncEngine.cs"));

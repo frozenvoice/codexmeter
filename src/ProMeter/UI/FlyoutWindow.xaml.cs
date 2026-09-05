@@ -140,9 +140,8 @@ public partial class FlyoutWindow : Window
             ? (Brush)FindResource("AccentBrush")
             : (Brush)FindResource("TextBrush");
         RefreshProgressText.Text = presentation.ProgressText;
-        RefreshProgressText.Visibility = presentation.Active && !string.IsNullOrWhiteSpace(presentation.ProgressText)
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        StatusText.Visibility = presentation.ShowNormalStatus ? Visibility.Visible : Visibility.Collapsed;
+        RefreshProgressText.Visibility = presentation.ShowRefreshProgress ? Visibility.Visible : Visibility.Collapsed;
         _refreshActive = presentation.Active;
         ApplyRefreshIndicator(presentation.Active);
     }

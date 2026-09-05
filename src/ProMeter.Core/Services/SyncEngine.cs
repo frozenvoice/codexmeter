@@ -14,8 +14,11 @@ public sealed class SyncEngine
     private int _consecutiveFailures;
     public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(2);
     public int RetryAttempts { get; set; } = 6;
+    public TimeSpan ConversationBodyTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public int ConsecutiveBodyTimeoutLimit { get; set; } = 3;
     private int _bodyFetchDelayMs = 250;
     private bool _pacedBodyThisSync;
+    private int _consecutiveBodyTimeouts;
     private ReconstructionTotals _reconstruction = new();
     private readonly List<DeferredZeroEventScan> _deferredZeroEvents = [];
     private readonly Dictionary<string, ConversationWorkEntry> _work = new(StringComparer.Ordinal);
@@ -48,7 +51,11 @@ public sealed class SyncEngine
         bool force,
         CancellationToken cancellationToken = default)
     {
-        return await SyncAsync(provider, settings, force, new SyncRunOptions(), cancellationToken);
+        return await SyncAsync(
+            provider,
+            settings,
+            new SyncRunOptions { BypassPause = force, ForceBodyRescan = force },
+            cancellationToken);
     }
 
     public async Task<SyncOutcome> SyncAsync(
@@ -58,25 +65,46 @@ public sealed class SyncEngine
         SyncRunOptions options,
         CancellationToken cancellationToken = default)
     {
-        if (!force && IsPaused && PauseUntil is DateTimeOffset until && until > _clock.UtcNow)
+        return await SyncAsync(
+            provider,
+            settings,
+            options with
+            {
+                BypassPause = options.BypassPause || force,
+                ForceBodyRescan = options.ForceBodyRescan || force
+            },
+            cancellationToken);
+    }
+
+    public async Task<SyncOutcome> SyncAsync(
+        IChatGptProvider provider,
+        AppSettings settings,
+        SyncRunOptions options,
+        CancellationToken cancellationToken = default)
+    {
+        if (!options.BypassPause && IsPaused && PauseUntil is DateTimeOffset until && until > _clock.UtcNow)
         {
             LastStatus = AppSyncStatus.RateLimited;
             LastStatusDetail = UiText.AutoSyncPaused;
             return new SyncOutcome(LastStatus, LastStatusDetail, 0);
         }
 
-        if (force)
+        if (options.BypassPause)
         {
             IsPaused = false;
             PauseUntil = null;
             _consecutiveFailures = 0;
         }
 
+        _log.Info(
+            $"sync plan origin={options.Origin.ToString().ToLowerInvariant()} bypassPause={options.BypassPause} forceBodyRescan={options.ForceBodyRescan}");
+
         var coverage = new CoverageInfo();
         var parsed = 0;
         var worst = AppSyncStatus.UpToDate;
         _bodyFetchDelayMs = Math.Clamp(settings.BodyFetchDelayMilliseconds, 0, 5000);
         _pacedBodyThisSync = false;
+        _consecutiveBodyTimeouts = 0;
         _reconstruction = new ReconstructionTotals();
         _deferredZeroEvents.Clear();
         _work.Clear();
@@ -142,11 +170,11 @@ public sealed class SyncEngine
             LastStatus = AppSyncStatus.Syncing;
             Report(UiText.ScanningPeriod);
 
-            parsed += await SyncIndexAsync(provider, false, minUpdate, "chat", UsageSource.ConversationSync, coverage, force, value => worst = Worse(worst, value), cancellationToken);
+            parsed += await SyncIndexAsync(provider, false, minUpdate, "chat", UsageSource.ConversationSync, coverage, options, value => worst = Worse(worst, value), cancellationToken);
 
             try
             {
-                parsed += await SyncIndexAsync(provider, true, minUpdate, "archived", UsageSource.ArchivedSync, coverage, force, value => worst = Worse(worst, value), cancellationToken);
+                parsed += await SyncIndexAsync(provider, true, minUpdate, "archived", UsageSource.ArchivedSync, coverage, options, value => worst = Worse(worst, value), cancellationToken);
             }
             catch (ChatGptProviderException ex) when (IsFatalProviderError(ex))
             {
@@ -188,7 +216,7 @@ public sealed class SyncEngine
                 {
                     foreach (var project in projects.Projects)
                     {
-                        parsed += await SyncProjectAsync(provider, project, minUpdate, coverage, force, value => worst = Worse(worst, value), cancellationToken);
+                        parsed += await SyncProjectAsync(provider, project, minUpdate, coverage, options, value => worst = Worse(worst, value), cancellationToken);
                     }
 
                     coverage.Projects = !projects.Incomplete;
@@ -324,6 +352,12 @@ public sealed class SyncEngine
             LogSyncFailure(options.Origin, LastStatus);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
+        catch (OperationCanceledException)
+        {
+            LastStatus = AppSyncStatus.Error;
+            LastStatusDetail = "cancelled";
+            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+        }
         catch (Exception ex)
         {
             _consecutiveFailures++;
@@ -376,7 +410,7 @@ public sealed class SyncEngine
         string source,
         UsageSource usageSource,
         CoverageInfo coverage,
-        bool force,
+        SyncRunOptions options,
         Action<AppSyncStatus> setWorst,
         CancellationToken cancellationToken)
     {
@@ -421,7 +455,7 @@ public sealed class SyncEngine
             return 0;
         }
 
-        return await ProcessItemsAsync(provider, result.Items, source, usageSource, coverage, force, setWorst, cancellationToken);
+        return await ProcessItemsAsync(provider, result.Items, source, usageSource, coverage, options, setWorst, cancellationToken);
     }
 
     private async Task<int> SyncProjectAsync(
@@ -429,7 +463,7 @@ public sealed class SyncEngine
         ProjectInfo project,
         double minUpdate,
         CoverageInfo coverage,
-        bool force,
+        SyncRunOptions options,
         Action<AppSyncStatus> setWorst,
         CancellationToken cancellationToken)
     {
@@ -468,7 +502,7 @@ public sealed class SyncEngine
         }
 
         _log.Info($"project {project.Id} index={result.Items.Count}");
-        return await ProcessItemsAsync(provider, result.Items, "project", UsageSource.ProjectSync, coverage, force, setWorst, cancellationToken);
+        return await ProcessItemsAsync(provider, result.Items, "project", UsageSource.ProjectSync, coverage, options, setWorst, cancellationToken);
     }
 
     private async Task<int> ProcessItemsAsync(
@@ -477,12 +511,12 @@ public sealed class SyncEngine
         string source,
         UsageSource usageSource,
         CoverageInfo coverage,
-        bool force,
+        SyncRunOptions options,
         Action<AppSyncStatus> setWorst,
         CancellationToken cancellationToken)
     {
-        var changed = items.Count(item => force || NeedsBody(item));
-        _log.Info($"{source} changed={changed} force={force}");
+        var changed = items.Count(item => options.ForceBodyRescan || NeedsBody(item));
+        _log.Info($"{source} changed={changed} forceBodyRescan={options.ForceBodyRescan} bypassPause={options.BypassPause}");
         _reconstruction.IndexedConversations += items.Count;
         var parsed = 0;
         var processed = 0;
@@ -491,7 +525,7 @@ public sealed class SyncEngine
             cancellationToken.ThrowIfCancellationRequested();
             if (_work.TryGetValue(item.Id, out var existing))
             {
-                if (force || NeedsBody(item))
+                if (options.ForceBodyRescan || NeedsBody(item))
                 {
                     _reconstruction.ScanAttempts++;
                 }
@@ -500,7 +534,7 @@ public sealed class SyncEngine
                 continue;
             }
 
-            if (!force && !NeedsBody(item))
+            if (!options.ForceBodyRescan && !NeedsBody(item))
             {
                 continue;
             }
@@ -518,13 +552,42 @@ public sealed class SyncEngine
                 try
                 {
                     _reconstruction.BodyFetches++;
+                    using var bodyCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    if (ConversationBodyTimeout > TimeSpan.Zero)
+                    {
+                        bodyCts.CancelAfter(ConversationBodyTimeout);
+                    }
+
                     load = await ExecuteWithRetry(
-                        () => provider.GetConversationMessagesAsync(item.Id, cancellationToken),
+                        () => provider.GetConversationMessagesAsync(item.Id, bodyCts.Token),
                         "conversation",
-                        cancellationToken);
+                        bodyCts.Token);
                     entry.BodyFetched = true;
+                    _consecutiveBodyTimeouts = 0;
                 }
-                catch (ChatGptProviderException ex) when (IsFatalProviderError(ex))
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (OperationCanceledException)
+                {
+                    if (RecordBodyTimeoutAndMaybeAbort(item, entry, coverage, setWorst))
+                    {
+                        throw new ChatGptProviderException(CompanionBridgeProtocol.TimeoutError);
+                    }
+
+                    continue;
+                }
+                catch (ChatGptProviderException ex) when (ex.IsBridgeTimeout)
+                {
+                    if (RecordBodyTimeoutAndMaybeAbort(item, entry, coverage, setWorst))
+                    {
+                        throw;
+                    }
+
+                    continue;
+                }
+                catch (ChatGptProviderException ex) when (IsSyncAbortingBodyFailure(ex))
                 {
                     throw;
                 }
@@ -802,6 +865,33 @@ public sealed class SyncEngine
     private static bool IsFatalProviderError(ChatGptProviderException ex) =>
         ex.IsFatalTransportFailure;
 
+    private static bool IsSyncAbortingBodyFailure(ChatGptProviderException ex) =>
+        ex.IsUnauthorized
+        || ex.IsForbidden
+        || ex.IsRateLimited
+        || ex.IsOffline
+        || ex.IsChatGptTabRequired
+        || ex.IsPageBridgeUnavailable
+        || ex.IsCompanionDisconnected
+        || ex.IsBridgeWriteFailed;
+
+    private bool RecordBodyTimeoutAndMaybeAbort(
+        ConversationIndexItem item,
+        ConversationWorkEntry entry,
+        CoverageInfo coverage,
+        Action<AppSyncStatus> setWorst)
+    {
+        _consecutiveBodyTimeouts++;
+        MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData);
+        _store.RecordConversationFailure(
+            _store.GetConversation(item.Id),
+            item,
+            ConversationScanStatus.FetchFailed,
+            "conversation body timed out");
+        LogConversationFailure(item.Id, "BodyTimeout", 0);
+        return _consecutiveBodyTimeouts >= Math.Max(1, ConsecutiveBodyTimeoutLimit);
+    }
+
     private static AppSyncStatus Worse(AppSyncStatus current, AppSyncStatus incoming)
     {
         static int Rank(AppSyncStatus status) => status switch
@@ -919,8 +1009,28 @@ public sealed class SyncEngine
 
 public sealed record SyncOutcome(AppSyncStatus Status, string? Detail, int ParsedEvents);
 
-public sealed class SyncRunOptions
+public sealed record SyncRunOptions
 {
     public DateTimeOffset? PeriodStartOverride { get; init; }
     public SyncOrigin Origin { get; init; } = SyncOrigin.Auto;
+    public bool BypassPause { get; init; }
+    public bool ForceBodyRescan { get; init; }
+
+    public static SyncRunOptions Auto { get; } = new() { Origin = SyncOrigin.Auto };
+
+    public static SyncRunOptions ManualIncremental { get; } = Manual(bypassPause: true);
+
+    public static SyncRunOptions StartupIncremental { get; } = new()
+    {
+        Origin = SyncOrigin.Startup,
+        BypassPause = true
+    };
+
+    public static SyncRunOptions FlyoutStale { get; } = new() { Origin = SyncOrigin.FlyoutStaleRefresh };
+
+    public static SyncRunOptions Manual(bool bypassPause) => new()
+    {
+        Origin = SyncOrigin.Manual,
+        BypassPause = bypassPause
+    };
 }

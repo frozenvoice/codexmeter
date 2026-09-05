@@ -9,19 +9,23 @@ public sealed class CodexQuotaService
     private readonly CodexAppServerClient _client;
     private readonly CodexSnapshotStore _store;
     private readonly string _clientVersion;
+    private readonly Action<string>? _log;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private CodexQuotaSnapshot _snapshot = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
+    private string? _lastFailureSignature;
 
     public CodexQuotaService(
         CodexExecutableLocator locator,
         CodexAppServerClient client,
         CodexSnapshotStore store,
-        string clientVersion)
+        string clientVersion,
+        Action<string>? log = null)
     {
         _locator = locator;
         _client = client;
         _store = store;
         _clientVersion = clientVersion;
+        _log = log;
         _snapshot = store.Load() ?? _snapshot;
     }
 
@@ -56,7 +60,7 @@ public sealed class CodexQuotaService
             var command = _locator.Locate(configuredPath);
             if (command is null)
             {
-                return PersistFailure(CodexQuotaStatus.CodexNotFound, attempted, "codex-not-found");
+                return PersistFailure(CodexQuotaStatus.CodexNotFound, attempted, "codex-not-found", "locate");
             }
 
             var session = await _client.ReadQuotaAsync(command, _clientVersion, cancellationToken).ConfigureAwait(false);
@@ -77,24 +81,30 @@ public sealed class CodexQuotaService
                         SafeDetail(session, parsed.Detail));
                     _store.Save(success);
                     Publish(success);
+                    _lastFailureSignature = null;
                     return new CodexRefreshResult(success, UsedCache: false, null);
                 }
 
-                return PersistFailure(parsed.Status, attempted, parsed.Detail ?? session.Detail);
+                return PersistFailure(
+                    parsed.Status,
+                    attempted,
+                    parsed.Detail ?? session.Detail,
+                    InferStage(session, parsed));
             }
 
-            return PersistFailure(session.Status, attempted, session.Detail);
+            return PersistFailure(session.Status, attempted, session.Detail, InferStage(session, null));
         }
         catch (OperationCanceledException)
         {
             return PersistFailure(
                 cancellationToken.IsCancellationRequested ? CodexQuotaStatus.Cancelled : CodexQuotaStatus.TimedOut,
                 attempted,
-                cancellationToken.IsCancellationRequested ? "cancelled" : "timed-out");
+                cancellationToken.IsCancellationRequested ? "cancelled" : "timed-out",
+                "client");
         }
         catch (Exception ex)
         {
-            return PersistFailure(CodexQuotaStatus.Unavailable, attempted, CodexProtocol.SanitizeDiagnostic(ex.GetType().Name, 80));
+            return PersistFailure(CodexQuotaStatus.Unavailable, attempted, CodexProtocol.SanitizeDiagnostic(ex.GetType().Name, 80), "client");
         }
         finally
         {
@@ -103,7 +113,11 @@ public sealed class CodexQuotaService
         }
     }
 
-    private CodexRefreshResult PersistFailure(CodexQuotaStatus status, DateTimeOffset attempted, string? detail)
+    private CodexRefreshResult PersistFailure(
+        CodexQuotaStatus status,
+        DateTimeOffset attempted,
+        string? detail,
+        string stage)
     {
         var cached = _store.Load() ?? _snapshot;
         CodexQuotaSnapshot next;
@@ -144,8 +158,60 @@ public sealed class CodexQuotaService
             _store.Save(next);
         }
 
+        LogFailure(next.Status, stage, detail);
         Publish(next);
         return new CodexRefreshResult(next, UsedCache: cached.HasUsablePercentages, detail);
+    }
+
+    private void LogFailure(CodexQuotaStatus status, string stage, string? detail)
+    {
+        var line = $"codex refresh status={status} stage={SanitizeStage(stage)} detail={CodexProtocol.SanitizeDiagnostic(detail, 120)}";
+        if (string.Equals(line, _lastFailureSignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastFailureSignature = line;
+        _log?.Invoke(line);
+    }
+
+    private static string SanitizeStage(string? stage)
+    {
+        if (string.IsNullOrWhiteSpace(stage))
+        {
+            return "unknown";
+        }
+
+        return stage is "initialize" or "initialized" or "account/read" or "rateLimits" or "locate" or "client"
+            ? stage
+            : "unknown";
+    }
+
+    private static string InferStage(CodexProtocolSession session, CodexParseResult? parsed)
+    {
+        if (session.Status is CodexQuotaStatus.ProtocolMismatch or CodexQuotaStatus.TimedOut or CodexQuotaStatus.Unavailable
+            && !session.SentMethods.Contains("initialized"))
+        {
+            return "initialize";
+        }
+
+        if (session.SentMethods.Contains("account/read")
+            && !session.SentMethods.Contains("account/rateLimits/read"))
+        {
+            return "account/read";
+        }
+
+        if (parsed?.Status == CodexQuotaStatus.ProtocolMismatch)
+        {
+            if (session.AccountResult is JsonObject account && account.ContainsKey("error"))
+            {
+                return "account/read";
+            }
+
+            return "rateLimits";
+        }
+
+        return session.SentMethods.Contains("account/rateLimits/read") ? "rateLimits" : "account/read";
     }
 
     private static string? SafeDetail(CodexProtocolSession session, string? parsed)

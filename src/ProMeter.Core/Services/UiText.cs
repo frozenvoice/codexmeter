@@ -209,6 +209,7 @@ public static class UiText
     public static string CodexNotFound => T("Codex not found", "Codex를 찾을 수 없음");
     public static string CodexSignIn => T("Sign in to Codex", "Codex에 로그인하세요");
     public static string CodexDataStale => T("Last data shown · stale", "마지막 데이터 표시 · 오래됨");
+    public static string CodexRecentRefreshError => T("Recent refresh error", "최근 새로고침 오류");
     public static string CodexProtocolChanged => T("Protocol changed", "프로토콜이 변경됨");
     public static string CodexTimedOut => T("Request timed out", "요청 시간이 초과됨");
     public static string CodexRefreshing => T("Refreshing...", "새로고침 중...");

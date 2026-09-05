@@ -27,8 +27,58 @@ public class CodexAppServerClientTests
         var received = factory.LastProcess!.Received.Select(line => JsonNode.Parse(line)!["method"]!.ToString()).ToList();
         Assert.Equal("initialize", received[0]);
         Assert.Contains("initialized", received);
+        Assert.Contains("\"params\":{}", factory.LastProcess.Received.First(line => line.Contains("account/read", StringComparison.Ordinal)), StringComparison.Ordinal);
+        Assert.Contains("\"params\":{}", factory.LastProcess.Received.First(line => line.Contains("account/rateLimits/read", StringComparison.Ordinal)), StringComparison.Ordinal);
         Assert.DoesNotContain(received, method => method.StartsWith("thread/", StringComparison.Ordinal) || method.StartsWith("turn/", StringComparison.Ordinal));
         Assert.Contains("1.2.3", factory.LastProcess.Received[0], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AccountReadSendsParams_AndParsesLiveRateLimitShape()
+    {
+        var factory = new ScriptedCodexProcessFactory
+        {
+            Responder = line =>
+            {
+                var node = JsonNode.Parse(line) as JsonObject;
+                var method = node?["method"]?.ToString();
+                if (method == "initialize")
+                {
+                    return ["""{"id":1,"result":{"userAgent":"codex-app-server"}}"""];
+                }
+
+                if (method == "account/read")
+                {
+                    if (node?["params"] is null)
+                    {
+                        return ["""{"id":2,"error":{"code":-32600,"message":"Invalid request: missing field `params`"}}"""];
+                    }
+
+                    return ["""{"id":2,"result":{"account":{"planType":"plus"},"requiresOpenaiAuth":true}}"""];
+                }
+
+                if (method == "account/rateLimits/read")
+                {
+                    return
+                    [
+                        """{"method":"configWarning","params":{}}""",
+                        """{"method":"remoteControl/status/changed","params":{}}""",
+                        """{"id":3,"result":{"rateLimits":{"primary":{"usedPercent":97,"windowDurationMins":10080,"resetsAt":1893456000},"secondary":null},"rateLimitsByLimitId":{"codex_extra":{"primary":{"usedPercent":0,"windowDurationMins":300}},"codex":{"primary":{"usedPercent":97,"windowDurationMins":10080,"resetsAt":1893456000}}},"rateLimitResetCredits":{"availableCount":3}}}"""
+                    ];
+                }
+
+                return [];
+            }
+        };
+        var session = await new CodexAppServerClient(factory).ReadQuotaAsync(DummyCommand(), "1.0.0", CancellationToken.None);
+        Assert.Equal(CodexQuotaStatus.Available, session.Status);
+        var parsed = CodexRateLimitParser.Parse(session.AccountResult, session.RateLimitsResult);
+        Assert.Equal(CodexQuotaStatus.Available, parsed.Status);
+        Assert.Equal(97, parsed.Windows[0].UsedPercent);
+        Assert.Equal(CodexWindowKind.Weekly, parsed.Windows[0].Kind);
+        Assert.Equal(3, parsed.ResetCreditsAvailable);
+        Assert.Equal("plus", parsed.PlanType);
+        Assert.DoesNotContain("thread/", string.Join(",", session.SentMethods), StringComparison.Ordinal);
     }
 
     [Fact]

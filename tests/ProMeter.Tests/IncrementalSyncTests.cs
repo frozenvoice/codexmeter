@@ -29,6 +29,16 @@ public class IncrementalSyncTests
     }
 
     [Fact]
+    public async Task BypassPauseWithoutForceBodyRescan_DoesNotRefetchUnchanged()
+    {
+        var (engine, _, provider, settings, _) = CreateHarness();
+        await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
+        var first = provider.BodyFetches;
+        await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
+        Assert.Equal(first, provider.BodyFetches);
+    }
+
+    [Fact]
     public async Task UpdatedConversation_IsFetchedAgain()
     {
         var (engine, _, provider, settings, item) = CreateHarness();

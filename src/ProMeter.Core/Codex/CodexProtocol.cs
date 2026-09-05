@@ -69,14 +69,16 @@ public static class CodexProtocol
         new JsonObject
         {
             ["method"] = "account/read",
-            ["id"] = AccountReadId
+            ["id"] = AccountReadId,
+            ["params"] = new JsonObject()
         }.ToJsonString();
 
     public static string BuildRateLimitsRead() =>
         new JsonObject
         {
             ["method"] = "account/rateLimits/read",
-            ["id"] = RateLimitsReadId
+            ["id"] = RateLimitsReadId,
+            ["params"] = new JsonObject()
         }.ToJsonString();
 
     public static bool IsForbiddenMethod(string? method)

@@ -165,6 +165,100 @@ public class TaskbarStatusLayoutTests
     }
 
     [Fact]
+    public void NonAutoHide_DoesNotRequireRevealedThickness()
+    {
+        var thin = Bottom(gap: 400, taskbarHeight: 8);
+        Assert.True(thin.Taskbar.Height < TaskbarVisibilityDetector.RevealedThicknessPx);
+        Assert.True(TaskbarVisibilityDetector.IsRevealed(false, thin.Taskbar, thin.Monitor, thin.Edge));
+        Assert.True(TaskbarStatusPositioner.ShouldShow(thin));
+        Assert.True(TaskbarStatusPositioner.Place(thin).Visible);
+        Assert.NotEqual(TaskbarStripMode.Hidden, TaskbarStatusPositioner.Place(thin).Mode);
+    }
+
+    [Fact]
+    public void VisibilityGate_HidesOnlyAfterConsecutiveGenuineHiddenSamples()
+    {
+        var gate = new TaskbarStripVisibilityGate();
+        var visible = Bottom(gap: 400);
+        var shown = gate.Observe(visible, TaskbarStripMode.Full);
+        Assert.Equal(TaskbarStripVisibilityAction.Show, shown.Action);
+        Assert.True(shown.OverlayVisible);
+        Assert.Contains("taskbar strip shown", shown.LogLine, StringComparison.Ordinal);
+
+        var invalid = visible with { Taskbar = default };
+        var retained = gate.Observe(invalid, TaskbarStripMode.Hidden);
+        Assert.Equal(TaskbarStripVisibilityAction.Retain, retained.Action);
+        Assert.True(retained.OverlayVisible);
+        Assert.Contains("transient-invalid-geometry", retained.LogLine, StringComparison.Ordinal);
+
+        var recovered = gate.Observe(visible, TaskbarStripMode.Full);
+        Assert.True(recovered.OverlayVisible);
+
+        var autoHidden = AutoHide(TaskbarEdge.Bottom, revealed: false);
+        Assert.Equal(TaskbarStripVisibilityAction.Retain, gate.Observe(autoHidden, TaskbarStripMode.Hidden).Action);
+        Assert.True(gate.OverlayVisible);
+        Assert.Equal(TaskbarStripVisibilityAction.Retain, gate.Observe(autoHidden, TaskbarStripMode.Hidden).Action);
+        Assert.True(gate.OverlayVisible);
+        var hidden = gate.Observe(autoHidden, TaskbarStripMode.Hidden);
+        Assert.Equal(TaskbarStripVisibilityAction.Hide, hidden.Action);
+        Assert.False(hidden.OverlayVisible);
+        Assert.Contains("auto-hide-collapsed", hidden.LogLine, StringComparison.Ordinal);
+
+        var shownAgain = gate.Observe(visible, TaskbarStripMode.Full);
+        Assert.Equal(TaskbarStripVisibilityAction.Show, shownAgain.Action);
+
+        var pending = AutoHide(TaskbarEdge.Bottom, revealed: false);
+        gate.Observe(pending, TaskbarStripMode.Hidden);
+        var reset = gate.Observe(visible, TaskbarStripMode.Full);
+        Assert.True(reset.OverlayVisible);
+        Assert.Equal(TaskbarStripVisibilityAction.Retain, reset.Action);
+    }
+
+    [Fact]
+    public void VisibilityGate_HidesImmediatelyForExclusiveFullscreen()
+    {
+        var gate = new TaskbarStripVisibilityGate();
+        gate.Observe(Bottom(gap: 400), TaskbarStripMode.Full);
+        var fullscreen = Bottom(gap: 400) with { ExclusiveFullscreenOnMonitor = true, TaskbarVisible = false };
+        var decision = gate.Observe(fullscreen, TaskbarStripMode.Hidden);
+        Assert.Equal(TaskbarStripVisibilityAction.Hide, decision.Action);
+        Assert.False(decision.OverlayVisible);
+        Assert.Contains("exclusive-fullscreen", decision.LogLine, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CodexStatus_DoesNotAffectTaskbarVisibility()
+    {
+        var input = Bottom(gap: 400);
+        Assert.True(TaskbarStatusPositioner.Place(input).Visible);
+        var gpt = new QuotaSnapshot { Used = 31, ReconstructedUsed = 31 };
+        var mismatch = CodexQuotaSnapshot.Empty(CodexQuotaStatus.ProtocolMismatch, "protocol-error");
+        Assert.Contains("C?", TaskbarStatusFormatter.Format(gpt, mismatch, TaskbarStripMode.Full), StringComparison.Ordinal);
+        Assert.True(TaskbarStatusPositioner.ShouldShow(input));
+        var source = File.ReadAllText(FindStripWindow());
+        var bind = source[source.IndexOf("public void Bind(", StringComparison.Ordinal)..source.IndexOf("public void ApplyThemeResources", StringComparison.Ordinal)];
+        Assert.Contains("ApplyText();", bind, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reposition();", bind, StringComparison.Ordinal);
+    }
+
+    private static string FindStripWindow()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, "src", "ProMeter", "UI", "TaskbarStatusStripWindow.xaml.cs");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new FileNotFoundException("TaskbarStatusStripWindow.xaml.cs");
+    }
+
+    [Fact]
     public void DisplayAndExplorerSignals_AreDebounced()
     {
         var debounce = new LayoutSignalDebouncer();

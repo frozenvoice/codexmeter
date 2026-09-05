@@ -1,4 +1,6 @@
+using System.Text.Json.Nodes;
 using ProMeter.Codex;
+using ProMeter.Services;
 
 namespace ProMeter.Tests;
 
@@ -63,6 +65,55 @@ public class CodexSnapshotStoreTests
         Assert.Equal(42, result.Snapshot.Windows[0].UsedPercent);
         Assert.True(result.Snapshot.Status is CodexQuotaStatus.Stale or CodexQuotaStatus.Cancelled);
         Assert.NotEqual(0, result.Snapshot.Windows[0].UsedPercent);
+    }
+
+    [Fact]
+    public async Task ProtocolMismatch_PreservesLastGoodAsStale()
+    {
+        var path = TempFile();
+        var store = new CodexSnapshotStore(path);
+        store.Save(new CodexQuotaSnapshot(
+            CodexQuotaStatus.Available,
+            "plus",
+            DateTimeOffset.Parse("2026-09-05T01:00:00Z"),
+            DateTimeOffset.Parse("2026-09-05T01:00:00Z"),
+            true,
+            null,
+            1,
+            [new CodexQuotaWindow(null, 42, 300, null, CodexWindowKind.FiveHour)],
+            null));
+        var files = new MemoryCodexFileSystem();
+        files.PathFolders.Add(@"C:\Tools");
+        files.Files.Add(@"C:\Tools\codex.exe");
+        var logs = new List<string>();
+        var factory = new ScriptedCodexProcessFactory
+        {
+            Responder = line =>
+            {
+                var method = JsonNode.Parse(line)?["method"]?.ToString();
+                return method switch
+                {
+                    "initialize" => ["""{"id":1,"result":{"ok":true}}"""],
+                    "account/read" => ["""{"id":2,"error":{"code":-32600,"message":"missing params"}}"""],
+                    "account/rateLimits/read" => ["""{"id":3,"error":{"code":-32600,"message":"missing params"}}"""],
+                    _ => []
+                };
+            }
+        };
+        var service = new CodexQuotaService(
+            new CodexExecutableLocator(files),
+            new CodexAppServerClient(factory),
+            store,
+            "1.0.0",
+            logs.Add);
+        var result = await service.RefreshAsync(@"C:\Tools\codex.exe", CancellationToken.None);
+        Assert.Equal(CodexQuotaStatus.Stale, result.Snapshot.Status);
+        Assert.Equal(42, result.Snapshot.Windows[0].UsedPercent);
+        Assert.Contains("C42%", TaskbarStatusFormatter.Format(new QuotaSnapshot(), result.Snapshot, TaskbarStripMode.Compact), StringComparison.Ordinal);
+        Assert.Contains(UiText.CodexDataStale, CodexDisplayFormatting.StatusText(result.Snapshot), StringComparison.Ordinal);
+        Assert.Contains(UiText.CodexProtocolChanged, CodexDisplayFormatting.StatusText(result.Snapshot), StringComparison.Ordinal);
+        Assert.Contains("codex refresh status=Stale", logs[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("accountId", string.Join(" ", logs), StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
