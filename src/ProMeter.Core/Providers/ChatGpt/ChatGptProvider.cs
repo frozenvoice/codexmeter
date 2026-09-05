@@ -217,7 +217,7 @@ public sealed class ChatGptProvider : IChatGptProvider
         {
             var models = await GetJsonAsync("GET", ChatGptEndpoints.Models, cancellationToken: cancellationToken);
             var parsed = AccountParser.ParseQuotaMetadata(models);
-            if (parsed.Found || parsed.ProServerStatus.ServerObserved)
+            if (parsed.Found)
             {
                 return parsed;
             }
