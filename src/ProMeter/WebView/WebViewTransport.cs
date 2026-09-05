@@ -1,4 +1,7 @@
 using System.Text.Json.Nodes;
+using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Media;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using ProMeter.Providers.ChatGpt;
@@ -6,73 +9,146 @@ using ProMeter.Services;
 
 namespace ProMeter.WebView;
 
-public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLogin, IDisposable
+public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLogin, IWebViewDiagnosticHost, IDisposable
 {
-    private static readonly TimeSpan NavigationTimeout = TimeSpan.FromSeconds(15);
-
     private readonly AppLog _log;
     private readonly Window _host;
-    private readonly WebView2 _webView;
-    private readonly SemaphoreSlim _ready = new(0, 1);
+    private readonly Grid _root;
+    private readonly Border _overlay;
+    private readonly TextBlock _overlayText;
+    private readonly WebViewInitializationCoordinator _coordinator = new();
+    private readonly WebViewHostSession _session = new();
     private readonly SessionAuthCoordinator _auth = new();
     private readonly LoginNavigationMachine _login = new();
+    private WebView2 _webView;
     private TaskCompletionSource<bool>? _navigationSignal;
+    private int _navigationEpoch;
     private int _probeGeneration;
-    private bool _initialized;
+    private bool _coreReady;
+    private bool _ensureAttempted;
+    private bool _handlersAttached;
     private bool _shownForLogin;
+    private bool _holdHostForDiagnostic;
 
     public WebViewTransport(AppLog log)
     {
         _log = log;
-        _webView = new WebView2 { DefaultBackgroundColor = System.Drawing.Color.FromArgb(18, 20, 24) };
+        _webView = CreateWebView();
+        _overlayText = new TextBlock
+        {
+            Text = UiText.CheckingChatGptSession,
+            Foreground = BrushOr("TextBrush", 0xEE, 0xF1, 0xF6),
+            FontSize = 16,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(24)
+        };
+        _overlay = new Border
+        {
+            Background = BrushOr("BgBrush", 0x12, 0x14, 0x18),
+            Child = _overlayText,
+            Visibility = Visibility.Collapsed
+        };
+        _root = new Grid
+        {
+            Background = BrushOr("BgBrush", 0x12, 0x14, 0x18)
+        };
+        _root.Children.Add(_webView);
+        _root.Children.Add(_overlay);
         _host = new Window
         {
-            Title = "ProMeter — ChatGPT sign-in",
+            Title = UiText.ProductName,
             Width = 980,
             Height = 720,
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
-            Content = _webView,
+            Content = _root,
             ShowInTaskbar = true,
-            Visibility = Visibility.Hidden
+            Background = BrushOr("BgBrush", 0x12, 0x14, 0x18)
         };
+        if (Application.Current?.TryFindResource("AppWindow") is Style appWindow)
+        {
+            _host.Style = appWindow;
+        }
+
         _host.Closing += (_, e) =>
         {
-            if (System.Windows.Application.Current is App { IsExiting: true })
+            if (Application.Current is App { IsExiting: true })
             {
                 return;
             }
 
             e.Cancel = true;
+            InvalidatePendingNavigation();
             HideLogin();
+            _session.Cancel();
+            ApplyHostPresentation();
             _login.Cancel();
         };
     }
 
     public bool IsLoginVisible => _shownForLogin && _host.IsVisible;
 
-    public async Task InitializeAsync()
+    public void RealizeDiagnosticHost()
     {
-        if (_initialized)
+        _holdHostForDiagnostic = true;
+        RunOnUi(() =>
+        {
+            _session.RealizeForDiagnostic();
+            ApplyHostPresentation();
+            EnsureHostHandle();
+        });
+    }
+
+    public void HideDiagnosticHost()
+    {
+        _holdHostForDiagnostic = false;
+        RunOnUi(() =>
+        {
+            _session.HideAfterSuccessfulSession();
+            ApplyHostPresentation();
+        });
+    }
+
+    public void PrepareLoginOnSameHost()
+    {
+        _holdHostForDiagnostic = true;
+        RunOnUi(() =>
+        {
+            _session.ShowLoginOnSameHost();
+            ApplyHostPresentation();
+        });
+    }
+
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        var outcome = await _coordinator.RunAsync(RunInitializationStagesAsync, cancellationToken);
+        if (outcome.Success)
         {
             return;
         }
 
-        var env = await CoreWebView2Environment.CreateAsync(userDataFolder: AppPaths.WebViewProfile);
-        await _webView.EnsureCoreWebView2Async(env);
-        _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
-        _webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-        _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
-        _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
-        _webView.CoreWebView2.SourceChanged += OnSourceChanged;
-        _webView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
-        _webView.CoreWebView2.Navigate(ChatGptEndpoints.HomeUrl);
-        await _ready.WaitAsync();
-        _initialized = true;
+        LogStage(outcome.Stage);
+        throw new WebViewInitializationException(outcome.Failure, outcome.Stage);
     }
 
     public async Task<bool> ShowLoginAsync(CancellationToken cancellationToken = default)
     {
-        await InitializeAsync();
+        try
+        {
+            await InitializeAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (WebViewInitializationException ex)
+        {
+            LogStage(ex.Stage);
+            return false;
+        }
+
         var (wait, started) = _login.BeginOrJoin();
         if (!started)
         {
@@ -82,9 +158,12 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
         _auth.Invalidate();
         _probeGeneration = _login.Generation;
         _shownForLogin = true;
-        _host.Show();
-        _host.Activate();
-        _webView.CoreWebView2.Navigate(ChatGptEndpoints.LoginUrl);
+        _session.ShowLoginOnSameHost();
+        await OnUiAsync(() =>
+        {
+            ApplyHostPresentation();
+            _webView.CoreWebView2.Navigate(ChatGptEndpoints.LoginUrl);
+        });
         using var reg = cancellationToken.Register(() =>
         {
             HideLogin();
@@ -125,7 +204,11 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
     public void HideLogin()
     {
         _shownForLogin = false;
-        _host.Hide();
+        RunOnUi(() =>
+        {
+            _session.Cancel();
+            ApplyHostPresentation();
+        });
     }
 
     public async Task<AccountStatus> ProbeSessionAsync(CancellationToken cancellationToken = default)
@@ -144,9 +227,32 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
         return AccountParser.ParseSession(ChatGptJson.ParseNode(response.Body));
     }
 
-    public async Task<ProviderResponse> SendAsync(string method, string path, string? jsonBody = null, CancellationToken cancellationToken = default)
+    public async Task<ProviderResponse> SendAsync(
+        string method,
+        string path,
+        string? jsonBody = null,
+        CancellationToken cancellationToken = default)
     {
-        await InitializeAsync();
+        try
+        {
+            await InitializeAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            LogStage(WebViewDiagnosticStages.Cancelled);
+            return new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.Cancelled };
+        }
+        catch (WebViewInitializationException ex)
+        {
+            LogStage(ex.Stage);
+            return new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.FromFailure(ex.Failure) };
+        }
+
+        if (!_holdHostForDiagnostic && !_shownForLogin)
+        {
+            HideDiagnosticHost();
+        }
+
         if (!BackendTargetPolicy.TryValidate(path, out var safePath, out var targetError))
         {
             return new ProviderResponse { Status = 0, Error = targetError, SchemaMismatch = true };
@@ -157,13 +263,128 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
             return new ProviderResponse { Status = 0, Error = "backend fetch blocked during interactive login" };
         }
 
-        await EnsureOriginAsync(cancellationToken);
+        try
+        {
+            await EnsureOriginAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            LogStage(WebViewDiagnosticStages.Cancelled);
+            return new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.Cancelled };
+        }
+        catch (WebViewInitializationException ex)
+        {
+            LogStage(ex.Stage);
+            return new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.FromFailure(ex.Failure) };
+        }
+
         if (!OriginPolicy.AllowsBackendFetch(CurrentUri))
         {
             return new ProviderResponse { Status = 0, Error = "unvalidated origin", SchemaMismatch = true };
         }
 
         return await _auth.SendAsync(ExecuteRawAsync, method, safePath, jsonBody, cancellationToken);
+    }
+
+    private async Task<WebViewInitializationOutcome> RunInitializationStagesAsync(CancellationToken cancellationToken)
+    {
+        LogStage(WebViewDiagnosticStages.InitializeStart);
+        try
+        {
+            await OnUiAsync(() =>
+            {
+                if (!_coreReady && _ensureAttempted)
+                {
+                    RecreateWebViewControl();
+                }
+
+                if (!_session.IsRealized)
+                {
+                    _session.RealizeForDiagnostic();
+                }
+
+                ApplyHostPresentation();
+                if (!EnsureHostHandle())
+                {
+                    throw new WebViewInitializationException(
+                        WebViewInitializationFailure.HostNotRealized,
+                        WebViewDiagnosticStages.HostInvalid);
+                }
+            });
+
+            var host = WebViewInitializationCoordinator.RequireHostBeforeNavigation(_session.IsRealized);
+            if (!host.Success)
+            {
+                LogStage(WebViewDiagnosticStages.HostInvalid);
+                return host;
+            }
+
+            if (!_coreReady)
+            {
+                _ensureAttempted = true;
+                CoreWebView2Environment env;
+                try
+                {
+                    env = await WebViewBoundedWait.WaitAsync(
+                        CoreWebView2Environment.CreateAsync(userDataFolder: AppPaths.WebViewProfile),
+                        WebViewBoundedWait.StageTimeout,
+                        cancellationToken);
+                }
+                catch (WebView2RuntimeNotFoundException)
+                {
+                    LogStage(WebViewDiagnosticStages.RuntimeUnavailable);
+                    return WebViewInitializationOutcome.RuntimeUnavailable();
+                }
+
+                LogStage(WebViewDiagnosticStages.EnvironmentReady);
+
+                var ensure = await OnUiAsync(() =>
+                {
+                    if (!EnsureHostHandle())
+                    {
+                        throw new WebViewInitializationException(
+                            WebViewInitializationFailure.HostNotRealized,
+                            WebViewDiagnosticStages.HostInvalid);
+                    }
+
+                    return _webView.EnsureCoreWebView2Async(env);
+                });
+                await WebViewBoundedWait.WaitAsync(ensure, WebViewBoundedWait.StageTimeout, cancellationToken);
+
+                await OnUiAsync(ConfigureCore);
+                _coreReady = true;
+                LogStage(WebViewDiagnosticStages.CoreReady);
+            }
+
+            LogStage(WebViewDiagnosticStages.HomeNavigationStart);
+            var navigation = await OnUiAsync(() => StartNavigation(ChatGptEndpoints.HomeUrl));
+            await WebViewBoundedWait.WaitNavigationAsync(
+                navigation,
+                WebViewBoundedWait.StageTimeout,
+                cancellationToken);
+            LogStage(WebViewDiagnosticStages.HomeNavigationComplete);
+            return WebViewInitializationOutcome.Succeeded();
+        }
+        catch (WebViewInitializationException ex)
+        {
+            LogStage(ex.Stage);
+            return new WebViewInitializationOutcome(false, ex.Failure, ex.Stage);
+        }
+        catch (OperationCanceledException)
+        {
+            LogStage(WebViewDiagnosticStages.Cancelled);
+            return WebViewInitializationOutcome.Cancelled();
+        }
+        catch (WebView2RuntimeNotFoundException)
+        {
+            LogStage(WebViewDiagnosticStages.RuntimeUnavailable);
+            return WebViewInitializationOutcome.RuntimeUnavailable();
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("webview initialization failed: " + ex.GetType().Name);
+            return WebViewInitializationOutcome.EnvironmentFailed();
+        }
     }
 
     private async Task EnsureOriginAsync(CancellationToken cancellationToken)
@@ -183,15 +404,69 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
 
     private async Task NavigateAndWaitAsync(string url, CancellationToken cancellationToken)
     {
-        _navigationSignal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        LogStage(WebViewDiagnosticStages.HomeNavigationStart);
+        var navigation = await OnUiAsync(() => StartNavigation(url));
+        await WebViewBoundedWait.WaitNavigationAsync(
+            navigation,
+            WebViewBoundedWait.StageTimeout,
+            cancellationToken);
+        LogStage(WebViewDiagnosticStages.HomeNavigationComplete);
+    }
+
+    private Task StartNavigation(string url)
+    {
+        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _navigationEpoch++;
+        var epoch = _navigationEpoch;
+        _navigationSignal = signal;
+        _webView.CoreWebView2.NavigationCompleted += OnEpochComplete;
         _webView.CoreWebView2.Navigate(url);
-        using var reg = cancellationToken.Register(() => _navigationSignal.TrySetCanceled(cancellationToken));
-        var completed = await Task.WhenAny(_navigationSignal.Task, Task.Delay(NavigationTimeout, cancellationToken));
-        if (completed != _navigationSignal.Task)
+        return signal.Task;
+
+        void OnEpochComplete(object? sender, CoreWebView2NavigationCompletedEventArgs e)
         {
-            _log.Warn("navigation wait timed out");
+            _webView.CoreWebView2.NavigationCompleted -= OnEpochComplete;
+            if (epoch == _navigationEpoch)
+            {
+                signal.TrySetResult(e.IsSuccess);
+            }
         }
     }
+
+    private void InvalidatePendingNavigation()
+    {
+        _navigationEpoch++;
+        _navigationSignal?.TrySetCanceled();
+    }
+
+    private void ConfigureCore()
+    {
+        _webView.CoreWebView2.Settings.AreDevToolsEnabled = false;
+        _webView.CoreWebView2.Settings.IsStatusBarEnabled = false;
+        _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
+        if (_handlersAttached)
+        {
+            return;
+        }
+
+        _webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
+        _webView.CoreWebView2.SourceChanged += OnSourceChanged;
+        _webView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
+        _handlersAttached = true;
+    }
+
+    private void RecreateWebViewControl()
+    {
+        _root.Children.Remove(_webView);
+        _webView.Dispose();
+        _webView = CreateWebView();
+        _root.Children.Insert(0, _webView);
+        _handlersAttached = false;
+        _coreReady = false;
+    }
+
+    private static WebView2 CreateWebView() =>
+        new() { DefaultBackgroundColor = System.Drawing.Color.FromArgb(18, 20, 24) };
 
     private void OnSourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
     {
@@ -223,12 +498,7 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        if (_ready.CurrentCount == 0)
-        {
-            try { _ready.Release(); } catch (SemaphoreFullException) { }
-        }
-
-        _navigationSignal?.TrySetResult(e.IsSuccess);
+        _ = e;
         var generation = _login.Generation;
         if (!_login.AcceptsProbe(generation, CurrentUri, navigationCompleted: true))
         {
@@ -365,6 +635,91 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
             return raw;
         }
     }
+
+    private void ApplyHostPresentation()
+    {
+        _overlayText.Text = UiText.CheckingChatGptSession;
+        _overlayText.Foreground = BrushOr("TextBrush", 0xEE, 0xF1, 0xF6);
+        _overlay.Background = BrushOr("BgBrush", 0x12, 0x14, 0x18);
+        _overlay.Visibility = _session.CheckingOverlayVisible ? Visibility.Visible : Visibility.Collapsed;
+        _host.Title = _session.LoginSurfaceVisible
+            ? "ProMeter — ChatGPT sign-in"
+            : UiText.CheckingChatGptSession;
+
+        if (_session.IsVisible)
+        {
+            if (!_host.IsVisible)
+            {
+                _host.Show();
+            }
+
+            if (_session.LoginSurfaceVisible)
+            {
+                _host.Activate();
+            }
+        }
+        else if (_host.IsVisible)
+        {
+            _host.Hide();
+        }
+    }
+
+    private bool EnsureHostHandle()
+    {
+        if (!_session.IsRealized)
+        {
+            return false;
+        }
+
+        if (!_host.IsVisible)
+        {
+            _host.Show();
+        }
+
+        var hwnd = new WindowInteropHelper(_host).EnsureHandle();
+        return hwnd != IntPtr.Zero;
+    }
+
+    private void LogStage(string stage) => _log.Info("webview diagnostic stage=" + stage);
+
+    private void RunOnUi(Action action)
+    {
+        var dispatcher = _host.Dispatcher;
+        if (dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.Invoke(action);
+    }
+
+    private Task OnUiAsync(Action action)
+    {
+        var dispatcher = _host.Dispatcher;
+        if (dispatcher.CheckAccess())
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        return dispatcher.InvokeAsync(action).Task;
+    }
+
+    private Task<T> OnUiAsync<T>(Func<T> func)
+    {
+        var dispatcher = _host.Dispatcher;
+        if (dispatcher.CheckAccess())
+        {
+            return Task.FromResult(func());
+        }
+
+        return dispatcher.InvokeAsync(func).Task;
+    }
+
+    private static Brush BrushOr(string key, byte r, byte g, byte b) =>
+        Application.Current?.TryFindResource(key) as Brush
+        ?? new SolidColorBrush(Color.FromRgb(r, g, b));
 
     public void Dispose()
     {

@@ -14,6 +14,9 @@ public class LocalizationAndCoverageDisplayTests
         {
             Assert.Equal("Test WebView2", UiText.TestWebView2);
             Assert.Equal("Testing WebView2 connection...", UiText.TestingWebView2);
+            Assert.Equal("Checking ChatGPT session...", UiText.CheckingChatGptSession);
+            Assert.Equal("WebView2 initialization timed out.", UiText.WebViewInitializationTimedOut);
+            Assert.Equal("WebView2 initialization failed.", UiText.WebViewInitializationFailed);
             Assert.Contains("WebView2 works on this PC/account.", UiText.WebViewDiagnosticPass, StringComparison.Ordinal);
             Assert.Contains("FAIL_AUTH", UiText.WebViewDiagnosticFailAuth, StringComparison.Ordinal);
             Assert.Contains("FAIL_SESSION", UiText.WebViewDiagnosticFailSession, StringComparison.Ordinal);
@@ -33,6 +36,9 @@ public class LocalizationAndCoverageDisplayTests
             UiText.SetLanguage(UiLanguage.Korean);
             Assert.Equal("WebView2 연결 테스트", UiText.TestWebView2);
             Assert.Equal("WebView2 연결 확인 중...", UiText.TestingWebView2);
+            Assert.Equal("ChatGPT 세션을 확인하는 중...", UiText.CheckingChatGptSession);
+            Assert.Equal("WebView2 초기화 시간이 초과되었습니다.", UiText.WebViewInitializationTimedOut);
+            Assert.Equal("WebView2 초기화에 실패했습니다.", UiText.WebViewInitializationFailed);
             Assert.Contains("이 PC와 계정에서 정상 동작합니다", UiText.WebViewDiagnosticPass, StringComparison.Ordinal);
             Assert.Contains("로그인 방식은 WebView2에서 지원되지 않거나", UiText.WebViewDiagnosticFailAuth, StringComparison.Ordinal);
             Assert.Contains("ChatGPT 세션을 확인하지 못했습니다", UiText.WebViewDiagnosticFailSession, StringComparison.Ordinal);

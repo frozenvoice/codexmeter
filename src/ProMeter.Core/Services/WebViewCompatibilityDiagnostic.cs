@@ -22,6 +22,13 @@ public interface IWebViewInteractiveLogin
     Task<WebViewInteractiveLoginResult> ShowInteractiveLoginAsync(CancellationToken cancellationToken = default);
 }
 
+public interface IWebViewDiagnosticHost
+{
+    void RealizeDiagnosticHost();
+    void HideDiagnosticHost();
+    void PrepareLoginOnSameHost();
+}
+
 public sealed record WebViewDiagnosticResult(
     WebViewDiagnosticStatus Status,
     int? HttpStatus = null,
@@ -39,15 +46,30 @@ public sealed class WebViewCompatibilityDiagnostic
 {
     private readonly IChatGptTransport _transport;
     private readonly IWebViewInteractiveLogin _login;
+    private readonly IWebViewDiagnosticHost? _host;
+    private readonly Action<string>? _logStage;
 
     public WebViewCompatibilityDiagnostic(IChatGptTransport transport, IWebViewInteractiveLogin login)
+        : this(transport, login, host: null, logStage: null)
+    {
+    }
+
+    public WebViewCompatibilityDiagnostic(
+        IChatGptTransport transport,
+        IWebViewInteractiveLogin login,
+        IWebViewDiagnosticHost? host,
+        Action<string>? logStage = null)
     {
         _transport = transport;
         _login = login;
+        _host = host;
+        _logStage = logStage;
     }
 
     public async Task<WebViewDiagnosticResult> RunAsync(CancellationToken cancellationToken = default)
     {
+        _logStage?.Invoke(WebViewDiagnosticStages.InitializeStart);
+        _host?.RealizeDiagnosticHost();
         try
         {
             var session = await SendAsync(ChatGptEndpoints.Session, cancellationToken);
@@ -72,6 +94,7 @@ public sealed class WebViewCompatibilityDiagnostic
                 WebViewInteractiveLoginResult login;
                 try
                 {
+                    _host?.PrepareLoginOnSameHost();
                     login = await _login.ShowInteractiveLoginAsync(cancellationToken);
                 }
                 catch (OperationCanceledException)
@@ -138,8 +161,13 @@ public sealed class WebViewCompatibilityDiagnostic
 
             return new WebViewDiagnosticResult(WebViewDiagnosticStatus.Pass);
         }
+        catch (WebViewDiagnosticInitializationException ex)
+        {
+            return ex.Result;
+        }
         catch (OperationCanceledException)
         {
+            _logStage?.Invoke(WebViewDiagnosticStages.Cancelled);
             return new WebViewDiagnosticResult(WebViewDiagnosticStatus.Cancelled);
         }
         catch
@@ -148,10 +176,59 @@ public sealed class WebViewCompatibilityDiagnostic
                 WebViewDiagnosticStatus.FailApi,
                 TechnicalDetail: UiText.WebViewDiagnosticTechnical("diagnostic", reason: "unavailable"));
         }
+        finally
+        {
+            _host?.HideDiagnosticHost();
+        }
     }
 
-    private Task<ProviderResponse> SendAsync(string path, CancellationToken cancellationToken) =>
-        _transport.SendAsync("GET", path, cancellationToken: cancellationToken);
+    private async Task<ProviderResponse> SendAsync(string path, CancellationToken cancellationToken)
+    {
+        if (string.Equals(path, ChatGptEndpoints.Session, StringComparison.Ordinal))
+        {
+            _logStage?.Invoke(WebViewDiagnosticStages.SessionProbe);
+        }
+
+        var response = await _transport.SendAsync("GET", path, cancellationToken: cancellationToken);
+        if (MapInitializationFailure(response) is { } failure)
+        {
+            throw new WebViewDiagnosticInitializationException(failure);
+        }
+
+        return response;
+    }
+
+    public static WebViewDiagnosticResult? MapInitializationFailure(ProviderResponse response)
+    {
+        if (string.IsNullOrWhiteSpace(response.Error))
+        {
+            return null;
+        }
+
+        if (response.Error is WebViewInitializationCodes.Timeout
+            or WebViewInitializationCodes.NavigationTimeout)
+        {
+            return new WebViewDiagnosticResult(
+                WebViewDiagnosticStatus.FailApi,
+                TechnicalDetail: UiText.WebViewInitializationTimedOut);
+        }
+
+        if (response.Error is WebViewInitializationCodes.RuntimeUnavailable
+            or WebViewInitializationCodes.HostInvalid
+            or WebViewInitializationCodes.EnvironmentFailed)
+        {
+            return new WebViewDiagnosticResult(
+                WebViewDiagnosticStatus.FailApi,
+                TechnicalDetail: UiText.WebViewInitializationFailed);
+        }
+
+        if (response.Error == WebViewInitializationCodes.Cancelled)
+        {
+            return new WebViewDiagnosticResult(WebViewDiagnosticStatus.Cancelled);
+        }
+
+        return null;
+    }
 
     private async Task<WebViewDiagnosticResult?> ProbeAccountAsync(CancellationToken cancellationToken)
     {
@@ -249,4 +326,15 @@ public sealed class WebViewCompatibilityDiagnostic
 
     private static string Detail(string operation, int status, string? reason = null)
         => UiText.WebViewDiagnosticTechnical(operation, status, reason);
+}
+
+internal sealed class WebViewDiagnosticInitializationException : Exception
+{
+    public WebViewDiagnosticInitializationException(WebViewDiagnosticResult result)
+        : base(result.Status.ToString())
+    {
+        Result = result;
+    }
+
+    public WebViewDiagnosticResult Result { get; }
 }

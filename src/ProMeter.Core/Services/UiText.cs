@@ -204,6 +204,13 @@ public static class UiText
     public static string RegisterNativeHost => T("Register Chrome/Edge native host", "Chrome/Edge 네이티브 호스트 등록");
     public static string TestWebView2 => T("Test WebView2", "WebView2 연결 테스트");
     public static string TestingWebView2 => T("Testing WebView2 connection...", "WebView2 연결 확인 중...");
+    public static string CheckingChatGptSession => T("Checking ChatGPT session...", "ChatGPT 세션을 확인하는 중...");
+    public static string WebViewInitializationTimedOut => T(
+        "WebView2 initialization timed out.",
+        "WebView2 초기화 시간이 초과되었습니다.");
+    public static string WebViewInitializationFailed => T(
+        "WebView2 initialization failed.",
+        "WebView2 초기화에 실패했습니다.");
     public static string TechnicalDetail(string detail) => T($"Technical detail: {detail}", $"기술 세부 정보: {detail}");
     public static string WebViewDiagnosticTechnical(string operation, int status = 0, string? reason = null)
     {

@@ -103,6 +103,12 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Lightweight WebView2 diagnostics must not perform a full history scan.
 - A compatibility test must distinguish sign-in failure from API incompatibility.
 - The existing Korean/English localization system must be reused. Do not create a second localization system.
+- No WebView2 initialization/navigation operation may wait indefinitely.
+- Every diagnostic WebView2 stage must support cancellation and a bounded timeout.
+- A WebView2 control that needs an HWND/visual host must not depend on a permanently hidden/unrealized WPF Window for first initialization.
+- WebView2 diagnostic progress/failure stages must be logged before the final result.
+- Closing Settings or cancelling a diagnostic must release the diagnostic-running state.
+- Browser Companion must remain untouched by WebView2 diagnostic failures.
 - Commit, push, verify remote SHA, and check CI as already required.
 - If page-bridge JS files change, increment `PAGE_BRIDGE_VERSION`.
 
