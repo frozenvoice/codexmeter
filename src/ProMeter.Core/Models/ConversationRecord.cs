@@ -13,6 +13,11 @@ public sealed class ConversationRecord
     public DateTimeOffset? LastErrorAt { get; set; }
     public string? LastError { get; set; }
     public ConversationScanStatus Status { get; set; } = ConversationScanStatus.Unknown;
+    public int ConsecutiveFetchFailures { get; set; }
+    public DateTimeOffset? NextEligibleFetchAt { get; set; }
+    public string? LastFetchFailureCategory { get; set; }
+    public double LastAttemptedUpdateTime { get; set; }
+    public int FetchFailureParserVersion { get; set; }
 }
 
 public enum ConversationScanStatus

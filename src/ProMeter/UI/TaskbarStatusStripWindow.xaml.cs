@@ -67,7 +67,6 @@ public partial class TaskbarStatusStripWindow : Window
         Label.Foreground = _codex.CompactWindow?.UsedPercent >= 100
             ? (Brush)FindResource("DangerBrush")
             : (Brush)FindResource("TextBrush");
-        ToolTip = TaskbarStatusFormatter.Tooltip(_chatgpt, _codex);
     }
 
     public void Reposition()

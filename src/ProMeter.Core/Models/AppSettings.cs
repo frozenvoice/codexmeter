@@ -38,6 +38,10 @@ public sealed class AppSettings
     public UiLanguage UiLanguage { get; set; } = UiLanguage.English;
     public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.RemainingNumber;
     public bool FlyoutCloseOnDeactivate { get; set; } = true;
+    public bool FlyoutPinned { get; set; }
+    public double FlyoutLeft { get; set; }
+    public double FlyoutTop { get; set; }
+    public bool FlyoutPositionConfigured { get; set; }
     public bool NotifyAt20 { get; set; } = true;
     public bool NotifyAt10 { get; set; } = true;
     public bool NotifyExhausted { get; set; } = true;

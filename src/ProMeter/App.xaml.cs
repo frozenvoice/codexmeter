@@ -36,6 +36,9 @@ public partial class App : Application
     private readonly DispatcherTimer _proStatusTimer = new();
     private readonly DispatcherTimer _proResetRecheckTimer = new() { Interval = TimeSpan.FromSeconds(8) };
     private FlyoutWindow? _flyout;
+    private FlyoutOpenSource _lastFlyoutSource = FlyoutOpenSource.Tray;
+    private Rect? _lastFlyoutAnchor;
+    private TaskbarEdge? _lastFlyoutEdge;
     private MainWindow? _main;
     private FloatingWidget? _widget;
     private TaskbarStatusStripWindow? _taskbarStrip;
@@ -401,33 +404,20 @@ public partial class App : Application
 
     private void ToggleFlyout(FlyoutOpenSource source, Rect? anchor, TaskbarEdge? edge)
     {
+        EnsureFlyout();
         if (_flyout is { IsVisible: true })
         {
             _flyout.Hide();
             return;
         }
 
-        if (_flyout is null)
-        {
-            _flyout = new FlyoutWindow();
-            _flyout.CoverageRequested += () => new CoverageWindow(
-                _snapshot.Coverage,
-                _codex.Snapshot,
-                _codexLocator.Locate(_settings.CodexExePath) is not null).Show();
-            _flyout.SyncRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
-        }
-        _flyout.CloseOnDeactivate = _settings.FlyoutCloseOnDeactivate;
+        _lastFlyoutSource = source;
+        _lastFlyoutAnchor = anchor;
+        _lastFlyoutEdge = edge;
+        _flyout!.ApplyWindowSettings(_settings);
         RefreshSnapshot();
         _flyout.Show();
-        if (source == FlyoutOpenSource.TaskbarStrip && anchor is { } strip)
-        {
-            _flyout.PlaceNear(strip, edge ?? TaskbarEdge.Bottom);
-        }
-        else
-        {
-            _flyout.PlaceNearTaskbar();
-        }
-
+        PlaceFlyout(_flyout, source, anchor, edge);
         _flyout.Activate();
         if (FlyoutAutoSyncPolicy.ShouldStartStaleAutoSync(
                 _settings.AutoSync,
@@ -450,6 +440,61 @@ public partial class App : Application
         {
             _ = RefreshProStatusAsync(notifyFailure: false);
         }
+    }
+
+    private void EnsureFlyout()
+    {
+        if (_flyout is not null)
+        {
+            return;
+        }
+
+        _flyout = new FlyoutWindow();
+        _flyout.CoverageRequested += () => new CoverageWindow(
+            _snapshot.Coverage,
+            _codex.Snapshot,
+            _codexLocator.Locate(_settings.CodexExePath) is not null).Show();
+        _flyout.SyncRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
+        _flyout.PinChanged += pinned =>
+        {
+            _settings.FlyoutPinned = pinned;
+            if (pinned)
+            {
+                _settings.FlyoutLeft = _flyout.Left;
+                _settings.FlyoutTop = _flyout.Top;
+                _settings.FlyoutPositionConfigured = true;
+            }
+
+            _settingsStore.Save(_settings);
+            if (!pinned && _flyout.IsVisible && FlyoutWindowState.RepositionNearAnchorOnUnpin)
+            {
+                PlaceFlyout(_flyout, _lastFlyoutSource, _lastFlyoutAnchor, _lastFlyoutEdge);
+            }
+        };
+        _flyout.PositionChanged += (left, top) =>
+        {
+            _settings.FlyoutLeft = left;
+            _settings.FlyoutTop = top;
+            _settings.FlyoutPositionConfigured = true;
+            _settingsStore.Save(_settings);
+        };
+    }
+
+    private void PlaceFlyout(FlyoutWindow flyout, FlyoutOpenSource source, Rect? anchor, TaskbarEdge? edge)
+    {
+        if (FlyoutWindowState.UseSavedPosition(_settings.FlyoutPinned, _settings.FlyoutPositionConfigured))
+        {
+            flyout.RestorePosition(_settings.FlyoutLeft, _settings.FlyoutTop);
+            return;
+        }
+
+        if (source == FlyoutOpenSource.TaskbarStrip && anchor is { } strip)
+        {
+            flyout.PlaceNear(strip, edge ?? TaskbarEdge.Bottom);
+            return;
+        }
+
+        flyout.PlaceNearTaskbar();
     }
 
     private void ShowMain()

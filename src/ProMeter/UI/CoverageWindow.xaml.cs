@@ -1,3 +1,4 @@
+using System.Windows.Controls;
 using ProMeter.Codex;
 
 namespace ProMeter.UI;
@@ -8,7 +9,7 @@ public partial class CoverageWindow : Window
     {
         InitializeComponent();
         Title = UiText.DataStatus;
-        Headline.Text = $"{UiText.DataStatus}: {DisplayFormatting.OverallCollectionLabel(coverage)}";
+        Headline.Text = $"{UiText.DataStatus}: {DisplayFormatting.CoverageCompactLabel(coverage)}";
         DisclaimerText.Text = UiText.CoverageDisclaimer;
         NormalText.Text = $"{UiText.NormalChats}    {DisplayFormatting.CollectionStateLabel(coverage.NormalIndexState)}";
         ArchivedText.Text = $"{UiText.ArchivedChats}    {DisplayFormatting.CollectionStateLabel(coverage.ArchivedIndexState)}";
@@ -22,7 +23,22 @@ public partial class CoverageWindow : Window
         BranchesText.Text = $"{UiText.BranchCoverage}    {(coverage.BranchesIncluded ? UiText.BranchIncluded : UiText.BranchUnknown)}";
         NotesText.Text = coverage.Notes == SyncEngine.MissingAssistantUsageDiagnostic
             ? UiText.HistoryLoadedWithoutUsage
-            : coverage.Notes ?? UiText.TemporaryDeletedNote;
+            : coverage.FailureSummary.HasConversationFailures
+                ? UiText.TemporaryDeletedNote
+                : coverage.Notes ?? UiText.TemporaryDeletedNote;
+        FailurePanel.Children.Clear();
+        foreach (var line in DisplayFormatting.CoverageFailureDetailLines(coverage))
+        {
+            FailurePanel.Children.Add(new TextBlock
+            {
+                Text = line,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = (Brush)FindResource("TextBrush"),
+                Margin = new Thickness(0, 4, 0, 0)
+            });
+        }
+
+        FailurePanel.Visibility = FailurePanel.Children.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         CodexTitle.Text = CodexDisplayFormatting.SectionTitle;
         CodexText.Text = string.Join(
             Environment.NewLine,

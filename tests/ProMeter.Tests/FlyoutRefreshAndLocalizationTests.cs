@@ -18,7 +18,9 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.Equal("OnRefreshAllClick", (string?)button.Attribute("Click"));
         Assert.Contains("Refresh all", (string?)button.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml/presentation"))
             ?? (string?)button.Attribute("ToolTip"), StringComparison.OrdinalIgnoreCase);
-        var xaml = button.ToString();
+        var style = document.Descendants(ns + "Style")
+            .Single(element => (string?)element.Attribute(x + "Key") == "FlyoutHeaderIconButton");
+        var xaml = style.ToString() + button.ToString();
         Assert.Contains("TextBrush", xaml, StringComparison.Ordinal);
         Assert.Contains("GhostBrush", xaml, StringComparison.Ordinal);
         Assert.Contains("AccentBrush", xaml, StringComparison.Ordinal);
@@ -142,6 +144,9 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.Equal("Auto", columns[0]);
         Assert.Equal("*", columns[1]);
         Assert.Equal("Auto", columns[2]);
+        Assert.Equal("Auto", columns[3]);
+        Assert.Equal("Auto", columns[4]);
+        Assert.Equal(5, columns.Length);
         var title = header.Descendants(ns + "TextBlock")
             .Single(element => (string?)element.Attribute(x + "Name") == "TitleText");
         Assert.Equal("0", (string?)title.Attribute("Grid.Column"));
@@ -158,6 +163,12 @@ public class FlyoutRefreshAndLocalizationTests
         var button = header.Descendants(ns + "Button")
             .Single(element => (string?)element.Attribute(x + "Name") == "RefreshAllButton");
         Assert.Equal("2", (string?)button.Attribute("Grid.Column"));
+        var pin = header.Descendants(ns + "Button")
+            .Single(element => (string?)element.Attribute(x + "Name") == "PinButton");
+        var close = header.Descendants(ns + "Button")
+            .Single(element => (string?)element.Attribute(x + "Name") == "CloseFlyoutButton");
+        Assert.Equal("3", (string?)pin.Attribute("Grid.Column"));
+        Assert.Equal("4", (string?)close.Attribute("Grid.Column"));
         Assert.NotEqual((string?)title.Attribute("Grid.Column"), (string?)statusHost.Attribute("Grid.Column"));
         Assert.NotEqual((string?)button.Attribute("Grid.Column"), (string?)statusHost.Attribute("Grid.Column"));
     }
@@ -209,6 +220,9 @@ public class FlyoutRefreshAndLocalizationTests
             Assert.Equal("Always show taskbar status", UiText.TaskbarStatusEnabled);
             Assert.Equal("Refresh all", UiText.RefreshAll);
             Assert.Equal("Refreshing...", UiText.RefreshAllProgress);
+            Assert.Equal("Pin", UiText.Pin);
+            Assert.Equal("Unpin", UiText.Unpin);
+            Assert.Equal("Close", UiText.Close);
             Assert.Equal("Syncing", UiText.Syncing);
             Assert.Equal("Codex usage", UiText.CodexUsage);
             Assert.Equal("5-hour used", UiText.FiveHourUsed);
@@ -229,6 +243,9 @@ public class FlyoutRefreshAndLocalizationTests
             Assert.Equal("작업표시줄 상시 표시", UiText.TaskbarStatusEnabled);
             Assert.Equal("모두 새로고침", UiText.RefreshAll);
             Assert.Equal("동기화 중...", UiText.RefreshAllProgress);
+            Assert.Equal("고정", UiText.Pin);
+            Assert.Equal("고정 해제", UiText.Unpin);
+            Assert.Equal("닫기", UiText.Close);
             Assert.Equal("동기화 중", UiText.Syncing);
             Assert.Equal("5시간 사용량", UiText.FiveHourUsed);
             Assert.Equal("주간 남음", UiText.WeeklyRemaining);
@@ -283,6 +300,9 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.Contains("SetWindowPos", win32, StringComparison.Ordinal);
         Assert.DoesNotContain("SetForegroundWindow", win32, StringComparison.Ordinal);
         Assert.DoesNotContain("SetFocus", win32, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToolTip =", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToolTip=", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToolTip", xaml, StringComparison.Ordinal);
         Assert.Contains("UiCallbackMarshal.TryPost", source, StringComparison.Ordinal);
         Assert.Contains("Dispatcher.BeginInvoke", source, StringComparison.Ordinal);
         Assert.Contains("HasShutdownStarted", source, StringComparison.Ordinal);

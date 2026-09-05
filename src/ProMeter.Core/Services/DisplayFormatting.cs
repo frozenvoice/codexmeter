@@ -171,8 +171,76 @@ public static class DisplayFormatting
             return UiText.SyncingEllipsis;
         }
 
-        var label = OverallCollectionLabel(snapshot.Coverage);
+        var label = CoverageCompactLabel(snapshot.Coverage);
         return snapshot.IsSyncing ? $"{label} · {UiText.PreviousData}" : label;
+    }
+
+    public static string CoverageCompactLabel(CoverageInfo coverage)
+    {
+        var summary = coverage.FailureSummary;
+        if (!summary.HasConversationFailures)
+        {
+            return OverallCollectionLabel(coverage);
+        }
+
+        var conversationLabel = summary.FailedThisSyncCount > 0 && summary.DeferredCount == 0
+            ? UiText.ConversationsNotRead(summary.FailedThisSyncCount)
+            : UiText.ConversationsNotApplied(summary.UnresolvedConversationCount);
+        return HasAdditionalPartialCauses(coverage)
+            ? $"{UiText.PartialUnapplied} · {conversationLabel}"
+            : conversationLabel;
+    }
+
+    public static IReadOnlyList<string> CoverageFailureDetailLines(CoverageInfo coverage)
+    {
+        var summary = coverage.FailureSummary;
+        if (!summary.HasConversationFailures)
+        {
+            return [];
+        }
+
+        var lines = new List<string> { UiText.DataPartiallyNotApplied };
+        AddCategoryLine(lines, summary.BodyTimeoutCount, UiText.ReadTimeout);
+        AddCategoryLine(lines, summary.SchemaMismatchCount, UiText.ResponseFormatMismatch);
+        AddCategoryLine(lines, summary.CompanionDisconnectedCount, UiText.ConversationCompanionFailure);
+        AddCategoryLine(lines, summary.AuthenticationCount, UiText.AuthenticationRequired);
+        AddCategoryLine(lines, summary.OtherConversationFailureCount, UiText.FailureCategoryOther);
+        lines.Add($"{UiText.FailedThisSync}    {summary.FailedThisSyncCount}");
+        lines.Add($"{UiText.WaitingToRetry}    {summary.DeferredCount}");
+        lines.Add(UiText.CoverageLowerBoundNote);
+        lines.Add(UiText.CoverageAutoRetryNote);
+        lines.Add(UiText.CoverageNoUserActionNote);
+        return lines;
+    }
+
+    public static string FailureCategoryLabel(string? category) =>
+        ConversationFetchBackoff.NormalizeCategory(category) switch
+        {
+            ConversationFetchBackoff.BodyTimeout => UiText.ReadTimeout,
+            ConversationFetchBackoff.SchemaMismatch => UiText.ResponseFormatMismatch,
+            ConversationFetchBackoff.CompanionDisconnected => UiText.ConversationCompanionFailure,
+            ConversationFetchBackoff.Authentication => UiText.AuthenticationRequired,
+            _ => UiText.FailureCategoryOther
+        };
+
+    private static void AddCategoryLine(List<string> lines, int count, string label)
+    {
+        if (count > 0)
+        {
+            lines.Add($"{label}    {count}");
+        }
+    }
+
+    private static bool HasAdditionalPartialCauses(CoverageInfo coverage)
+    {
+        if (coverage.IndexIncomplete || coverage.HistoryLoadedWithoutUsage)
+        {
+            return true;
+        }
+
+        return coverage.NormalIndexState is CollectionState.Partial or CollectionState.Failed
+            || coverage.ArchivedIndexState is CollectionState.Partial or CollectionState.Failed
+            || coverage.ProjectsIndexState is CollectionState.Partial or CollectionState.Failed;
     }
 
     public static string ReasoningLimitValue(int? limit) =>

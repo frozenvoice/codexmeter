@@ -10,10 +10,15 @@ public partial class FlyoutWindow : Window
 {
     public event Action? CoverageRequested;
     public event Action? SyncRequested;
+    public event Action<bool>? PinChanged;
+    public event Action<double, double>? PositionChanged;
     public bool CloseOnDeactivate { get; set; } = true;
+    public bool Pinned { get; private set; }
     private bool _suppressDeactivateClose;
+    private bool _closeOnDeactivateSetting = true;
     private readonly RefreshIndicatorController _refreshIndicator = new();
     private Storyboard? _refreshStoryboard;
+    private Storyboard? _progressStripStoryboard;
     private bool _refreshActive;
 
     public FlyoutWindow()
@@ -26,6 +31,25 @@ public partial class FlyoutWindow : Window
             _refreshActive = false;
             ApplyRefreshIndicator(false);
         };
+    }
+
+    public void ApplyWindowSettings(AppSettings settings)
+    {
+        _closeOnDeactivateSetting = settings.FlyoutCloseOnDeactivate;
+        Pinned = settings.FlyoutPinned;
+        CloseOnDeactivate = FlyoutWindowState.ShouldCloseOnDeactivate(Pinned, _closeOnDeactivateSetting);
+        Topmost = true;
+        ApplyPinGlyph();
+    }
+
+    public void RestorePosition(double left, double top)
+    {
+        UpdateLayout();
+        var height = Math.Max(ActualHeight, 1);
+        var work = FlyoutPlacement.SelectWorkArea(left, top, Width, height, EnumerateWorkAreas());
+        var clamped = FlyoutPlacement.ClampToWorkArea(left, top, Width, height, work);
+        Left = clamped.Left;
+        Top = clamped.Top;
     }
 
     public void Bind(
@@ -153,17 +177,21 @@ public partial class FlyoutWindow : Window
         var visibleActive = active && IsVisible;
         RefreshAllIcon.Visibility = visibleActive ? Visibility.Collapsed : Visibility.Visible;
         RefreshSpinner.Visibility = visibleActive ? Visibility.Visible : Visibility.Collapsed;
+        SyncProgressStrip.Visibility = visibleActive ? Visibility.Visible : Visibility.Collapsed;
         var transition = visibleActive
             ? _refreshIndicator.Apply(true)
             : _refreshIndicator.Reset();
         if (transition == RefreshIndicatorTransition.Started)
         {
             EnsureRefreshStoryboard().Begin(this, true);
+            EnsureProgressStripStoryboard().Begin(this, true);
         }
         else if (transition == RefreshIndicatorTransition.Stopped)
         {
             _refreshStoryboard?.Stop(this);
+            _progressStripStoryboard?.Stop(this);
             RefreshSpinnerRotate.Angle = 0;
+            SyncProgressTranslate.X = -80;
         }
     }
 
@@ -186,6 +214,27 @@ public partial class FlyoutWindow : Window
         _refreshStoryboard = new Storyboard();
         _refreshStoryboard.Children.Add(animation);
         return _refreshStoryboard;
+    }
+
+    private Storyboard EnsureProgressStripStoryboard()
+    {
+        if (_progressStripStoryboard is not null)
+        {
+            return _progressStripStoryboard;
+        }
+
+        var animation = new DoubleAnimation
+        {
+            From = -80,
+            To = 328,
+            Duration = TimeSpan.FromSeconds(RefreshIndicatorController.StripDurationSeconds),
+            RepeatBehavior = RepeatBehavior.Forever
+        };
+        Storyboard.SetTarget(animation, SyncProgressTranslate);
+        Storyboard.SetTargetProperty(animation, new PropertyPath(TranslateTransform.XProperty));
+        _progressStripStoryboard = new Storyboard();
+        _progressStripStoryboard.Children.Add(animation);
+        return _progressStripStoryboard;
     }
 
     public void ApplyLocalizedTexts()
@@ -212,6 +261,9 @@ public partial class FlyoutWindow : Window
         CoverageLabel.Text = UiText.DataStatus;
         RefreshAllButton.ToolTip = UiText.RefreshAll;
         System.Windows.Automation.AutomationProperties.SetName(RefreshAllButton, UiText.RefreshAll);
+        ApplyPinGlyph();
+        CloseFlyoutButton.ToolTip = UiText.Close;
+        System.Windows.Automation.AutomationProperties.SetName(CloseFlyoutButton, UiText.Close);
     }
 
     public void PlaceNearTaskbar()
@@ -303,7 +355,7 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    private void OnRefreshPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    private void OnHeaderButtonPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         _suppressDeactivateClose = true;
     }
@@ -312,6 +364,104 @@ public partial class FlyoutWindow : Window
     {
         _suppressDeactivateClose = true;
         SyncRequested?.Invoke();
+    }
+
+    private void OnPinClick(object sender, RoutedEventArgs e)
+    {
+        _suppressDeactivateClose = true;
+        Pinned = !Pinned;
+        CloseOnDeactivate = FlyoutWindowState.ShouldCloseOnDeactivate(Pinned, _closeOnDeactivateSetting);
+        ApplyPinGlyph();
+        PinChanged?.Invoke(Pinned);
+        if (Pinned)
+        {
+            PersistPosition();
+        }
+    }
+
+    private void OnCloseClick(object sender, RoutedEventArgs e)
+    {
+        _suppressDeactivateClose = true;
+        Hide();
+    }
+
+    private void OnHeaderMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!Pinned || e.ChangedButton != MouseButton.Left)
+        {
+            return;
+        }
+
+        if (HeaderSourceIsInteractive(e.OriginalSource as DependencyObject))
+        {
+            return;
+        }
+
+        _suppressDeactivateClose = true;
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        PersistPosition();
+    }
+
+    private void PersistPosition()
+    {
+        RestorePosition(Left, Top);
+        PositionChanged?.Invoke(Left, Top);
+    }
+
+    private void ApplyPinGlyph()
+    {
+        PinFilled.Visibility = Pinned ? Visibility.Visible : Visibility.Collapsed;
+        PinOutline.Visibility = Pinned ? Visibility.Collapsed : Visibility.Visible;
+        var label = Pinned ? UiText.Unpin : UiText.Pin;
+        PinButton.ToolTip = label;
+        System.Windows.Automation.AutomationProperties.SetName(PinButton, label);
+    }
+
+    private bool HeaderSourceIsInteractive(DependencyObject? source)
+    {
+        while (source is not null && !ReferenceEquals(source, FlyoutHeaderGrid))
+        {
+            if (source is System.Windows.Controls.Button
+                || ReferenceEquals(source, StatusText)
+                || ReferenceEquals(source, RefreshProgressText)
+                || ReferenceEquals(source, RefreshAllButton)
+                || ReferenceEquals(source, PinButton)
+                || ReferenceEquals(source, CloseFlyoutButton))
+            {
+                return true;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return false;
+    }
+
+    private IReadOnlyList<ScreenRect> EnumerateWorkAreas()
+    {
+        var source = PresentationSource.FromVisual(this);
+        var fromDevice = source?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+        var areas = new List<ScreenRect>();
+        foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+        {
+            var area = screen.WorkingArea;
+            var topLeft = fromDevice.Transform(new System.Windows.Point(area.Left, area.Top));
+            var bottomRight = fromDevice.Transform(new System.Windows.Point(area.Right, area.Bottom));
+            areas.Add(new ScreenRect(
+                (int)topLeft.X,
+                (int)topLeft.Y,
+                (int)Math.Max(1, bottomRight.X - topLeft.X),
+                (int)Math.Max(1, bottomRight.Y - topLeft.Y)));
+        }
+
+        return areas;
     }
 
     private void OnCoverageClick(object sender, RoutedEventArgs e) => CoverageRequested?.Invoke();

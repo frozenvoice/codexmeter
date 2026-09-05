@@ -72,6 +72,8 @@ public static class UiText
     public static string Failed => T("Failed", "실패");
     public static string PreviousData => T("Previous data", "이전 데이터");
     public static string Close => T("Close", "닫기");
+    public static string Pin => T("Pin", "고정");
+    public static string Unpin => T("Unpin", "고정 해제");
     public static string Save => T("Save", "저장");
     public static string About => T("About", "정보");
     public static string Exit => T("Exit", "종료");
@@ -160,6 +162,29 @@ public static class UiText
     public static string BranchCoverage => T("Branch coverage", "분기 포함");
     public static string Successful => T("successful", "성공");
     public static string UniqueFailed => T("unique failed", "고유 실패");
+    public static string ConversationsNotRead(int count) => T(
+        $"{count} conversations not read",
+        $"대화 {count}개 읽기 실패");
+    public static string ConversationsNotApplied(int count) => T(
+        $"{count} conversations not applied",
+        $"대화 {count}개 미반영");
+    public static string PartialUnapplied => T("Partially not applied", "일부 미반영");
+    public static string DataPartiallyNotApplied => T("Data partially not applied", "데이터 일부 미반영");
+    public static string ReadTimeout => T("Read timeout", "읽기 시간 초과");
+    public static string ResponseFormatMismatch => T("Response format mismatch", "응답 형식 불일치");
+    public static string ConversationCompanionFailure => T("Companion disconnected", "도우미 연결 끊김");
+    public static string FailureCategoryOther => T("Other", "기타");
+    public static string FailedThisSync => T("Failed this sync", "이번 동기화 실패");
+    public static string WaitingToRetry => T("Waiting to retry", "재시도 대기");
+    public static string CoverageLowerBoundNote => T(
+        "This statistic is a lower bound from conversations that could be read.",
+        "이 통계는 읽을 수 있었던 대화만 반영한 최소값입니다.");
+    public static string CoverageAutoRetryNote => T(
+        "Failed conversations will be retried automatically later.",
+        "실패한 대화는 이후 자동으로 다시 시도합니다.");
+    public static string CoverageNoUserActionNote => T(
+        "You do not need to take any action.",
+        "사용자가 별도로 조치할 필요는 없습니다.");
     public static string CoverageDisclaimer => T(
         "History reconstruction is not an official OpenAI quota counter.",
         "대화 기록 재구성은 OpenAI의 공식 한도 집계가 아닙니다.");

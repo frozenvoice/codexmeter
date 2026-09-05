@@ -13,6 +13,7 @@ public sealed class CoverageInfo
     public bool IndexIncomplete { get; set; }
     public bool ConversationIncomplete { get; set; }
     public int FailedConversations { get; set; }
+    public SyncFailureSummary FailureSummary { get; set; } = new();
     public int LoadedConversations { get; set; }
     public int ConversationsWithEvents { get; set; }
     public int ZeroEventConversations { get; set; }

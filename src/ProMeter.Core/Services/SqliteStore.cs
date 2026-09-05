@@ -6,7 +6,9 @@ public sealed class SqliteStore : IDisposable
 {
     private const string ConversationSelect = """
         SELECT conversation_id, update_time, project_id, archived, last_scanned, last_seen_update_time, source,
-               last_successful_scan, last_error_at, last_error, scan_status
+               last_successful_scan, last_error_at, last_error, scan_status,
+               consecutive_fetch_failures, next_eligible_fetch_at, last_fetch_failure_category,
+               last_attempted_update_time, fetch_failure_parser_version
         FROM conversations
         """;
 
@@ -100,6 +102,11 @@ public sealed class SqliteStore : IDisposable
             EnsureColumn(connection, "conversations", "last_error_at", "TEXT");
             EnsureColumn(connection, "conversations", "last_error", "TEXT");
             EnsureColumn(connection, "conversations", "scan_status", "TEXT");
+            EnsureColumn(connection, "conversations", "consecutive_fetch_failures", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "conversations", "next_eligible_fetch_at", "TEXT");
+            EnsureColumn(connection, "conversations", "last_fetch_failure_category", "TEXT");
+            EnsureColumn(connection, "conversations", "last_attempted_update_time", "REAL NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "conversations", "fetch_failure_parser_version", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "usage_events", "dedupe_confidence", "TEXT");
         }
     }
@@ -165,17 +172,34 @@ public sealed class SqliteStore : IDisposable
         }
     }
 
-    public void RecordConversationFailure(ConversationRecord? prior, ConversationIndexItem item, ConversationScanStatus status, string error)
+    public void RecordConversationFailure(
+        ConversationRecord? prior,
+        ConversationIndexItem item,
+        ConversationScanStatus status,
+        string error,
+        string? category = null,
+        DateTimeOffset? now = null,
+        int httpStatus = 0)
     {
+        var at = now ?? DateTimeOffset.UtcNow;
         var record = prior ?? new ConversationRecord { ConversationId = item.Id };
         record.ConversationId = item.Id;
         record.ProjectId = item.ProjectId ?? record.ProjectId;
         record.Archived = item.Archived;
         record.Source = string.IsNullOrWhiteSpace(item.Source) ? record.Source : item.Source;
-        record.LastScanned = DateTimeOffset.UtcNow;
-        record.LastErrorAt = DateTimeOffset.UtcNow;
+        record.LastScanned = at;
+        record.LastErrorAt = at;
         record.LastError = error;
         record.Status = status;
+        record.ConsecutiveFetchFailures = Math.Max(0, record.ConsecutiveFetchFailures) + 1;
+        record.LastFetchFailureCategory = ConversationFetchBackoff.NormalizeCategory(category, httpStatus);
+        record.FetchFailureParserVersion = ConversationFetchBackoff.ParserCompatibilityVersion;
+        if (item.UpdateTime > 0)
+        {
+            record.LastAttemptedUpdateTime = item.UpdateTime;
+        }
+
+        record.NextEligibleFetchAt = ConversationFetchBackoff.NextEligibleAt(at, record.ConsecutiveFetchFailures);
         UpsertConversation(record);
     }
 
@@ -378,8 +402,11 @@ public sealed class SqliteStore : IDisposable
         command.CommandText = """
             INSERT INTO conversations(
                 conversation_id, update_time, project_id, archived, last_scanned, last_seen_update_time, source,
-                last_successful_scan, last_error_at, last_error, scan_status)
-            VALUES($id,$update,$project,$archived,$scanned,$seen,$source,$success,$errat,$err,$status)
+                last_successful_scan, last_error_at, last_error, scan_status,
+                consecutive_fetch_failures, next_eligible_fetch_at, last_fetch_failure_category,
+                last_attempted_update_time, fetch_failure_parser_version)
+            VALUES($id,$update,$project,$archived,$scanned,$seen,$source,$success,$errat,$err,$status,
+                   $failures,$next,$failcat,$attempted,$parser)
             ON CONFLICT(conversation_id) DO UPDATE SET
                 update_time=CASE WHEN excluded.scan_status='Ok' THEN excluded.update_time ELSE conversations.update_time END,
                 project_id=excluded.project_id,
@@ -390,7 +417,12 @@ public sealed class SqliteStore : IDisposable
                 last_successful_scan=CASE WHEN excluded.scan_status='Ok' THEN excluded.last_successful_scan ELSE conversations.last_successful_scan END,
                 last_error_at=excluded.last_error_at,
                 last_error=excluded.last_error,
-                scan_status=excluded.scan_status;
+                scan_status=excluded.scan_status,
+                consecutive_fetch_failures=excluded.consecutive_fetch_failures,
+                next_eligible_fetch_at=excluded.next_eligible_fetch_at,
+                last_fetch_failure_category=excluded.last_fetch_failure_category,
+                last_attempted_update_time=excluded.last_attempted_update_time,
+                fetch_failure_parser_version=excluded.fetch_failure_parser_version;
             """;
         command.Parameters.AddWithValue("$id", record.ConversationId);
         command.Parameters.AddWithValue("$update", record.UpdateTime);
@@ -403,6 +435,11 @@ public sealed class SqliteStore : IDisposable
         command.Parameters.AddWithValue("$errat", (object?)record.LastErrorAt?.ToString("O") ?? DBNull.Value);
         command.Parameters.AddWithValue("$err", (object?)record.LastError ?? DBNull.Value);
         command.Parameters.AddWithValue("$status", record.Status.ToString());
+        command.Parameters.AddWithValue("$failures", record.ConsecutiveFetchFailures);
+        command.Parameters.AddWithValue("$next", (object?)record.NextEligibleFetchAt?.ToString("O") ?? DBNull.Value);
+        command.Parameters.AddWithValue("$failcat", (object?)record.LastFetchFailureCategory ?? DBNull.Value);
+        command.Parameters.AddWithValue("$attempted", record.LastAttemptedUpdateTime);
+        command.Parameters.AddWithValue("$parser", record.FetchFailureParserVersion);
     }
 
     private static int InsertEvent(SqliteConnection connection, SqliteTransaction tx, UsageEvent e)
@@ -464,8 +501,25 @@ public sealed class SqliteStore : IDisposable
         LastError = reader.FieldCount > 9 && !reader.IsDBNull(9) ? reader.GetString(9) : null,
         Status = reader.FieldCount > 10 && !reader.IsDBNull(10) && Enum.TryParse<ConversationScanStatus>(reader.GetString(10), out var status)
             ? status
-            : ConversationScanStatus.Unknown
+            : ConversationScanStatus.Unknown,
+        ConsecutiveFetchFailures = ReadInt32(reader, 11),
+        NextEligibleFetchAt = reader.FieldCount > 12 && !reader.IsDBNull(12)
+            ? DateTimeOffset.Parse(reader.GetString(12), CultureInfo.InvariantCulture)
+            : null,
+        LastFetchFailureCategory = reader.FieldCount > 13 && !reader.IsDBNull(13) ? reader.GetString(13) : null,
+        LastAttemptedUpdateTime = reader.FieldCount > 14 && !reader.IsDBNull(14) ? reader.GetDouble(14) : 0,
+        FetchFailureParserVersion = ReadInt32(reader, 15)
     };
+
+    private static int ReadInt32(SqliteDataReader reader, int ordinal)
+    {
+        if (reader.FieldCount <= ordinal || reader.IsDBNull(ordinal))
+        {
+            return 0;
+        }
+
+        return Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture);
+    }
 
     private static UsageEvent ReadEvent(SqliteDataReader reader) => new()
     {

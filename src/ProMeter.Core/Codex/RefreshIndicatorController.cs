@@ -10,6 +10,7 @@ public enum RefreshIndicatorTransition
 public sealed class RefreshIndicatorController
 {
     public const double DurationSeconds = 0.9;
+    public const double StripDurationSeconds = 1.1;
 
     public bool IsAnimating { get; private set; }
     public int StartCount { get; private set; }

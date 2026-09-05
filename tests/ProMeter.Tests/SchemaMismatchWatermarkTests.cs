@@ -38,8 +38,11 @@ public class SchemaMismatchWatermarkTests
         Assert.Equal(1, provider.BodyFetches);
 
         var second = await engine.SyncAsync(provider, settings, force: false);
-        Assert.Equal(2, provider.BodyFetches);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, second.Status);
+        Assert.Equal(1, provider.BodyFetches);
+        Assert.Equal(AppSyncStatus.PartialData, second.Status);
+        Assert.Equal(1, engine.LastCoverage.FailureSummary.DeferredCount);
+        Assert.Equal(1, engine.LastCoverage.FailedConversations);
+        Assert.Equal(CollectionState.Partial, engine.LastCoverage.OverallState);
         Assert.Null(store.GetConversation(item.Id)?.LastSuccessfulScan);
     }
 
@@ -83,8 +86,10 @@ public class SchemaMismatchWatermarkTests
         Assert.Equal(2, provider.BodyFetches);
 
         var retry = await engine.SyncAsync(provider, settings, force: false);
-        Assert.Equal(3, provider.BodyFetches);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, retry.Status);
+        Assert.Equal(2, provider.BodyFetches);
+        Assert.Equal(AppSyncStatus.PartialData, retry.Status);
+        Assert.Equal(1, engine.LastCoverage.FailureSummary.DeferredCount);
+        Assert.Equal(CollectionState.Partial, engine.LastCoverage.OverallState);
     }
 
     [Fact]

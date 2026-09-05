@@ -341,6 +341,50 @@ public static class FlyoutPlacement
         top = Math.Clamp(top, workArea.Y + 8, workArea.Bottom - flyoutHeight - 8);
         return (left, top);
     }
+
+    public static ScreenRect SelectWorkArea(
+        double left,
+        double top,
+        double width,
+        double height,
+        IReadOnlyList<ScreenRect> workAreas)
+    {
+        if (workAreas.Count == 0)
+        {
+            return new ScreenRect(0, 0, 1920, 1080);
+        }
+
+        var placed = new ScreenRect(
+            (int)Math.Round(left),
+            (int)Math.Round(top),
+            Math.Max(1, (int)Math.Round(width)),
+            Math.Max(1, (int)Math.Round(height)));
+        foreach (var area in workAreas)
+        {
+            if (area.Intersects(placed))
+            {
+                return area;
+            }
+        }
+
+        return workAreas[0];
+    }
+
+    public static (double Left, double Top) ClampToWorkArea(
+        double left,
+        double top,
+        double width,
+        double height,
+        ScreenRect workArea)
+    {
+        var minLeft = workArea.X + 8.0;
+        var minTop = workArea.Y + 8.0;
+        var maxLeft = workArea.Right - width - 8;
+        var maxTop = workArea.Bottom - height - 8;
+        left = maxLeft < minLeft ? minLeft : Math.Clamp(left, minLeft, maxLeft);
+        top = maxTop < minTop ? minTop : Math.Clamp(top, minTop, maxTop);
+        return (left, top);
+    }
 }
 
 public sealed class LayoutSignalDebouncer

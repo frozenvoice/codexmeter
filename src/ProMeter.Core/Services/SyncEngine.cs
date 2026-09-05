@@ -22,6 +22,7 @@ public sealed class SyncEngine
     private ReconstructionTotals _reconstruction = new();
     private readonly List<DeferredZeroEventScan> _deferredZeroEvents = [];
     private readonly Dictionary<string, ConversationWorkEntry> _work = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _deferredIds = new(StringComparer.Ordinal);
     private readonly IClock _clock;
 
     public SyncEngine(SqliteStore store, ConversationParser parser, ModelNormalizer models, AppLog log, IClock? clock = null)
@@ -108,6 +109,7 @@ public sealed class SyncEngine
         _reconstruction = new ReconstructionTotals();
         _deferredZeroEvents.Clear();
         _work.Clear();
+        _deferredIds.Clear();
         try
         {
             Report(UiText.DetectingAccount);
@@ -536,6 +538,12 @@ public sealed class SyncEngine
 
             if (!options.ForceBodyRescan && !NeedsBody(item))
             {
+                var record = _store.GetConversation(item.Id);
+                if (ConversationFetchBackoff.IsDeferredFailure(item, record, _clock.UtcNow, false))
+                {
+                    MarkDeferred(coverage, item.Id, record, setWorst);
+                }
+
                 continue;
             }
 
@@ -593,9 +601,9 @@ public sealed class SyncEngine
                 }
                 catch (Exception ex)
                 {
-                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData);
-                    _store.RecordConversationFailure(_store.GetConversation(item.Id), item, ConversationScanStatus.FetchFailed, AppLog.Sanitize(ex.Message));
                     var (category, status) = SyncFailureClassifier.Classify(ex);
+                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData, category, status);
+                    RecordBodyFailure(item, ConversationScanStatus.FetchFailed, AppLog.Sanitize(ex.Message), category, status);
                     LogConversationFailure(item.Id, category, status);
                     continue;
                 }
@@ -604,12 +612,13 @@ public sealed class SyncEngine
                 {
                     var scanStatus = load.SchemaMismatch ? ConversationScanStatus.SchemaMismatch : ConversationScanStatus.Incomplete;
                     var worst = load.SchemaMismatch ? AppSyncStatus.ProviderSchemaMismatch : AppSyncStatus.PartialData;
-                    MarkUniqueFailure(coverage, entry, setWorst, worst);
+                    var category = SyncFailureClassifier.ClassifyLoad(load);
+                    MarkUniqueFailure(coverage, entry, setWorst, worst, category);
                     coverage.Notes = load.SchemaMismatch
                         ? "Provider schema mismatch on at least one conversation."
                         : "At least one conversation was incomplete.";
-                    _store.RecordConversationFailure(_store.GetConversation(item.Id), item, scanStatus, string.Join("; ", load.Diagnostics));
-                    LogConversationFailure(item.Id, SyncFailureClassifier.ClassifyLoad(load), 0);
+                    RecordBodyFailure(item, scanStatus, string.Join("; ", load.Diagnostics), category);
+                    LogConversationFailure(item.Id, category, 0);
                     continue;
                 }
 
@@ -627,9 +636,9 @@ public sealed class SyncEngine
 
                 if (result.SchemaMismatch)
                 {
-                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.ProviderSchemaMismatch);
+                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.ProviderSchemaMismatch, ConversationFetchBackoff.SchemaMismatch);
                     coverage.Notes = "Provider schema mismatch on at least one conversation.";
-                    _store.RecordConversationFailure(_store.GetConversation(item.Id), item, ConversationScanStatus.SchemaMismatch, string.Join("; ", result.Diagnostics));
+                    RecordBodyFailure(item, ConversationScanStatus.SchemaMismatch, string.Join("; ", result.Diagnostics), ConversationFetchBackoff.SchemaMismatch);
                     LogConversationFailure(item.Id, "SchemaMismatch", 0);
                     continue;
                 }
@@ -689,17 +698,54 @@ public sealed class SyncEngine
         CoverageInfo coverage,
         ConversationWorkEntry entry,
         Action<AppSyncStatus> setWorst,
-        AppSyncStatus status)
+        AppSyncStatus status,
+        string? category = null,
+        int httpStatus = 0)
     {
         if (!entry.Failed)
         {
             entry.Failed = true;
             _reconstruction.Failed++;
             coverage.FailedConversations++;
+            coverage.FailureSummary.AddThisSync(category, httpStatus);
         }
 
         coverage.ConversationIncomplete = true;
         setWorst(status);
+    }
+
+    private void MarkDeferred(
+        CoverageInfo coverage,
+        string conversationId,
+        ConversationRecord? existing,
+        Action<AppSyncStatus> setWorst)
+    {
+        if (!_deferredIds.Add(conversationId))
+        {
+            return;
+        }
+
+        coverage.FailedConversations++;
+        coverage.ConversationIncomplete = true;
+        coverage.FailureSummary.AddDeferred(existing?.LastFetchFailureCategory);
+        setWorst(AppSyncStatus.PartialData);
+    }
+
+    private void RecordBodyFailure(
+        ConversationIndexItem item,
+        ConversationScanStatus status,
+        string error,
+        string? category,
+        int httpStatus = 0)
+    {
+        _store.RecordConversationFailure(
+            _store.GetConversation(item.Id),
+            item,
+            status,
+            error,
+            category,
+            _clock.UtcNow,
+            httpStatus);
     }
 
     private void LogConversationFailure(string conversationId, string category, int status)
@@ -757,7 +803,12 @@ public sealed class SyncEngine
             LastSuccessfulScan = trusted ? now : null,
             LastError = trusted ? null : "missing update_time",
             LastErrorAt = trusted ? null : now,
-            Status = trusted ? ConversationScanStatus.Ok : ConversationScanStatus.Incomplete
+            Status = trusted ? ConversationScanStatus.Ok : ConversationScanStatus.Incomplete,
+            ConsecutiveFetchFailures = 0,
+            NextEligibleFetchAt = null,
+            LastFetchFailureCategory = null,
+            LastAttemptedUpdateTime = trusted ? item.UpdateTime : 0,
+            FetchFailureParserVersion = 0
         }, result.Events);
         if (!trusted)
         {
@@ -797,19 +848,20 @@ public sealed class SyncEngine
 
                 if (_work.TryGetValue(deferred.Item.Id, out var work))
                 {
-                    MarkUniqueFailure(coverage, work, setWorst, AppSyncStatus.ProviderSchemaMismatch);
+                    MarkUniqueFailure(coverage, work, setWorst, AppSyncStatus.ProviderSchemaMismatch, ConversationFetchBackoff.SchemaMismatch);
                 }
                 else
                 {
                     coverage.FailedConversations++;
+                    coverage.FailureSummary.AddThisSync(ConversationFetchBackoff.SchemaMismatch);
                     _reconstruction.Failed++;
                 }
 
-                _store.RecordConversationFailure(
-                    _store.GetConversation(deferred.Item.Id),
+                RecordBodyFailure(
                     deferred.Item,
                     ConversationScanStatus.SchemaMismatch,
-                    MissingAssistantUsageDiagnostic);
+                    MissingAssistantUsageDiagnostic,
+                    ConversationFetchBackoff.SchemaMismatch);
             }
 
             return;
@@ -824,26 +876,8 @@ public sealed class SyncEngine
     private int FamilyCount(QuotaFamily family) =>
         _reconstruction.Families.TryGetValue(family, out var count) ? count : 0;
 
-    private bool NeedsBody(ConversationIndexItem item)
-    {
-        if (item.UpdateTime <= 0)
-        {
-            return true;
-        }
-
-        var existing = _store.GetConversation(item.Id);
-        if (existing is null || existing.LastSuccessfulScan is null)
-        {
-            return true;
-        }
-
-        if (existing.Status is ConversationScanStatus.Incomplete or ConversationScanStatus.SchemaMismatch or ConversationScanStatus.FetchFailed or ConversationScanStatus.Unknown)
-        {
-            return true;
-        }
-
-        return existing.LastSeenUpdateTime + 0.001 < item.UpdateTime;
-    }
+    private bool NeedsBody(ConversationIndexItem item) =>
+        ConversationFetchBackoff.ShouldFetch(item, _store.GetConversation(item.Id), _clock.UtcNow, forceBodyRescan: false);
 
     private async Task PaceBodyFetchAsync(CancellationToken cancellationToken)
     {
@@ -882,12 +916,12 @@ public sealed class SyncEngine
         Action<AppSyncStatus> setWorst)
     {
         _consecutiveBodyTimeouts++;
-        MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData);
-        _store.RecordConversationFailure(
-            _store.GetConversation(item.Id),
+        MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData, ConversationFetchBackoff.BodyTimeout);
+        RecordBodyFailure(
             item,
             ConversationScanStatus.FetchFailed,
-            "conversation body timed out");
+            "conversation body timed out",
+            ConversationFetchBackoff.BodyTimeout);
         LogConversationFailure(item.Id, "BodyTimeout", 0);
         return _consecutiveBodyTimeouts >= Math.Max(1, ConsecutiveBodyTimeoutLimit);
     }

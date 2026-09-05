@@ -17,17 +17,57 @@
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>
         </Style>
+        <Style x:Key="FlyoutHeaderIconButton" TargetType="Button">
+            <Setter Property="MinWidth" Value="28"/>
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="{DynamicResource GhostBrush}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Focusable" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="HeaderIconChrome"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HeaderIconChrome" Property="Background" Value="{DynamicResource SelectionBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HeaderIconChrome" Property="Background" Value="{DynamicResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{DynamicResource DisabledBrush}"/>
+                                <Setter TargetName="HeaderIconChrome" Property="Background" Value="{DynamicResource GhostBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
     <Border Background="{DynamicResource CardBrush}"
             BorderBrush="{DynamicResource LineBrush}"
             BorderThickness="1"
             CornerRadius="14"
-            Padding="16">
-        <StackPanel>
-            <Grid x:Name="FlyoutHeaderGrid">
+            Padding="0"
+            ClipToBounds="True">
+        <DockPanel>
+            <Grid x:Name="FlyoutHeaderGrid"
+                  DockPanel.Dock="Top"
+                  Margin="16,16,16,8"
+                  MouseLeftButtonDown="OnHeaderMouseLeftButtonDown">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*" MinWidth="0"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="TitleText"
@@ -59,40 +99,12 @@
                 </Grid>
                 <Button x:Name="RefreshAllButton"
                         Grid.Column="2"
+                        Style="{StaticResource FlyoutHeaderIconButton}"
                         Click="OnRefreshAllClick"
-                        PreviewMouseDown="OnRefreshPreviewMouseDown"
+                        PreviewMouseDown="OnHeaderButtonPreviewMouseDown"
                         ToolTip="Refresh all"
                         AutomationProperties.Name="Refresh all"
-                        MinWidth="28"
-                        MinHeight="28"
-                        Padding="6,2"
-                        Cursor="Hand"
-                        Background="{DynamicResource GhostBrush}"
-                        Foreground="{DynamicResource TextBrush}"
-                        BorderThickness="0"
-                        Focusable="True">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="RefreshChrome"
-                                    Background="{TemplateBinding Background}"
-                                    CornerRadius="6"
-                                    Padding="{TemplateBinding Padding}">
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="RefreshChrome" Property="Background" Value="{DynamicResource SelectionBrush}"/>
-                                </Trigger>
-                                <Trigger Property="IsPressed" Value="True">
-                                    <Setter TargetName="RefreshChrome" Property="Background" Value="{DynamicResource AccentBrush}"/>
-                                </Trigger>
-                                <Trigger Property="IsEnabled" Value="False">
-                                    <Setter Property="Foreground" Value="{DynamicResource DisabledBrush}"/>
-                                    <Setter TargetName="RefreshChrome" Property="Background" Value="{DynamicResource GhostBrush}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
+                        Margin="0,0,4,0">
                     <Grid Width="16" Height="16">
                         <TextBlock x:Name="RefreshAllIcon"
                                    Text="↻"
@@ -132,8 +144,67 @@
                         </Viewbox>
                     </Grid>
                 </Button>
+                <Button x:Name="PinButton"
+                        Grid.Column="3"
+                        Style="{StaticResource FlyoutHeaderIconButton}"
+                        Click="OnPinClick"
+                        PreviewMouseDown="OnHeaderButtonPreviewMouseDown"
+                        ToolTip="Pin"
+                        AutomationProperties.Name="Pin"
+                        Margin="0,0,4,0">
+                    <Grid Width="14" Height="14">
+                        <Path x:Name="PinOutline"
+                              Stroke="{DynamicResource TextBrush}"
+                              StrokeThickness="1.4"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              StrokeLineJoin="Round"
+                              Fill="Transparent"
+                              Stretch="Uniform"
+                              Data="M7,1 C5.3,1 4,2.5 4,4.2 L4,7.2 L2.2,7.2 L2.2,8.8 L6.2,8.8 L6.2,13 L7.8,13 L7.8,8.8 L11.8,8.8 L11.8,7.2 L10,7.2 L10,4.2 C10,2.5 8.7,1 7,1 Z"/>
+                        <Path x:Name="PinFilled"
+                              Fill="{DynamicResource AccentBrush}"
+                              Stroke="{DynamicResource AccentBrush}"
+                              StrokeThickness="0.4"
+                              Stretch="Uniform"
+                              Visibility="Collapsed"
+                              Data="M7,1 C5.3,1 4,2.5 4,4.2 L4,7.2 L2.2,7.2 L2.2,8.8 L6.2,8.8 L6.2,13 L7.8,13 L7.8,8.8 L11.8,8.8 L11.8,7.2 L10,7.2 L10,4.2 C10,2.5 8.7,1 7,1 Z"/>
+                    </Grid>
+                </Button>
+                <Button x:Name="CloseFlyoutButton"
+                        Grid.Column="4"
+                        Style="{StaticResource FlyoutHeaderIconButton}"
+                        Click="OnCloseClick"
+                        PreviewMouseDown="OnHeaderButtonPreviewMouseDown"
+                        ToolTip="Close"
+                        AutomationProperties.Name="Close">
+                    <Path Width="12"
+                          Height="12"
+                          Stroke="{DynamicResource TextBrush}"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          Data="M2,2 L10,10 M10,2 L2,10"
+                          Stretch="Uniform"/>
+                </Button>
             </Grid>
-
+            <Grid x:Name="SyncProgressStrip"
+                  DockPanel.Dock="Top"
+                  Height="3"
+                  ClipToBounds="True"
+                  Visibility="Collapsed">
+                <Rectangle x:Name="SyncProgressSegment"
+                           Width="72"
+                           Height="3"
+                           HorizontalAlignment="Left"
+                           RadiusX="1.5"
+                           RadiusY="1.5"
+                           Fill="{DynamicResource AccentBrush}">
+                    <Rectangle.RenderTransform>
+                        <TranslateTransform x:Name="SyncProgressTranslate" X="-80"/>
+                    </Rectangle.RenderTransform>
+                </Rectangle>
+            </Grid>
+            <StackPanel Margin="16,8,16,16">
             <TextBlock Style="{StaticResource SectionTitle}" Text="GPT PRO"/>
             <DockPanel>
                 <TextBlock x:Name="ProStateLabel" Text="Status" Foreground="{DynamicResource MutedBrush}"/>
@@ -205,6 +276,7 @@
                     <TextBlock x:Name="CoverageText" DockPanel.Dock="Right" HorizontalAlignment="Right" Foreground="{DynamicResource AccentBrush}"/>
                 </DockPanel>
             </Button>
-        </StackPanel>
+            </StackPanel>
+        </DockPanel>
     </Border>
 </Window>
