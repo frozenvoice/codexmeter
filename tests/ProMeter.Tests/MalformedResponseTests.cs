@@ -38,6 +38,9 @@ public class MalformedResponseTests
         Assert.False(status.IsSignedIn);
         Assert.Empty(AccountParser.ParseModels(new JsonObject()));
         Assert.False(AccountParser.ParseProjects(new JsonObject()).RecognizedShape);
-        Assert.False(AccountParser.ParseQuotaMetadata(new JsonObject()).Found);
+        var empty = AccountParser.ParseQuotaMetadata(new JsonObject());
+        Assert.False(empty.Found);
+        Assert.True(empty.ProServerStatus.ServerObserved);
+        Assert.Equal(ProRestrictionState.Unknown, empty.ProServerStatus.RestrictionState);
     }
 }

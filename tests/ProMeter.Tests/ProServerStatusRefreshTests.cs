@@ -78,6 +78,36 @@ public class ProServerStatusRefreshTests
         Assert.True(result.UsedCache);
         Assert.True(service.Current.Stale);
         Assert.Equal(ProRestrictionState.CorrelatedRestriction, service.Current.RestrictionState);
+        Assert.Equal(new DateTimeOffset(2026, 9, 6, 5, 20, 13, TimeSpan.Zero), service.Current.ResetAt);
+    }
+
+    [Fact]
+    public async Task SuccessfulUnknown_ReplacesPriorRestrictionAndClearsStale()
+    {
+        var clock = new MutableClock(new DateTimeOffset(2026, 9, 6, 4, 0, 0, TimeSpan.Zero));
+        var provider = new RecordingQuotaProvider();
+        var service = new ProServerStatusService(new ProServerStatusStore(TempFile()), clock);
+        await service.RefreshAsync(provider);
+        Assert.Equal(ProRestrictionState.CorrelatedRestriction, service.Current.RestrictionState);
+        Assert.False(service.Current.Stale);
+
+        clock.UtcNow = clock.UtcNow.AddMinutes(6);
+        provider.Next = AccountParser.ParseQuotaMetadata(new JsonObject
+        {
+            ["model_limits"] = new JsonArray()
+        });
+        var result = await service.RefreshAsync(provider);
+        Assert.False(result.TransientFailure);
+        Assert.False(result.UsedCache);
+        Assert.True(service.Current.ServerObserved);
+        Assert.Equal(ProRestrictionState.Unknown, service.Current.RestrictionState);
+        Assert.Null(service.Current.ResetAt);
+        Assert.Equal(ServerResetConfidence.None, service.Current.ResetConfidence);
+        Assert.False(service.Current.Stale);
+        Assert.Equal(clock.UtcNow, service.Current.LastSuccessfulRefresh);
+        Assert.Equal(clock.UtcNow, service.Current.LastRefreshAttempt);
+        Assert.Equal("P?", ProStatusPresentation.From(new QuotaSnapshot { ProServerStatus = service.Current }).ProCompactToken);
+        Assert.Equal(UiText.Unavailable, ProStatusPresentation.From(new QuotaSnapshot { ProServerStatus = service.Current }).ProStateText);
     }
 
     [Fact]
@@ -105,6 +135,7 @@ public class ProServerStatusRefreshTests
         public int ConversationCalls { get; private set; }
         public bool SentModelTurn { get; }
         public bool FailNext { get; set; }
+        public QuotaMetadataSet? Next { get; set; }
         public Func<Task>? Gate { get; set; }
 
         public Task<AccountStatus> GetAccountStatusAsync(CancellationToken cancellationToken = default) =>
@@ -153,6 +184,12 @@ public class ProServerStatusRefreshTests
             {
                 FailNext = false;
                 throw new ChatGptProviderException("offline", 0);
+            }
+
+            if (Next is { } next)
+            {
+                Next = null;
+                return next;
             }
 
             return AccountParser.ParseQuotaMetadata(new JsonObject

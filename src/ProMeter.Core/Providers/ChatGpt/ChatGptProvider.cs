@@ -200,7 +200,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 """{"conversation_mode_kind":"primary_assistant"}""",
                 cancellationToken);
             var parsed = AccountParser.ParseQuotaMetadata(init);
-            if (parsed.Found)
+            if (parsed.Found || parsed.ProServerStatus.ServerObserved)
             {
                 return parsed;
             }
@@ -217,7 +217,7 @@ public sealed class ChatGptProvider : IChatGptProvider
         {
             var models = await GetJsonAsync("GET", ChatGptEndpoints.Models, cancellationToken: cancellationToken);
             var parsed = AccountParser.ParseQuotaMetadata(models);
-            if (parsed.Found)
+            if (parsed.Found || parsed.ProServerStatus.ServerObserved)
             {
                 return parsed;
             }
