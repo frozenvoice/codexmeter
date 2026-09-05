@@ -24,6 +24,7 @@ jobs:
           node --check extension/auth.js
           node --check extension/page-executor.js
           node --check extension/page-tab.js
+          node --check extension/companion-reconnect.js
           node --check extension/background.js
           node --check extension/popup.js
           node --check extension/validate-manifest.js
@@ -58,6 +59,7 @@ jobs:
           if (!(Test-Path publish/win-x64/extension/background.js)) { throw "extension/background.js missing" }
           if (!(Test-Path publish/win-x64/extension/page-executor.js)) { throw "extension/page-executor.js missing" }
           if (!(Test-Path publish/win-x64/extension/page-tab.js)) { throw "extension/page-tab.js missing" }
+          if (!(Test-Path publish/win-x64/extension/companion-reconnect.js)) { throw "extension/companion-reconnect.js missing" }
 
       - name: Upload published folder
         uses: actions/upload-artifact@v4

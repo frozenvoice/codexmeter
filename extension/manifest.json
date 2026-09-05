@@ -3,7 +3,7 @@
   "name": "ProMeter ChatGPT Companion",
   "version": "1.0.0",
   "description": "Runs approved same-origin ChatGPT fetches for ProMeter from a normal browser session. Does not read cookie databases or send tokens.",
-  "permissions": ["nativeMessaging", "storage", "scripting"],
+  "permissions": ["nativeMessaging", "storage", "scripting", "alarms"],
   "host_permissions": ["https://chatgpt.com/*"],
   "background": {
     "service_worker": "background.js"

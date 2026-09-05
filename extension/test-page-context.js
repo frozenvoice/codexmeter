@@ -11,7 +11,11 @@ module.exports = async function testPageContext() {
   assert.ok(background.indexOf("handleInvoke") >= 0);
   assert.ok(background.indexOf("invokeWithRefresh") < 0);
   assert.ok(!/\bfetch\s*\(/.test(background), "service worker must not fetch ChatGPT directly");
-  assert.ok(background.indexOf("importScripts(\"canonical.js\", \"operations.js\", \"page-tab.js\")") >= 0);
+  assert.ok(background.indexOf("importScripts(\"canonical.js\", \"operations.js\", \"page-tab.js\", \"companion-reconnect.js\")") >= 0);
+  assert.ok(background.indexOf("chrome.alarms") >= 0);
+  assert.ok(background.indexOf("companion reconnect scheduled") >= 0 || background.indexOf("formatDelayLog") >= 0);
+  assert.ok(background.indexOf("companionOptIn") >= 0);
+  assert.ok(!/pairingToken/.test(background), "background reconnect must not log pairing tokens");
 
   assert.strictEqual(pageTab.isExactChatGptTabUrl("https://chatgpt.com/"), true);
   assert.strictEqual(pageTab.isExactChatGptTabUrl("https://chatgpt.com/c/abc"), true);

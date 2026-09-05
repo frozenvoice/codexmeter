@@ -219,6 +219,8 @@ public class CompanionOutgoingWriteFailureTests
         Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(2));
         Assert.Equal("bridge write failed", response.Error);
         Assert.False(response.SchemaMismatch);
-        Assert.True(response.IsOffline);
+        Assert.True(response.IsBridgeWriteFailed);
+        Assert.False(response.IsOffline);
+        Assert.False(response.IsNetworkUnavailable);
     }
 }

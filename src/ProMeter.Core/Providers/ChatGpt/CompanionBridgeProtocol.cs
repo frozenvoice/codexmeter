@@ -213,17 +213,38 @@ public static class CompanionBridgeProtocol
         };
     }
 
+    public const string NotConnectedError = "browser companion is not connected";
+    public const string DisconnectedError = "browser companion disconnected";
+    public const string TimeoutError = "bridge request timed out";
+    public const string WriteFailedError = "bridge write failed";
+
+    public static ProviderResponse NotConnectedResponse() =>
+        new() { Status = 0, Error = NotConnectedError };
+
     public static ProviderResponse TimeoutResponse() =>
-        new() { Status = 0, Error = "bridge request timed out" };
+        new() { Status = 0, Error = TimeoutError };
 
     public static ProviderResponse DisconnectResponse() =>
-        new() { Status = 0, Error = "browser companion disconnected" };
+        new() { Status = 0, Error = DisconnectedError };
 
     public static ProviderResponse WriteFailureResponse() =>
-        new() { Status = 0, Error = "bridge write failed" };
+        new() { Status = 0, Error = WriteFailedError };
 
     public static ProviderResponse OperationMismatchResponse() =>
         new() { Status = 0, Error = "bridge result operation mismatch", SchemaMismatch = true };
+}
+
+public static class BridgeFailureClassification
+{
+    public static bool IsCompanionDisconnected(string? error) =>
+        string.Equals(error, CompanionBridgeProtocol.NotConnectedError, StringComparison.Ordinal)
+        || string.Equals(error, CompanionBridgeProtocol.DisconnectedError, StringComparison.Ordinal);
+
+    public static bool IsBridgeTimeout(string? error) =>
+        string.Equals(error, CompanionBridgeProtocol.TimeoutError, StringComparison.Ordinal);
+
+    public static bool IsBridgeWriteFailed(string? error) =>
+        string.Equals(error, CompanionBridgeProtocol.WriteFailedError, StringComparison.Ordinal);
 }
 
 public static class CompanionDiagnostics
@@ -293,6 +314,24 @@ public static class OnboardingOutcomeMapper
                 AllowSignInAgain: true),
             AppSyncStatus.PageBridgeUnavailable => new OnboardingPresentation(
                 UiText.PageBridgeUnavailable,
+                ShowCount: false,
+                AllowFinish: true,
+                AllowRetrySync: true,
+                AllowSignInAgain: false),
+            AppSyncStatus.CompanionDisconnected => new OnboardingPresentation(
+                UiText.CompanionDisconnectedStatus,
+                ShowCount: false,
+                AllowFinish: true,
+                AllowRetrySync: true,
+                AllowSignInAgain: false),
+            AppSyncStatus.BridgeTimeout => new OnboardingPresentation(
+                UiText.BridgeTimeoutStatus,
+                ShowCount: false,
+                AllowFinish: true,
+                AllowRetrySync: true,
+                AllowSignInAgain: false),
+            AppSyncStatus.BridgeWriteFailed => new OnboardingPresentation(
+                UiText.BridgeWriteFailedStatus,
                 ShowCount: false,
                 AllowFinish: true,
                 AllowRetrySync: true,

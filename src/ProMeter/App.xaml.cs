@@ -700,7 +700,9 @@ public partial class App : Application
     {
         _transport = _settings.AuthTransport switch
         {
-            AuthTransportKind.BrowserCompanion => new BrowserCompanionTransport(_companionHub),
+            AuthTransportKind.BrowserCompanion => new BrowserCompanionTransport(
+                _companionHub,
+                message => _log.Info(message)),
             AuthTransportKind.DataExport => new DataExportTransport(),
             _ => _webViewTransport
         };

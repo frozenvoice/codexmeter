@@ -135,7 +135,10 @@ public sealed class CombinedRefreshCoordinator
             or AppSyncStatus.AuthenticationRequired
             or AppSyncStatus.SignedOut
             or AppSyncStatus.Forbidden
-            or AppSyncStatus.ProviderSchemaMismatch;
+            or AppSyncStatus.ProviderSchemaMismatch
+            or AppSyncStatus.CompanionDisconnected
+            or AppSyncStatus.BridgeTimeout
+            or AppSyncStatus.BridgeWriteFailed;
 
     private static bool IsCodexFailure(CodexRefreshResult result) =>
         result.Snapshot.Status is CodexQuotaStatus.Unavailable

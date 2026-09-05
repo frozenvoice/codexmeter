@@ -1,14 +1,23 @@
-/* global importScripts, chrome, ProMeterCanonical, ProMeterOperations, ProMeterPageTab */
-importScripts("canonical.js", "operations.js", "page-tab.js");
+/* global importScripts, chrome, ProMeterCanonical, ProMeterOperations, ProMeterPageTab, ProMeterCompanionReconnect */
+importScripts("canonical.js", "operations.js", "page-tab.js", "companion-reconnect.js");
 
 var NATIVE_HOST = "com.prometer.bridge";
 var MAX_BYTES = ProMeterCanonical.MAX_NATIVE_MESSAGE_BYTES;
 var port = null;
+var portEpoch = 0;
 var connected = false;
 var lastError = "";
+var reconnect = ProMeterCompanionReconnect.createState();
+var reconnectTimer = null;
 
 function utf8ByteLength(text) {
   return ProMeterCanonical.utf8ByteLength(text);
+}
+
+function safeLog(message) {
+  if (typeof console !== "undefined" && console.log) {
+    console.log(String(message || ""));
+  }
 }
 
 function setConnected(value, error) {
@@ -17,7 +26,95 @@ function setConnected(value, error) {
   chrome.storage.local.set({ companionConnected: connected, companionLastError: lastError });
 }
 
+function clearReconnectSchedule() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  if (chrome.alarms && chrome.alarms.clear) {
+    chrome.alarms.clear(ProMeterCompanionReconnect.ALARM_NAME);
+  }
+  reconnect.scheduled = false;
+}
+
+function applyDecision(decision) {
+  if (!decision) {
+    return;
+  }
+  if (decision.cancelSchedule) {
+    clearReconnectSchedule();
+  }
+  if (decision.schedule && !reconnectTimer) {
+    reconnect.scheduled = true;
+    safeLog(ProMeterCompanionReconnect.formatDelayLog(decision.delayMs));
+    reconnectTimer = setTimeout(runScheduledReconnect, decision.delayMs);
+    if (chrome.alarms && chrome.alarms.create) {
+      chrome.alarms.create(ProMeterCompanionReconnect.ALARM_NAME, { when: Date.now() + decision.delayMs });
+    }
+  }
+}
+
+function runScheduledReconnect() {
+  var decision = ProMeterCompanionReconnect.onReconnectDue(reconnect);
+  clearReconnectSchedule();
+  if (decision.connect) {
+    safeLog("companion reconnect attempt");
+    connectNative(false);
+  }
+}
+
+function scheduleReconnectFromStorage() {
+  chrome.storage.local.get({ companionOptIn: false }, function (stored) {
+    reconnect.optIn = stored.companionOptIn === true;
+    if (port) {
+      return;
+    }
+    applyDecision(ProMeterCompanionReconnect.onDisconnect(reconnect, reconnect.optIn));
+  });
+}
+
+function disconnectPort() {
+  if (!port) {
+    return;
+  }
+  portEpoch += 1;
+  try {
+    port.onMessage.removeListener(onHostMessage);
+  } catch (error) {
+  }
+  try {
+    port.disconnect();
+  } catch (error) {
+  }
+  port = null;
+  reconnect.hasPort = false;
+}
+
+function onNativeDisconnect(epoch) {
+  if (epoch !== portEpoch) {
+    return;
+  }
+  portEpoch += 1;
+  var message = chrome.runtime.lastError && chrome.runtime.lastError.message ? chrome.runtime.lastError.message : "disconnected";
+  port = null;
+  reconnect.hasPort = false;
+  setConnected(false, message);
+  safeLog("companion disconnected");
+  scheduleReconnectFromStorage();
+}
+
 function connectNative(fromUser) {
+  var decision = fromUser
+    ? ProMeterCompanionReconnect.onManualConnect(reconnect)
+    : { connect: true, replacePort: false, cancelSchedule: true };
+  applyDecision(decision);
+  if (fromUser) {
+    reconnect.optIn = true;
+    chrome.storage.local.set({ companionOptIn: true });
+  }
+  if (decision.replacePort) {
+    disconnectPort();
+  }
   if (port) {
     return;
   }
@@ -25,18 +122,20 @@ function connectNative(fromUser) {
     port = chrome.runtime.connectNative(NATIVE_HOST);
   } catch (error) {
     setConnected(false, error && error.message ? error.message : "native host unavailable");
+    chrome.storage.local.get({ companionOptIn: false }, function (stored) {
+      reconnect.optIn = stored.companionOptIn === true;
+      applyDecision(ProMeterCompanionReconnect.onConnectFailed(reconnect, reconnect.optIn));
+    });
     return;
   }
+  portEpoch += 1;
+  var epoch = portEpoch;
+  ProMeterCompanionReconnect.onPortOpened(reconnect);
   port.onMessage.addListener(onHostMessage);
   port.onDisconnect.addListener(function () {
-    var message = chrome.runtime.lastError && chrome.runtime.lastError.message ? chrome.runtime.lastError.message : "disconnected";
-    port = null;
-    setConnected(false, message);
+    onNativeDisconnect(epoch);
   });
   port.postMessage({ type: "hello" });
-  if (fromUser) {
-    chrome.storage.local.set({ companionOptIn: true });
-  }
 }
 
 function postResult(requestId, operation, payload) {
@@ -63,7 +162,13 @@ function onHostMessage(message) {
     return;
   }
   if (message.type === "helloAck") {
-    setConnected(message.accepted === true, message.error);
+    var accepted = message.accepted === true;
+    var ack = ProMeterCompanionReconnect.onHelloAck(reconnect, accepted);
+    applyDecision(ack);
+    setConnected(accepted, message.error);
+    if (accepted) {
+      safeLog("companion reconnected");
+    }
     return;
   }
   if (message.type === "error") {
@@ -109,8 +214,22 @@ chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
   return false;
 });
 
+if (chrome.alarms && chrome.alarms.onAlarm) {
+  chrome.alarms.onAlarm.addListener(function (alarm) {
+    if (!alarm || alarm.name !== ProMeterCompanionReconnect.ALARM_NAME) {
+      return;
+    }
+    chrome.storage.local.get({ companionOptIn: false }, function (stored) {
+      reconnect.optIn = stored.companionOptIn === true;
+      runScheduledReconnect();
+    });
+  });
+}
+
 chrome.storage.local.get({ companionOptIn: false }, function (stored) {
-  if (stored.companionOptIn) {
+  var start = ProMeterCompanionReconnect.onServiceWorkerStart(reconnect, stored.companionOptIn === true);
+  applyDecision(start);
+  if (start.connect) {
     connectNative(false);
   }
 });

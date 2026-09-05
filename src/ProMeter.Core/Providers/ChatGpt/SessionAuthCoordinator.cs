@@ -154,5 +154,8 @@ public sealed class SessionAuthCoordinator
         || response.IsUnauthorized
         || response.IsRateLimited
         || response.IsOffline
+        || response.IsCompanionDisconnected
+        || response.IsBridgeTimeout
+        || response.IsBridgeWriteFailed
         || response.IsServerError;
 }

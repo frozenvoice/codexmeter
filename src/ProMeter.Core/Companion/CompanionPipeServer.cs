@@ -56,6 +56,11 @@ public sealed class CompanionPipeServer : IDisposable
             }
             finally
             {
+                if (_hub.IsConnected)
+                {
+                    _log.Info("companion disconnected");
+                }
+
                 _hub.Disconnect(generation);
                 pipe?.Dispose();
             }
@@ -176,6 +181,11 @@ public sealed class CompanionPipeServer : IDisposable
         {
             var ok = CompanionPairingStore.TokensEqual(message.PairingToken, _pairing.Token);
             _hub.TryAcceptHello(generation, ok);
+            if (ok)
+            {
+                _log.Info("companion reconnected");
+            }
+
             enqueue(new CompanionBridgeMessage
             {
                 Type = CompanionBridgeProtocol.HelloAck,

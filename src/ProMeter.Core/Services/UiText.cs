@@ -92,6 +92,15 @@ public static class UiText
 
     public static string CompanionConnected => T("Connected", "연결됨");
     public static string CompanionDisconnected => T("Disconnected", "연결 끊김");
+    public static string CompanionDisconnectedStatus => T(
+        "Browser Companion disconnected.",
+        "Browser Companion 연결이 끊어졌습니다.");
+    public static string BridgeTimeoutStatus => T(
+        "Browser Companion timed out.",
+        "Browser Companion 응답 시간이 초과되었습니다.");
+    public static string BridgeWriteFailedStatus => T(
+        "Could not send the request to Browser Companion.",
+        "Browser Companion으로 요청을 보내지 못했습니다.");
     public static string CompanionRegisteredWaiting => T("Registered. Waiting for extension", "등록됨. 확장 프로그램 연결을 기다리는 중");
     public static string CompanionWaiting => T("Waiting for extension", "확장 프로그램 연결을 기다리는 중");
     public static string CompanionNotInstalled => T("Not installed", "설치되지 않음");

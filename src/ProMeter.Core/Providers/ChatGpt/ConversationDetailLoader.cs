@@ -391,7 +391,7 @@ public sealed class ConversationDetailLoader
         {
             return await fetch(method, path, null, cancellationToken);
         }
-        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable)
+        catch (ChatGptProviderException ex) when (ex.IsFatalTransportFailure)
         {
             throw;
         }

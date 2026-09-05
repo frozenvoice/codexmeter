@@ -55,7 +55,17 @@ public static class SyncFailureClassifier
             return "PayloadTooLarge";
         }
 
-        if (ContainsTimeout(message))
+        if (provider.IsCompanionDisconnected)
+        {
+            return "CompanionDisconnected";
+        }
+
+        if (provider.IsBridgeWriteFailed)
+        {
+            return "BridgeWriteFailed";
+        }
+
+        if (ContainsTimeout(message) || provider.IsBridgeTimeout)
         {
             return "BridgeTimeout";
         }

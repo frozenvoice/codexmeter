@@ -294,6 +294,27 @@ public sealed class SyncEngine
             LogSyncFailure(options.Origin, LastStatus);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
+        catch (ChatGptProviderException ex) when (ex.IsCompanionDisconnected)
+        {
+            LastStatus = AppSyncStatus.CompanionDisconnected;
+            LastStatusDetail = UiText.CompanionDisconnectedStatus;
+            LogSyncFailure(options.Origin, LastStatus);
+            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+        }
+        catch (ChatGptProviderException ex) when (ex.IsBridgeTimeout)
+        {
+            LastStatus = AppSyncStatus.BridgeTimeout;
+            LastStatusDetail = UiText.BridgeTimeoutStatus;
+            LogSyncFailure(options.Origin, LastStatus);
+            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+        }
+        catch (ChatGptProviderException ex) when (ex.IsBridgeWriteFailed)
+        {
+            LastStatus = AppSyncStatus.BridgeWriteFailed;
+            LastStatusDetail = UiText.BridgeWriteFailedStatus;
+            LogSyncFailure(options.Origin, LastStatus);
+            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+        }
         catch (ChatGptProviderException ex) when (ex.IsOffline)
         {
             LastStatus = AppSyncStatus.Offline;
@@ -777,8 +798,7 @@ public sealed class SyncEngine
     }
 
     private static bool IsFatalProviderError(ChatGptProviderException ex) =>
-        ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline
-        || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable;
+        ex.IsFatalTransportFailure;
 
     private static AppSyncStatus Worse(AppSyncStatus current, AppSyncStatus incoming)
     {

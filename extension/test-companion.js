@@ -263,6 +263,90 @@ const preserved = await auth.fetchSession(session429);
 assert.strictEqual(preserved.status, 429);
 assert.strictEqual(preserved.json, false);
 
+const reconnect = require("./companion-reconnect.js");
+assert.deepStrictEqual(reconnect.DELAYS_MS, [1000, 2000, 5000, 10000, 30000]);
+assert.strictEqual(reconnect.formatDelayLog(1000), "companion reconnect scheduled delay=1s");
+assert.strictEqual(canonical.PAGE_BRIDGE_VERSION, 1);
+
+const optedIn = reconnect.createState();
+const swStart = reconnect.onServiceWorkerStart(optedIn, true);
+assert.strictEqual(swStart.connect, true);
+assert.strictEqual(optedIn.optIn, true);
+
+const optedOut = reconnect.createState();
+assert.strictEqual(reconnect.onServiceWorkerStart(optedOut, false).connect, false);
+const noRetry = reconnect.onDisconnect(optedOut, false);
+assert.strictEqual(noRetry.schedule, false);
+assert.strictEqual(noRetry.cancelSchedule, true);
+
+const retry = reconnect.createState();
+retry.optIn = true;
+const first = reconnect.onDisconnect(retry, true);
+assert.strictEqual(first.schedule, true);
+assert.strictEqual(first.delayMs, 1000);
+const secondWhileScheduled = reconnect.onDisconnect(retry, true);
+assert.strictEqual(secondWhileScheduled.alreadyScheduled, true);
+assert.strictEqual(secondWhileScheduled.schedule, false);
+retry.scheduled = false;
+assert.strictEqual(reconnect.onDisconnect(retry, true).delayMs, 2000);
+retry.scheduled = false;
+assert.strictEqual(reconnect.onDisconnect(retry, true).delayMs, 5000);
+retry.scheduled = false;
+assert.strictEqual(reconnect.onDisconnect(retry, true).delayMs, 10000);
+retry.scheduled = false;
+assert.strictEqual(reconnect.onDisconnect(retry, true).delayMs, 30000);
+retry.scheduled = false;
+assert.strictEqual(reconnect.onDisconnect(retry, true).delayMs, 30000);
+
+const reset = reconnect.createState();
+reset.backoffIndex = 4;
+assert.strictEqual(reconnect.onHelloAck(reset, true).resetBackoff, true);
+assert.strictEqual(reset.backoffIndex, 0);
+assert.strictEqual(reconnect.onHelloAck(reset, false).resetBackoff, false);
+
+const due = reconnect.createState();
+due.optIn = true;
+due.hasPort = false;
+assert.strictEqual(reconnect.onReconnectDue(due).connect, true);
+due.hasPort = true;
+assert.strictEqual(reconnect.onReconnectDue(due).connect, false);
+due.hasPort = false;
+due.optIn = false;
+assert.strictEqual(reconnect.onReconnectDue(due).connect, false);
+
+const manual = reconnect.createState();
+manual.hasPort = true;
+manual.backoffIndex = 3;
+manual.scheduled = true;
+const manualDecision = reconnect.onManualConnect(manual);
+assert.strictEqual(manualDecision.connect, true);
+assert.strictEqual(manualDecision.replacePort, true);
+assert.strictEqual(manualDecision.cancelSchedule, true);
+assert.strictEqual(manual.backoffIndex, 0);
+assert.strictEqual(manual.scheduled, false);
+
+const opened = reconnect.createState();
+opened.scheduled = true;
+assert.strictEqual(reconnect.onPortOpened(opened).cancelSchedule, true);
+assert.strictEqual(opened.hasPort, true);
+assert.strictEqual(opened.scheduled, false);
+
+const failed = reconnect.createState();
+const failDecision = reconnect.onConnectFailed(failed, true);
+assert.strictEqual(failDecision.schedule, true);
+assert.strictEqual(failDecision.delayMs, 1000);
+
+const fs = require("fs");
+const path = require("path");
+const backgroundSource = fs.readFileSync(path.join(__dirname, "background.js"), "utf8");
+assert.ok(backgroundSource.indexOf("chrome.alarms") >= 0);
+assert.ok(backgroundSource.indexOf("connectNative(false)") >= 0);
+assert.ok(backgroundSource.indexOf("onManualConnect") >= 0);
+assert.ok(backgroundSource.indexOf("replacePort") >= 0);
+assert.ok(!/pairingToken/.test(backgroundSource));
+const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "manifest.json"), "utf8"));
+assert.ok(manifest.permissions.indexOf("alarms") >= 0);
+
 await require("./test-page-context.js")();
 
   process.stdout.write("companion node tests ok\n");

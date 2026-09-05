@@ -85,5 +85,19 @@ public sealed class ProviderResponse
         Status == 0 && string.Equals(Error, CompanionDiagnostics.NoChatGptTab, StringComparison.Ordinal);
     public bool IsPageBridgeUnavailable =>
         Status == 0 && string.Equals(Error, CompanionDiagnostics.PageBridgeUnavailable, StringComparison.Ordinal);
-    public bool IsOffline => Status == 0 && !SchemaMismatch && !IsChatGptTabRequired && !IsPageBridgeUnavailable;
+    public bool IsCompanionDisconnected =>
+        Status == 0 && BridgeFailureClassification.IsCompanionDisconnected(Error);
+    public bool IsBridgeTimeout =>
+        Status == 0 && BridgeFailureClassification.IsBridgeTimeout(Error);
+    public bool IsBridgeWriteFailed =>
+        Status == 0 && BridgeFailureClassification.IsBridgeWriteFailed(Error);
+    public bool IsNetworkUnavailable =>
+        Status == 0
+        && !SchemaMismatch
+        && !IsChatGptTabRequired
+        && !IsPageBridgeUnavailable
+        && !IsCompanionDisconnected
+        && !IsBridgeTimeout
+        && !IsBridgeWriteFailed;
+    public bool IsOffline => IsNetworkUnavailable;
 }

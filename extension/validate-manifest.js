@@ -21,6 +21,9 @@ if (manifest.permissions.indexOf("cookies") >= 0) {
 if (manifest.permissions.indexOf("scripting") < 0) {
   fail("scripting permission is required for page-context ChatGPT fetches");
 }
+if (manifest.permissions.indexOf("alarms") < 0) {
+  fail("alarms permission is required for Browser Companion reconnect");
+}
 if (manifest.permissions.indexOf("tabs") >= 0) {
   fail("tabs permission is not required; host access is enough to query chatgpt.com tabs");
 }

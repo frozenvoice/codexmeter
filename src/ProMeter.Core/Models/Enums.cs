@@ -59,7 +59,10 @@ public enum AppSyncStatus
     Error,
     Forbidden,
     ChatGptTabRequired,
-    PageBridgeUnavailable
+    PageBridgeUnavailable,
+    CompanionDisconnected,
+    BridgeTimeout,
+    BridgeWriteFailed
 }
 
 public enum CoverageConfidence

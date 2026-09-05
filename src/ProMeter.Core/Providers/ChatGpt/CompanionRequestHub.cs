@@ -88,7 +88,7 @@ public sealed class CompanionRequestHub : ICompanionRequestHub
         {
             if (!IsConnected)
             {
-                return new ProviderResponse { Status = 0, Error = "browser companion is not connected" };
+                return CompanionBridgeProtocol.NotConnectedResponse();
             }
 
             id = Guid.NewGuid().ToString("N");
@@ -211,23 +211,92 @@ public sealed class CompanionRequestHub : ICompanionRequestHub
     }
 }
 
+public static class CompanionReconnectGrace
+{
+    public static readonly TimeSpan DefaultDuration = TimeSpan.FromSeconds(8);
+
+    public static async Task<bool> WaitUntilConnectedAsync(
+        ICompanionRequestHub hub,
+        TimeSpan grace,
+        Action<string>? log,
+        CancellationToken cancellationToken)
+    {
+        if (hub.IsConnected)
+        {
+            return true;
+        }
+
+        log?.Invoke("sync waiting for companion reconnect");
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnChanged()
+        {
+            if (hub.IsConnected)
+            {
+                tcs.TrySetResult(true);
+            }
+        }
+
+        hub.ConnectionChanged += OnChanged;
+        try
+        {
+            if (hub.IsConnected)
+            {
+                return true;
+            }
+
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linked.CancelAfter(grace);
+            using var registration = linked.Token.Register(() => tcs.TrySetResult(false));
+            var connected = await tcs.Task.ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return connected;
+        }
+        finally
+        {
+            hub.ConnectionChanged -= OnChanged;
+        }
+    }
+}
+
 public sealed class BrowserCompanionTransport : IChatGptTransport
 {
     private readonly ICompanionRequestHub _hub;
+    private readonly Action<string>? _log;
+    private readonly TimeSpan _reconnectGrace;
 
-    public BrowserCompanionTransport(ICompanionRequestHub hub)
+    public BrowserCompanionTransport(
+        ICompanionRequestHub hub,
+        Action<string>? log = null,
+        TimeSpan? reconnectGrace = null)
     {
         _hub = hub;
+        _log = log;
+        _reconnectGrace = reconnectGrace is { } grace && grace > TimeSpan.Zero
+            ? grace
+            : CompanionReconnectGrace.DefaultDuration;
     }
 
-    public Task<ProviderResponse> SendAsync(string method, string path, string? jsonBody = null, CancellationToken cancellationToken = default)
+    public async Task<ProviderResponse> SendAsync(string method, string path, string? jsonBody = null, CancellationToken cancellationToken = default)
     {
         if (!CompanionOperationRouter.TryMap(method, path, jsonBody, out var operation, out var args, out var error))
         {
-            return Task.FromResult(new ProviderResponse { Status = 0, Error = error, SchemaMismatch = true });
+            return new ProviderResponse { Status = 0, Error = error, SchemaMismatch = true };
         }
 
-        return _hub.RequestAsync(operation, args, cancellationToken);
+        if (!_hub.IsConnected)
+        {
+            var recovered = await CompanionReconnectGrace.WaitUntilConnectedAsync(
+                _hub,
+                _reconnectGrace,
+                _log,
+                cancellationToken).ConfigureAwait(false);
+            if (!recovered)
+            {
+                return CompanionBridgeProtocol.NotConnectedResponse();
+            }
+        }
+
+        return await _hub.RequestAsync(operation, args, cancellationToken).ConfigureAwait(false);
     }
 }
 

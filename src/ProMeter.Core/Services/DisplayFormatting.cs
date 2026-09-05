@@ -99,6 +99,9 @@ public static class DisplayFormatting
         AppSyncStatus.Forbidden => UiText.Forbidden403,
         AppSyncStatus.ChatGptTabRequired => UiText.NoChatGptTab,
         AppSyncStatus.PageBridgeUnavailable => UiText.PageBridgeUnavailable,
+        AppSyncStatus.CompanionDisconnected => UiText.CompanionDisconnectedStatus,
+        AppSyncStatus.BridgeTimeout => UiText.BridgeTimeoutStatus,
+        AppSyncStatus.BridgeWriteFailed => UiText.BridgeWriteFailedStatus,
         _ => UiText.Idle
     };
 

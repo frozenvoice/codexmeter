@@ -19,7 +19,7 @@ public sealed class ChatGptProvider : IChatGptProvider
             var check = await GetJsonAsync("GET", ChatGptEndpoints.AccountsCheck, cancellationToken: cancellationToken);
             AccountParser.MergeAccountsCheck(status, check);
         }
-        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable)
+        catch (ChatGptProviderException ex) when (ex.IsFatalTransportFailure)
         {
             throw;
         }
@@ -32,7 +32,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 status.DisplayName ??= ChatGptJson.GetString(me, "name");
                 status.IsSignedIn = status.IsSignedIn || me is not null;
             }
-            catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable)
+            catch (ChatGptProviderException ex) when (ex.IsFatalTransportFailure)
             {
                 throw;
             }
@@ -205,7 +205,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 return parsed;
             }
         }
-        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable)
+        catch (ChatGptProviderException ex) when (ex.IsFatalTransportFailure)
         {
             throw;
         }
@@ -222,7 +222,7 @@ public sealed class ChatGptProvider : IChatGptProvider
                 return parsed;
             }
         }
-        catch (ChatGptProviderException ex) when (ex.IsUnauthorized || ex.IsForbidden || ex.IsRateLimited || ex.IsOffline || ex.IsChatGptTabRequired || ex.IsPageBridgeUnavailable)
+        catch (ChatGptProviderException ex) when (ex.IsFatalTransportFailure)
         {
             throw;
         }
@@ -321,6 +321,30 @@ public sealed class ChatGptProvider : IChatGptProvider
         if (response.IsPageBridgeUnavailable)
         {
             throw new ChatGptProviderException(CompanionDiagnostics.PageBridgeUnavailable, 0, response.RetryAfter);
+        }
+
+        if (response.IsCompanionDisconnected)
+        {
+            throw new ChatGptProviderException(
+                response.Error ?? CompanionBridgeProtocol.NotConnectedError,
+                0,
+                response.RetryAfter);
+        }
+
+        if (response.IsBridgeTimeout)
+        {
+            throw new ChatGptProviderException(
+                response.Error ?? CompanionBridgeProtocol.TimeoutError,
+                0,
+                response.RetryAfter);
+        }
+
+        if (response.IsBridgeWriteFailed)
+        {
+            throw new ChatGptProviderException(
+                response.Error ?? CompanionBridgeProtocol.WriteFailedError,
+                0,
+                response.RetryAfter);
         }
 
         if (response.IsForbidden)

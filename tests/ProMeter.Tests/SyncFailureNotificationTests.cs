@@ -82,6 +82,9 @@ public class SyncFailureNotificationTests
     [InlineData(AppSyncStatus.Forbidden)]
     [InlineData(AppSyncStatus.ChatGptTabRequired)]
     [InlineData(AppSyncStatus.PageBridgeUnavailable)]
+    [InlineData(AppSyncStatus.CompanionDisconnected)]
+    [InlineData(AppSyncStatus.BridgeTimeout)]
+    [InlineData(AppSyncStatus.BridgeWriteFailed)]
     [InlineData(AppSyncStatus.ProviderSchemaMismatch)]
     [InlineData(AppSyncStatus.RateLimited)]
     [InlineData(AppSyncStatus.Error)]
@@ -216,6 +219,93 @@ public class SyncFailureNotificationTests
         var engine = File.ReadAllText(Find("src/ProMeter.Core/Services/SyncEngine.cs"));
         Assert.Contains("LogSyncFailure(options.Origin, LastStatus)", engine, StringComparison.Ordinal);
         Assert.Contains("ex.IsOffline", engine, StringComparison.Ordinal);
+        Assert.Contains("ex.IsCompanionDisconnected", engine, StringComparison.Ordinal);
+        Assert.Contains("TrySyncError", app, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CompanionDisconnected_WritesExplicitCategoryLog()
+    {
+        var dir = NewTempDir();
+        var logs = Path.Combine(dir, "logs");
+        var (engine, provider, settings) = CreateOfflineHarness(dir, logs, _ =>
+            throw new ChatGptProviderException(CompanionBridgeProtocol.NotConnectedError, 0));
+        var outcome = await engine.SyncAsync(
+            provider,
+            settings,
+            true,
+            new SyncRunOptions { Origin = SyncOrigin.Auto });
+        Assert.Equal(AppSyncStatus.CompanionDisconnected, outcome.Status);
+        Assert.Equal(UiText.CompanionDisconnectedStatus, outcome.Detail);
+        var text = ReadLogs(logs);
+        Assert.Contains("sync failed origin=auto category=CompanionDisconnected", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("pairing", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("access token", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TransientDisconnectRecoveredInsideGrace_DoesNotToast()
+    {
+        Assert.False(SyncFailurePresentation.ProducesSyncErrorToast(AppSyncStatus.UpToDate));
+        Assert.False(SyncErrorNotificationGate.ShouldNotify(
+            default,
+            AppSyncStatus.UpToDate,
+            null,
+            SyncOrigin.Auto,
+            DateTimeOffset.Parse("2026-09-05T08:00:00Z"),
+            out _));
+    }
+
+    [Fact]
+    public void PersistentCompanionDisconnect_ProducesOneExplicitToast()
+    {
+        var now = DateTimeOffset.Parse("2026-09-05T08:10:00Z");
+        Assert.True(SyncFailurePresentation.ProducesSyncErrorToast(AppSyncStatus.CompanionDisconnected));
+        Assert.True(SyncErrorNotificationGate.ShouldNotify(
+            default,
+            AppSyncStatus.CompanionDisconnected,
+            UiText.CompanionDisconnectedStatus,
+            SyncOrigin.Auto,
+            now,
+            out var first));
+        Assert.False(SyncErrorNotificationGate.ShouldNotify(
+            first,
+            AppSyncStatus.CompanionDisconnected,
+            UiText.CompanionDisconnectedStatus,
+            SyncOrigin.Auto,
+            now.AddMinutes(5),
+            out _));
+        Assert.Equal(nameof(AppSyncStatus.CompanionDisconnected), first.Category);
+        Assert.Equal(UiText.CompanionDisconnectedStatus, first.Detail);
+        Assert.DoesNotContain(UiText.ChatGptUnreachable, first.Detail ?? "", StringComparison.Ordinal);
+        Assert.DoesNotContain(UiText.Offline, first.Detail ?? "", StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DuplicateAutomaticCompanionFailures_ObeyToastCooldown()
+    {
+        var now = DateTimeOffset.Parse("2026-09-05T08:20:00Z");
+        Assert.True(SyncErrorNotificationGate.ShouldNotify(
+            default,
+            AppSyncStatus.BridgeTimeout,
+            UiText.BridgeTimeoutStatus,
+            SyncOrigin.Auto,
+            now,
+            out var first));
+        Assert.False(SyncErrorNotificationGate.ShouldNotify(
+            first,
+            AppSyncStatus.BridgeTimeout,
+            UiText.BridgeTimeoutStatus,
+            SyncOrigin.Startup,
+            now.AddMinutes(20),
+            out _));
+        Assert.True(SyncErrorNotificationGate.ShouldNotify(
+            first,
+            AppSyncStatus.BridgeTimeout,
+            UiText.BridgeTimeoutStatus,
+            SyncOrigin.Auto,
+            now.AddMinutes(30),
+            out _));
     }
 
     private static (SyncEngine Engine, IChatGptProvider Provider, AppSettings Settings) CreateOfflineHarness(

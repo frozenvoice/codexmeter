@@ -208,6 +208,24 @@ public class FatalProviderSyncTests
         Assert.Equal(1, provider.BodyFetches);
     }
 
+    [Theory]
+    [InlineData(CompanionBridgeProtocol.NotConnectedError, AppSyncStatus.CompanionDisconnected)]
+    [InlineData(CompanionBridgeProtocol.DisconnectedError, AppSyncStatus.CompanionDisconnected)]
+    [InlineData(CompanionBridgeProtocol.TimeoutError, AppSyncStatus.BridgeTimeout)]
+    [InlineData(CompanionBridgeProtocol.WriteFailedError, AppSyncStatus.BridgeWriteFailed)]
+    public async Task LocalBridgeFailureDuringBodyFetch_IsNotOffline(string message, AppSyncStatus expected)
+    {
+        var (engine, provider, settings) = CreateTwoConversationHarness(_ =>
+            throw new ChatGptProviderException(message, 0));
+        var outcome = await engine.SyncAsync(provider, settings, true, new SyncRunOptions { Origin = SyncOrigin.Auto });
+        Assert.Equal(expected, outcome.Status);
+        Assert.NotEqual(AppSyncStatus.Offline, outcome.Status);
+        Assert.Equal(DisplayFormatting.StatusLabel(expected), outcome.Detail);
+        Assert.DoesNotContain("Offline", outcome.Detail ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(UiText.ChatGptUnreachable, outcome.Detail ?? "", StringComparison.Ordinal);
+        Assert.Equal(1, provider.BodyFetches);
+    }
+
     private static ProviderResponse SessionOk() => new()
     {
         Status = 200,

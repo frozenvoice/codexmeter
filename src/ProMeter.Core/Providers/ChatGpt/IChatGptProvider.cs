@@ -31,7 +31,25 @@ public sealed class ChatGptProviderException : Exception
         Status == 0 && string.Equals(Message, CompanionDiagnostics.NoChatGptTab, StringComparison.Ordinal);
     public bool IsPageBridgeUnavailable =>
         Status == 0 && string.Equals(Message, CompanionDiagnostics.PageBridgeUnavailable, StringComparison.Ordinal);
+    public bool IsCompanionDisconnected =>
+        Status == 0 && BridgeFailureClassification.IsCompanionDisconnected(Message);
+    public bool IsBridgeTimeout =>
+        Status == 0 && BridgeFailureClassification.IsBridgeTimeout(Message);
+    public bool IsBridgeWriteFailed =>
+        Status == 0 && BridgeFailureClassification.IsBridgeWriteFailed(Message);
+    public bool IsNetworkUnavailable =>
+        Status == 0
+        && !SchemaMismatch
+        && !IsChatGptTabRequired
+        && !IsPageBridgeUnavailable
+        && !IsCompanionDisconnected
+        && !IsBridgeTimeout
+        && !IsBridgeWriteFailed;
     public bool IsRateLimited => Status == 429;
     public bool IsServerError => Status is >= 500 and < 600;
-    public bool IsOffline => Status == 0 && !SchemaMismatch && !IsChatGptTabRequired && !IsPageBridgeUnavailable;
+    public bool IsOffline => IsNetworkUnavailable;
+    public bool IsFatalTransportFailure =>
+        IsUnauthorized || IsForbidden || IsRateLimited || IsOffline
+        || IsChatGptTabRequired || IsPageBridgeUnavailable
+        || IsCompanionDisconnected || IsBridgeTimeout || IsBridgeWriteFailed;
 }

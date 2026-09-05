@@ -107,6 +107,8 @@ public class CompanionDuplexTests
         var response = await hub.RequestAsync(CompanionOperation.GetModels, new CompanionOperationArgs(), CancellationToken.None);
         Assert.Equal("bridge request timed out", response.Error);
         Assert.False(response.SchemaMismatch);
+        Assert.True(response.IsBridgeTimeout);
+        Assert.False(response.IsOffline);
     }
 
     [Fact]
@@ -120,6 +122,8 @@ public class CompanionDuplexTests
         hub.Disconnect(generation);
         var response = await pending;
         Assert.Contains("disconnected", response.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.True(response.IsCompanionDisconnected);
+        Assert.False(response.IsOffline);
     }
 
     [Fact]
@@ -136,6 +140,47 @@ public class CompanionDuplexTests
         Assert.False(pending.IsCompleted);
         Assert.True(hub.TryComplete(requestId!, new ProviderResponse { Status = 200, Body = """{"models":[]}""" }, generation));
         Assert.True((await pending).IsSuccess);
+    }
+
+    [Fact]
+    public async Task Reconnect_FailsOldPendingAndRejectsStaleGeneration()
+    {
+        var hub = new CompanionRequestHub { RequestTimeout = TimeSpan.FromSeconds(5) };
+        string? firstId = null;
+        string? secondId = null;
+        hub.Outgoing += message =>
+        {
+            if (firstId is null)
+            {
+                firstId = message.RequestId;
+                return;
+            }
+
+            secondId = message.RequestId;
+        };
+
+        var firstGeneration = hub.BeginConnection();
+        hub.TryAcceptHello(firstGeneration, true);
+        var first = hub.RequestAsync(CompanionOperation.GetModels, new CompanionOperationArgs(), CancellationToken.None);
+        var secondGeneration = hub.BeginConnection();
+        var firstResponse = await first;
+        Assert.True(firstResponse.IsCompanionDisconnected);
+        Assert.False(hub.IsConnected);
+        Assert.False(hub.TryAcceptHello(firstGeneration, true));
+        Assert.False(hub.IsConnected);
+        Assert.True(hub.TryAcceptHello(secondGeneration, true));
+        Assert.True(hub.IsConnected);
+        Assert.Equal(secondGeneration, hub.ConnectionGeneration);
+        Assert.NotEqual(firstGeneration, secondGeneration);
+
+        var second = hub.RequestAsync(CompanionOperation.GetModels, new CompanionOperationArgs(), CancellationToken.None);
+        await Task.Delay(20);
+        Assert.False(string.IsNullOrWhiteSpace(secondId));
+        Assert.False(hub.TryComplete(firstId!, new ProviderResponse { Status = 200, Body = """{"models":[]}""" }, firstGeneration));
+        Assert.False(hub.TryComplete(secondId!, new ProviderResponse { Status = 200, Body = """{"models":[]}""" }, firstGeneration));
+        Assert.False(second.IsCompleted);
+        Assert.True(hub.TryComplete(secondId!, new ProviderResponse { Status = 200, Body = """{"models":[]}""" }, secondGeneration));
+        Assert.True((await second).IsSuccess);
     }
 
     [Fact]

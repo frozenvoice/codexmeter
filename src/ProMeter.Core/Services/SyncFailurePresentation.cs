@@ -9,6 +9,9 @@ public static class SyncFailurePresentation
         or AppSyncStatus.Forbidden
         or AppSyncStatus.ChatGptTabRequired
         or AppSyncStatus.PageBridgeUnavailable
+        or AppSyncStatus.CompanionDisconnected
+        or AppSyncStatus.BridgeTimeout
+        or AppSyncStatus.BridgeWriteFailed
         or AppSyncStatus.ProviderSchemaMismatch
         or AppSyncStatus.RateLimited
         or AppSyncStatus.Error;
@@ -20,6 +23,9 @@ public static class SyncFailurePresentation
         or AppSyncStatus.Forbidden
         or AppSyncStatus.ChatGptTabRequired
         or AppSyncStatus.PageBridgeUnavailable
+        or AppSyncStatus.CompanionDisconnected
+        or AppSyncStatus.BridgeTimeout
+        or AppSyncStatus.BridgeWriteFailed
         or AppSyncStatus.Error;
 
     public static bool IsSuccessfulCompletion(AppSyncStatus status) =>

@@ -122,6 +122,14 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Startup/UI/WebView2 regression paths require tests.
 - Commit, push, remote SHA verification, and pushed CI verification remain mandatory.
 - PAGE_BRIDGE_VERSION changes only if extension page-bridge JavaScript is modified.
+- Browser/ChatGPT reachability and Browser Companion transport health are distinct.
+- A disconnected Native Messaging bridge must never be labeled Network Offline.
+- Known local bridge failures require explicit diagnostic categories.
+- An opted-in Browser Companion should recover automatically from transient native-host disconnects without requiring the user to reopen the extension popup.
+- Automatic reconnect must use bounded exponential backoff and must not busy-loop.
+- Sync should tolerate a short transient companion disconnect before declaring failure.
+- Extension reconnect changes require extension regression tests.
+- If PAGE_FILES/page-bridge behavior is changed, increment PAGE_BRIDGE_VERSION. Merely changing background/native reconnect logic does not require a page bridge version bump.
 
 ## Architecture
 
