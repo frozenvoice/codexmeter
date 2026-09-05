@@ -34,6 +34,14 @@ public enum UsageSource
     Catalog
 }
 
+public enum SyncOrigin
+{
+    Startup,
+    Auto,
+    Manual,
+    FlyoutStaleRefresh
+}
+
 public enum AppSyncStatus
 {
     Idle,

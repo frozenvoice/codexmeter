@@ -91,6 +91,7 @@ public sealed class SyncEngine
                 LastStatus = AppSyncStatus.SignedOut;
                 LastStatusDetail = UiText.ChatGptSignedOut;
                 LastCoverage = coverage;
+                LogSyncFailure(options.Origin, LastStatus);
                 return new SyncOutcome(LastStatus, LastStatusDetail, 0);
             }
 
@@ -221,6 +222,11 @@ public sealed class SyncEngine
                 : $"parsed={parsed}";
             _consecutiveFailures = 0;
             IsPaused = false;
+            if (SyncFailurePresentation.IsLoggedFailure(LastStatus))
+            {
+                LogSyncFailure(options.Origin, LastStatus);
+            }
+
             _log.Info($"sync complete parsed={parsed} status={LastStatus} coverage={coverage.SummaryLabel}");
             _log.Info(
                 "sync diagnostics" +
@@ -249,35 +255,35 @@ public sealed class SyncEngine
         {
             LastStatus = AppSyncStatus.AuthenticationRequired;
             LastStatusDetail = UiText.ChatGptSessionExpired;
-            _log.Http("sync", ex.Status, "auth required");
+            LogSyncFailure(options.Origin, LastStatus);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.IsForbidden)
         {
             LastStatus = AppSyncStatus.Forbidden;
             LastStatusDetail = CompanionDiagnostics.Forbidden403;
-            _log.Http("sync", 403, "page request rejected");
+            LogSyncFailure(options.Origin, LastStatus);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.IsChatGptTabRequired)
         {
             LastStatus = AppSyncStatus.ChatGptTabRequired;
             LastStatusDetail = CompanionDiagnostics.NoChatGptTab;
-            _log.Info("sync chatgpt tab required");
+            LogSyncFailure(options.Origin, LastStatus);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.IsPageBridgeUnavailable)
         {
             LastStatus = AppSyncStatus.PageBridgeUnavailable;
             LastStatusDetail = CompanionDiagnostics.PageBridgeUnavailable;
-            _log.Warn("sync page bridge unavailable");
+            LogSyncFailure(options.Origin, LastStatus);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.SchemaMismatch)
         {
             LastStatus = AppSyncStatus.ProviderSchemaMismatch;
             LastStatusDetail = UiText.SchemaMismatchStatus;
-            _log.Error("Provider schema mismatch");
+            LogSyncFailure(options.Origin, LastStatus);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.IsRateLimited)
@@ -285,13 +291,14 @@ public sealed class SyncEngine
             Pause(TimeSpan.FromMinutes(20));
             LastStatus = AppSyncStatus.RateLimited;
             LastStatusDetail = UiText.RateLimitedPaused;
-            _log.Http("sync", 429, "paused");
+            LogSyncFailure(options.Origin, LastStatus);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.IsOffline)
         {
             LastStatus = AppSyncStatus.Offline;
             LastStatusDetail = UiText.ChatGptUnreachable;
+            LogSyncFailure(options.Origin, LastStatus);
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (Exception ex)
@@ -299,7 +306,7 @@ public sealed class SyncEngine
             _consecutiveFailures++;
             LastStatus = AppSyncStatus.Error;
             LastStatusDetail = AppLog.Sanitize(ex.Message);
-            _log.Error("sync failed", ex);
+            LogSyncFailure(options.Origin, LastStatus);
             if (_consecutiveFailures >= 3)
             {
                 Pause(TimeSpan.FromMinutes(30));
@@ -313,6 +320,9 @@ public sealed class SyncEngine
     {
         _log.Info($"import events applied={count}");
     }
+
+    private void LogSyncFailure(SyncOrigin origin, AppSyncStatus category) =>
+        _log.Warn(SyncFailurePresentation.LogLine(origin, category));
 
     private DateTimeOffset? RestoreLastSyncCompleted()
     {
@@ -890,4 +900,5 @@ public sealed record SyncOutcome(AppSyncStatus Status, string? Detail, int Parse
 public sealed class SyncRunOptions
 {
     public DateTimeOffset? PeriodStartOverride { get; init; }
+    public SyncOrigin Origin { get; init; } = SyncOrigin.Auto;
 }

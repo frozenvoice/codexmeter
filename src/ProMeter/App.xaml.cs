@@ -99,7 +99,7 @@ public partial class App : Application
             version);
         _codex.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
         _refresh = new CombinedRefreshCoordinator(
-            (force, _) => SyncAsync(force),
+            (force, _) => SyncAsync(force, SyncOrigin.Manual),
             ct => _codex.RefreshAsync(_settings.CodexExePath, ct));
         _refresh.StateChanged += () => Dispatcher.BeginInvoke(RefreshSnapshot);
         _tray.LoginRequested += () => _ = SignInAsync();
@@ -120,7 +120,7 @@ public partial class App : Application
         {
             if (_settings.AutoSync)
             {
-                await SyncAsync(false);
+                await SyncAsync(false, SyncOrigin.Auto);
             }
         };
         _timer.Start();
@@ -140,7 +140,7 @@ public partial class App : Application
         }
         else if (_settings.AutoSync)
         {
-            _ = SyncAsync(true);
+            _ = SyncAsync(true, SyncOrigin.Startup);
         }
 
         ApplyWidget();
@@ -244,7 +244,7 @@ public partial class App : Application
             }
 
             welcome.SetBusy(UiText.RunningFirstSync);
-            var outcome = await SyncAsync(true);
+            var outcome = await SyncAsync(true, SyncOrigin.Manual);
             welcome.ApplyOutcome(OnboardingOutcomeMapper.From(outcome.Status, _snapshot.Used, _snapshot.Limit, outcome.Detail, _snapshot.DisplayUsageUnavailable));
             _log.Info("welcome sync " + outcome.Status);
         };
@@ -258,7 +258,7 @@ public partial class App : Application
         }
     }
 
-    private async Task<SyncOutcome> SyncAsync(bool force)
+    private async Task<SyncOutcome> SyncAsync(bool force, SyncOrigin origin = SyncOrigin.Auto)
     {
         if (_syncing || _webViewOperation.IsRunning)
         {
@@ -269,20 +269,45 @@ public partial class App : Application
         RefreshSnapshot();
         try
         {
-            var outcome = await _sync.SyncAsync(_provider, _settings, force);
-            if (outcome.Status is AppSyncStatus.AuthenticationRequired or AppSyncStatus.SignedOut
-                or AppSyncStatus.Error or AppSyncStatus.Offline or AppSyncStatus.Forbidden
-                or AppSyncStatus.ChatGptTabRequired or AppSyncStatus.PageBridgeUnavailable)
-            {
-                _toasts.SyncError(_settings, outcome.Detail ?? DisplayFormatting.StatusLabel(outcome.Status));
-            }
-
+            var outcome = await _sync.SyncAsync(
+                _provider,
+                _settings,
+                force,
+                new SyncRunOptions { Origin = origin });
+            ApplySyncFailurePresentation(outcome, origin);
             return outcome;
         }
         finally
         {
             _syncing = false;
             RefreshSnapshot();
+        }
+    }
+
+    private void ApplySyncFailurePresentation(SyncOutcome outcome, SyncOrigin origin)
+    {
+        var now = DateTimeOffset.Now;
+        if (SyncFailurePresentation.IsLoggedFailure(outcome.Status))
+        {
+            SyncErrorToastState.RememberFailureAttempt(_settings, outcome.Status, now);
+            if (SyncFailurePresentation.ProducesSyncErrorToast(outcome.Status))
+            {
+                _toasts.TrySyncError(
+                    _settings,
+                    outcome.Status,
+                    outcome.Detail ?? DisplayFormatting.StatusLabel(outcome.Status),
+                    origin,
+                    now);
+            }
+
+            _settingsStore.Save(_settings);
+            return;
+        }
+
+        if (SyncFailurePresentation.IsSuccessfulCompletion(outcome.Status))
+        {
+            _toasts.ResetSyncErrorSuppression(_settings);
+            _settingsStore.Save(_settings);
         }
     }
 
@@ -356,11 +381,15 @@ public partial class App : Application
         }
 
         _flyout.Activate();
-        if (source != FlyoutOpenSource.TaskbarStrip
-            && _settings.AutoSync
-            && (_snapshot.LastSync is null || DateTimeOffset.Now - _snapshot.LastSync > TimeSpan.FromMinutes(_settings.SyncIntervalMinutes)))
+        if (FlyoutAutoSyncPolicy.ShouldStartStaleAutoSync(
+                _settings.AutoSync,
+                source == FlyoutOpenSource.TaskbarStrip,
+                DateTimeOffset.Now,
+                _snapshot.LastSync,
+                _settings.SyncIntervalMinutes,
+                FlyoutAutoSyncPolicy.ParseTimestamp(_settings.LastSyncFailureAt)))
         {
-            _ = SyncAsync(false);
+            _ = SyncAsync(false, SyncOrigin.FlyoutStaleRefresh);
         }
 
         if (CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now))
@@ -630,7 +659,7 @@ public partial class App : Application
 
         if (_settings.AutoSync)
         {
-            await SyncAsync(true);
+            await SyncAsync(true, SyncOrigin.Manual);
         }
     }
 

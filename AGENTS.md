@@ -115,6 +115,10 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Cancellation and timeout must return control to the UI even if WebView2 internally cannot synchronously abort every underlying operation.
 - Timeout/error diagnostics must distinguish initialization, navigation and API request stages.
 - Diagnostic failures must never alter Browser Companion state, selected transport, production usage data, watermarks, AutoSync or StartWithWindows.
+- Every user-visible sync-error notification must first produce a corresponding safe diagnostic log entry.
+- Offline and SignedOut sync failures must be logged without exception or network/session text.
+- Duplicate desktop sync-error notifications for the same failure must be suppressed; logs must not be suppressed.
+- Opening the Flyout must not immediately retry a just-failed automatic ChatGPT sync.
 - Startup/UI/WebView2 regression paths require tests.
 - Commit, push, remote SHA verification, and pushed CI verification remain mandatory.
 - PAGE_BRIDGE_VERSION changes only if extension page-bridge JavaScript is modified.

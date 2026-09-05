@@ -86,14 +86,33 @@ public sealed class ToastNotificationService
         _settings.Save(settings);
     }
 
-    public void SyncError(AppSettings settings, string message)
+    public bool TrySyncError(
+        AppSettings settings,
+        AppSyncStatus status,
+        string? message,
+        SyncOrigin origin,
+        DateTimeOffset now)
     {
         if (!settings.NotifySyncError)
         {
-            return;
+            return false;
         }
 
-        Show(UiText.ToastSyncTitle, message);
+        var state = SyncErrorToastState.FromSettings(settings);
+        if (!SyncErrorNotificationGate.ShouldNotify(state, status, message, origin, now, out var next))
+        {
+            return false;
+        }
+
+        next.WriteTo(settings);
+        Show(UiText.ToastSyncTitle, message ?? DisplayFormatting.StatusLabel(status));
+        return true;
+    }
+
+    public void ResetSyncErrorSuppression(AppSettings settings)
+    {
+        SyncErrorNotificationGate.Cleared().WriteTo(settings);
+        SyncErrorToastState.ClearFailureAttempt(settings);
     }
 
     public static Action<string, string>? Fallback { get; set; }
