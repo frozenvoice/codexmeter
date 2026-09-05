@@ -24,20 +24,28 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.Contains("AccentBrush", xaml, StringComparison.Ordinal);
         Assert.Contains("DisabledBrush", xaml, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.Name", document.ToString(), StringComparison.Ordinal);
-        Assert.DoesNotContain("Visibility=\"Collapsed\"", button.ToString(), StringComparison.Ordinal);
+        Assert.Null(button.Attribute("Visibility"));
         Assert.Contains("CODEX", document.ToString(), StringComparison.Ordinal);
         Assert.Contains("CodexRows", document.ToString(), StringComparison.Ordinal);
         Assert.Contains("RefreshProgressText", document.ToString(), StringComparison.Ordinal);
         var icon = document.Descendants(ns + "TextBlock")
             .Single(element => (string?)element.Attribute(x + "Name") == "RefreshAllIcon");
         Assert.Equal("↻", (string?)icon.Attribute("Text") ?? icon.Value.Trim());
-        Assert.Equal("0.5,0.5", (string?)icon.Attribute("RenderTransformOrigin"));
-        Assert.Contains("RotateTransform", icon.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("RotateTransform", icon.ToString(), StringComparison.Ordinal);
+        var spinner = document.Descendants(ns + "Viewbox")
+            .Single(element => (string?)element.Attribute(x + "Name") == "RefreshSpinner");
+        Assert.Equal("Collapsed", (string?)spinner.Attribute("Visibility"));
+        Assert.Equal("0.5,0.5", (string?)spinner.Attribute("RenderTransformOrigin"));
+        Assert.Contains("RefreshSpinnerRotate", spinner.ToString(), StringComparison.Ordinal);
+        Assert.Contains("ArcSegment", spinner.ToString(), StringComparison.Ordinal);
+        Assert.Contains("IsLargeArc=\"True\"", spinner.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("IsMouseOver", icon.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("Storyboard", button.ToString(), StringComparison.Ordinal);
         var flyoutCode = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
         Assert.Contains("RefreshIndicatorController", flyoutCode, StringComparison.Ordinal);
         Assert.Contains("RepeatBehavior.Forever", flyoutCode, StringComparison.Ordinal);
+        Assert.Contains("RefreshSpinnerRotate", flyoutCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshAllRotate", flyoutCode, StringComparison.Ordinal);
         Assert.DoesNotContain("EasingFunction", flyoutCode, StringComparison.Ordinal);
         Assert.Contains("_suppressDeactivateClose = true", flyoutCode, StringComparison.Ordinal);
     }
@@ -101,7 +109,57 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.Contains("StatusText.Visibility = presentation.ShowNormalStatus", flyoutCode, StringComparison.Ordinal);
         Assert.Contains("RefreshProgressText.Visibility = presentation.ShowRefreshProgress", flyoutCode, StringComparison.Ordinal);
         Assert.Contains("ApplyRefreshIndicator(presentation.Active)", flyoutCode, StringComparison.Ordinal);
-        Assert.DoesNotContain("Margin=\"0,0,-", File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml")), StringComparison.Ordinal);
+        Assert.Contains("RefreshAllIcon.Visibility", flyoutCode, StringComparison.Ordinal);
+        Assert.Contains("RefreshSpinner.Visibility", flyoutCode, StringComparison.Ordinal);
+        var xaml = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml"));
+        Assert.DoesNotContain("Margin=\"0,0,-", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"FlyoutHeaderGrid\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"TitleText\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("TextTrimming=\"CharacterEllipsis\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("TextWrapping=\"NoWrap\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Width=\"Auto\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Width=\"*\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Grid.Column=\"0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Grid.Column=\"1\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Grid.Column=\"2\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("RefreshAllRotate", xaml, StringComparison.Ordinal);
+        Assert.Contains("RefreshSpinnerRotate", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsLargeArc=\"True\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FlyoutHeader_ProtectsTitleAndTrimsLongStatus()
+    {
+        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "FlyoutWindow.xaml"));
+        XNamespace ns = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var header = document.Descendants(ns + "Grid")
+            .Single(element => (string?)element.Attribute(x + "Name") == "FlyoutHeaderGrid");
+        var columns = header.Element(ns + "Grid.ColumnDefinitions")!
+            .Elements(ns + "ColumnDefinition")
+            .Select(column => (string?)column.Attribute("Width"))
+            .ToArray();
+        Assert.Equal("Auto", columns[0]);
+        Assert.Equal("*", columns[1]);
+        Assert.Equal("Auto", columns[2]);
+        var title = header.Descendants(ns + "TextBlock")
+            .Single(element => (string?)element.Attribute(x + "Name") == "TitleText");
+        Assert.Equal("0", (string?)title.Attribute("Grid.Column"));
+        Assert.Equal("ProMeter", (string?)title.Attribute("Text") ?? title.Value.Trim());
+        var statusHost = header.Elements(ns + "Grid").Single();
+        Assert.Equal("1", (string?)statusHost.Attribute("Grid.Column"));
+        var status = statusHost.Descendants(ns + "TextBlock")
+            .Single(element => (string?)element.Attribute(x + "Name") == "StatusText");
+        var progress = statusHost.Descendants(ns + "TextBlock")
+            .Single(element => (string?)element.Attribute(x + "Name") == "RefreshProgressText");
+        Assert.Equal("CharacterEllipsis", (string?)status.Attribute("TextTrimming"));
+        Assert.Equal("CharacterEllipsis", (string?)progress.Attribute("TextTrimming"));
+        Assert.Equal("NoWrap", (string?)status.Attribute("TextWrapping"));
+        var button = header.Descendants(ns + "Button")
+            .Single(element => (string?)element.Attribute(x + "Name") == "RefreshAllButton");
+        Assert.Equal("2", (string?)button.Attribute("Grid.Column"));
+        Assert.NotEqual((string?)title.Attribute("Grid.Column"), (string?)statusHost.Attribute("Grid.Column"));
+        Assert.NotEqual((string?)button.Attribute("Grid.Column"), (string?)statusHost.Attribute("Grid.Column"));
     }
 
     [Fact]
@@ -219,6 +277,12 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.DoesNotContain("SetWindowsHook", win32, StringComparison.Ordinal);
         Assert.Contains("WsExNoActivate", win32, StringComparison.Ordinal);
         Assert.Contains("~WsExTransparent", win32, StringComparison.Ordinal);
+        Assert.Contains("ReassertTopmostNoActivate", win32, StringComparison.Ordinal);
+        Assert.Contains("TaskbarTopmostPlacement.HwndTopmost", win32, StringComparison.Ordinal);
+        Assert.Contains("TaskbarTopmostPlacement.Flags", win32, StringComparison.Ordinal);
+        Assert.Contains("SetWindowPos", win32, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetForegroundWindow", win32, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetFocus", win32, StringComparison.Ordinal);
         Assert.Contains("UiCallbackMarshal.TryPost", source, StringComparison.Ordinal);
         Assert.Contains("Dispatcher.BeginInvoke", source, StringComparison.Ordinal);
         Assert.Contains("HasShutdownStarted", source, StringComparison.Ordinal);

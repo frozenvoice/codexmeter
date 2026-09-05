@@ -58,6 +58,30 @@ internal static class TaskbarWin32
         SetWindowLong(hwnd, GwlExStyle, style);
     }
 
+    public static bool ReassertTopmostNoActivate(IntPtr hwnd, out int error)
+    {
+        error = 0;
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var ok = SetWindowPos(
+            hwnd,
+            TaskbarTopmostPlacement.HwndTopmost,
+            0,
+            0,
+            0,
+            0,
+            TaskbarTopmostPlacement.Flags);
+        if (!ok)
+        {
+            error = Marshal.GetLastWin32Error();
+        }
+
+        return ok;
+    }
+
     public static bool IsAutoHide()
     {
         var data = new APPBARDATA { cbSize = Marshal.SizeOf<APPBARDATA>() };
@@ -198,6 +222,16 @@ internal static class TaskbarWin32
 
     [DllImport("user32.dll")]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint uFlags);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int RegisterWindowMessage(string lpString);

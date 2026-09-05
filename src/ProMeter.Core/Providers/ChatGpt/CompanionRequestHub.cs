@@ -296,6 +296,29 @@ public sealed class BrowserCompanionTransport : IChatGptTransport
             }
         }
 
+        var response = await _hub.RequestAsync(operation, args, cancellationToken).ConfigureAwait(false);
+        if (!response.IsCompanionDisconnected)
+        {
+            return response;
+        }
+
+        _log?.Invoke($"companion request interrupted operation={operation} waiting-reconnect");
+        if (!CompanionOperationPolicy.IsReconnectRetrySafe(operation))
+        {
+            return response;
+        }
+
+        var retried = await CompanionReconnectGrace.WaitUntilConnectedAsync(
+            _hub,
+            _reconnectGrace,
+            _log,
+            cancellationToken).ConfigureAwait(false);
+        if (!retried)
+        {
+            return response;
+        }
+
+        _log?.Invoke($"companion reconnected retrying operation={operation}");
         return await _hub.RequestAsync(operation, args, cancellationToken).ConfigureAwait(false);
     }
 }

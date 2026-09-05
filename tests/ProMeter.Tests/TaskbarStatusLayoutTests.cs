@@ -239,14 +239,44 @@ public class TaskbarStatusLayoutTests
         var bind = source[source.IndexOf("public void Bind(", StringComparison.Ordinal)..source.IndexOf("public void ApplyThemeResources", StringComparison.Ordinal)];
         Assert.Contains("ApplyText();", bind, StringComparison.Ordinal);
         Assert.DoesNotContain("Reposition();", bind, StringComparison.Ordinal);
+        Assert.Contains("ReassertTopmost", source, StringComparison.Ordinal);
+        Assert.Contains("TaskbarTopmostPlacement.ShouldReassert", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetForegroundWindow", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetFocus(", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetParent", source, StringComparison.Ordinal);
     }
 
-    private static string FindStripWindow()
+    [Fact]
+    public void TopmostReassert_UsesSafeNoActivateFlags()
+    {
+        Assert.Equal(new IntPtr(-1), TaskbarTopmostPlacement.HwndTopmost);
+        Assert.True(TaskbarTopmostPlacement.HasRequiredSafetyFlags);
+        Assert.Equal(0u, TaskbarTopmostPlacement.Flags & TaskbarTopmostPlacement.SwpNoZOrder);
+        Assert.Equal(TaskbarTopmostPlacement.SwpNoActivate, TaskbarTopmostPlacement.Flags & TaskbarTopmostPlacement.SwpNoActivate);
+        Assert.True(TaskbarTopmostPlacement.ShouldReassert(true));
+        Assert.False(TaskbarTopmostPlacement.ShouldReassert(false));
+        var win32 = File.ReadAllText(Find("src/ProMeter/UI/TaskbarWin32.cs"));
+        Assert.Contains("ReassertTopmostNoActivate", win32, StringComparison.Ordinal);
+        Assert.Contains("SetLastError = true", win32, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetForegroundWindow", win32, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetFocus", win32, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetParent", win32, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetWindowsHook", win32, StringComparison.Ordinal);
+        var strip = File.ReadAllText(FindStripWindow());
+        var reposition = strip[strip.IndexOf("public void Reposition()", StringComparison.Ordinal)..];
+        Assert.Contains("ReassertTopmost(decision.OverlayVisible)", reposition, StringComparison.Ordinal);
+        Assert.Contains("if (!decision.OverlayVisible)", reposition, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetForegroundWindow", strip, StringComparison.Ordinal);
+    }
+
+    private static string FindStripWindow() => Find("src/ProMeter/UI/TaskbarStatusStripWindow.xaml.cs");
+
+    private static string Find(string relative)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         while (current is not null)
         {
-            var candidate = Path.Combine(current.FullName, "src", "ProMeter", "UI", "TaskbarStatusStripWindow.xaml.cs");
+            var candidate = Path.Combine(current.FullName, relative.Replace('/', Path.DirectorySeparatorChar));
             if (File.Exists(candidate))
             {
                 return candidate;
@@ -255,7 +285,7 @@ public class TaskbarStatusLayoutTests
             current = current.Parent;
         }
 
-        throw new FileNotFoundException("TaskbarStatusStripWindow.xaml.cs");
+        throw new FileNotFoundException(relative);
     }
 
     [Fact]

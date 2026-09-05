@@ -116,15 +116,19 @@ public static class NativeMessagingHost
         {
             if (!ShouldRun(args ?? Environment.GetCommandLineArgs(), CompanionPairingStore.LoadOrCreate()))
             {
+                CompanionHostLifecycle.Write(
+                    CompanionHostLifecycle.ExitingLine(CompanionHostLifecycleReason.OriginRejected));
                 return;
             }
 
+            CompanionHostLifecycle.Write(CompanionHostLifecycle.StartedLine());
             using var pipe = new NamedPipeClientStream(
                 ".",
                 PipeName,
                 PipeDirection.InOut,
                 PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             pipe.Connect(2000);
+            CompanionHostLifecycle.Write(CompanionHostLifecycle.PipeConnectedLine());
             using var stdin = Console.OpenStandardInput();
             using var stdout = Console.OpenStandardOutput();
             using var cts = new CancellationTokenSource();
@@ -133,21 +137,60 @@ public static class NativeMessagingHost
                 eventArgs.Cancel = true;
                 cts.Cancel();
             };
-            RunPumpsAsync(stdin, stdout, pipe, cts.Token).GetAwaiter().GetResult();
+            var result = RunPumpsAsync(stdin, stdout, pipe, cts.Token).GetAwaiter().GetResult();
+            CompanionHostLifecycle.Write(CompanionHostLifecycle.ExitingLine(result.Reason, result.ExceptionType));
         }
-        catch
+        catch (Exception ex)
         {
+            CompanionHostLifecycle.Write(
+                CompanionHostLifecycle.ExitingLine(CompanionHostLifecycleReason.HostFailed, ex.GetType().Name));
         }
     }
 
-    public static async Task RunPumpsAsync(Stream chromeIn, Stream chromeOut, Stream pipe, CancellationToken cancellationToken)
+    public static async Task<CompanionHostPumpResult> RunPumpsAsync(
+        Stream chromeIn,
+        Stream chromeOut,
+        Stream pipe,
+        CancellationToken cancellationToken)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         var chromeWrite = new SemaphoreSlim(1, 1);
         var pipeWrite = new SemaphoreSlim(1, 1);
-        var chromeToPipe = PumpAsync(chromeIn, pipe, pipeWrite, attachPairing: true, linked.Token);
-        var pipeToChrome = PumpAsync(pipe, chromeOut, chromeWrite, attachPairing: false, linked.Token);
+        var chromeToPipe = PumpAsync(
+            chromeIn,
+            pipe,
+            pipeWrite,
+            attachPairing: true,
+            CompanionHostLifecycleReason.ChromeInputEof,
+            CompanionHostLifecycleReason.ChromePumpFailed,
+            linked.Token);
+        var pipeToChrome = PumpAsync(
+            pipe,
+            chromeOut,
+            chromeWrite,
+            attachPairing: false,
+            CompanionHostLifecycleReason.PipeInputEof,
+            CompanionHostLifecycleReason.PipePumpFailed,
+            linked.Token);
         var completed = await Task.WhenAny(chromeToPipe, pipeToChrome).ConfigureAwait(false);
+        var chromeFirst = ReferenceEquals(completed, chromeToPipe);
+        var completedResult = completed.IsCompletedSuccessfully ? completed.Result : default;
+        var reason = CompanionHostLifecycle.ClassifyPumpCompletion(
+            chromeFirst,
+            completed.IsCanceled,
+            completed.IsFaulted,
+            completed.IsCompletedSuccessfully ? completedResult.Reason : null,
+            cancellationToken.IsCancellationRequested);
+        var exceptionType = completed.IsCompletedSuccessfully
+            ? completedResult.ExceptionType
+            : completed.IsFaulted
+                ? completed.Exception?.GetBaseException().GetType().Name
+                : null;
+        if (chromeFirst && CompanionHostLifecycle.ShouldEmitToPipe(reason))
+        {
+            await TryEmitLifecycleToPipeAsync(pipe, pipeWrite, reason).ConfigureAwait(false);
+        }
+
         linked.Cancel();
         try
         {
@@ -157,34 +200,65 @@ public static class NativeMessagingHost
         {
         }
 
-        if (completed.IsFaulted)
+        return new CompanionHostPumpResult(reason, exceptionType);
+    }
+
+    private static async Task TryEmitLifecycleToPipeAsync(
+        Stream pipe,
+        SemaphoreSlim pipeWrite,
+        CompanionHostLifecycleReason reason)
+    {
+        try
         {
-            completed.GetAwaiter().GetResult();
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+            await NativeMessagingFraming.WriteMessageAsync(
+                pipe,
+                CompanionHostLifecycle.Serialize(reason),
+                pipeWrite,
+                cts.Token).ConfigureAwait(false);
+        }
+        catch
+        {
         }
     }
 
-    private static async Task PumpAsync(
+    private static async Task<CompanionHostPumpResult> PumpAsync(
         Stream source,
         Stream destination,
         SemaphoreSlim destinationLock,
         bool attachPairing,
+        CompanionHostLifecycleReason eof,
+        CompanionHostLifecycleReason failed,
         CancellationToken cancellationToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        try
         {
-            var max = attachPairing
-                ? CompanionBridgeProtocol.MaxNativeMessageBytes
-                : CompanionBridgeProtocol.MaxCommandBytes;
-            var message = await NativeMessagingFraming.ReadMessageAsync(source, max, cancellationToken).ConfigureAwait(false);
-            if (message is null)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                return;
+                var max = attachPairing
+                    ? CompanionBridgeProtocol.MaxNativeMessageBytes
+                    : CompanionBridgeProtocol.MaxCommandBytes;
+                var message = await NativeMessagingFraming.ReadMessageAsync(source, max, cancellationToken).ConfigureAwait(false);
+                if (message is null)
+                {
+                    return new CompanionHostPumpResult(eof, null);
+                }
+
+                var forwarded = attachPairing
+                    ? AttachPairingToken(message)
+                    : StripPairingToken(message);
+                await NativeMessagingFraming.WriteMessageAsync(destination, forwarded, destinationLock, cancellationToken).ConfigureAwait(false);
             }
 
-            var forwarded = attachPairing
-                ? AttachPairingToken(message)
-                : StripPairingToken(message);
-            await NativeMessagingFraming.WriteMessageAsync(destination, forwarded, destinationLock, cancellationToken).ConfigureAwait(false);
+            return new CompanionHostPumpResult(eof, null);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new CompanionHostPumpResult(failed, ex.GetType().Name);
         }
     }
 

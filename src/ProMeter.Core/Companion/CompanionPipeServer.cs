@@ -13,6 +13,7 @@ public sealed class CompanionPipeServer : IDisposable
     private readonly AppLog _log;
     private readonly string _pipeName;
     private CancellationTokenSource? _cts;
+    private string? _hostExitReason;
 
     public CompanionPipeServer(CompanionRequestHub hub, CompanionPairingState pairing, AppLog log, string? pipeName = null)
     {
@@ -44,7 +45,10 @@ public sealed class CompanionPipeServer : IDisposable
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await pipe.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
                 generation = _hub.BeginConnection();
+                _hostExitReason = null;
+                _log.Info(CompanionHostLifecycle.PipeAcceptedLine(generation));
                 await ServeAsync(pipe, generation, cancellationToken).ConfigureAwait(false);
+                _log.Info(CompanionHostLifecycle.PipeEofLine(generation));
             }
             catch (OperationCanceledException)
             {
@@ -52,13 +56,22 @@ public sealed class CompanionPipeServer : IDisposable
             }
             catch (Exception ex)
             {
-                _log.Warn("companion pipe: " + AppLog.Sanitize(ex.Message));
+                _log.Warn("companion pipe: " + AppLog.Sanitize(ex.GetType().Name));
+                _hostExitReason ??= CompanionHostLifecycle.ToWire(CompanionHostLifecycleReason.PipePumpFailed);
             }
             finally
             {
                 if (_hub.IsConnected)
                 {
                     _log.Info("companion disconnected");
+                }
+
+                var closeReason = string.IsNullOrWhiteSpace(_hostExitReason)
+                    ? CompanionHostLifecycle.ToWire(CompanionHostLifecycleReason.PipeServerEof)
+                    : _hostExitReason;
+                if (generation != 0)
+                {
+                    _log.Info(CompanionHostLifecycle.PipeClosedLine(generation, closeReason));
                 }
 
                 _hub.Disconnect(generation);
@@ -170,6 +183,17 @@ public sealed class CompanionPipeServer : IDisposable
         }
 
         var message = parsed.Message;
+        if (CompanionHostLifecycle.IsMessage(message))
+        {
+            if (CompanionHostLifecycle.TryGetReason(message, out var reason))
+            {
+                _hostExitReason = reason;
+                _log.Info(CompanionHostLifecycle.LifecycleReceivedLine(generation, reason));
+            }
+
+            return Task.CompletedTask;
+        }
+
         if (!CompanionPairingStore.TokensEqual(message.PairingToken, _pairing.Token)
             && !string.Equals(message.Type, CompanionBridgeProtocol.Hello, StringComparison.OrdinalIgnoreCase))
         {

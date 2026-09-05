@@ -33,7 +33,7 @@ public sealed class CombinedRefreshCoordinator
 
     public event Action? StateChanged;
 
-    public async Task<CombinedRefreshResult> RefreshAllAsync(bool forceChatGpt, CancellationToken cancellationToken)
+    public async Task<CombinedRefreshResult> RefreshAllAsync(bool bypassPause, CancellationToken cancellationToken)
     {
         Task<CombinedRefreshResult> shared;
         TaskCompletionSource<CombinedRefreshResult>? owner = null;
@@ -75,7 +75,7 @@ public sealed class CombinedRefreshCoordinator
         Exception? error = null;
         try
         {
-            result = await ExecuteOwnedAsync(forceChatGpt, chatStarted, codexStarted, cancellationToken)
+            result = await ExecuteOwnedAsync(bypassPause, chatStarted, codexStarted, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -127,13 +127,13 @@ public sealed class CombinedRefreshCoordinator
             combinedManual || chatGptRefreshing || codexRefreshing ? UiText.RefreshAllProgress : "");
 
     private async Task<CombinedRefreshResult> ExecuteOwnedAsync(
-        bool forceChatGpt,
+        bool bypassPause,
         bool chatStarted,
         bool codexStarted,
         CancellationToken cancellationToken)
     {
         var chatTask = chatStarted
-            ? SafeChatGpt(forceChatGpt, cancellationToken)
+            ? SafeChatGpt(bypassPause, cancellationToken)
             : Task.FromResult<SyncOutcome?>(null);
         var codexTask = codexStarted
             ? SafeCodex(cancellationToken)
@@ -193,11 +193,11 @@ public sealed class CombinedRefreshCoordinator
         }
     }
 
-    private async Task<SyncOutcome?> SafeChatGpt(bool force, CancellationToken cancellationToken)
+    private async Task<SyncOutcome?> SafeChatGpt(bool bypassPause, CancellationToken cancellationToken)
     {
         try
         {
-            return await _chatGpt(force, cancellationToken).ConfigureAwait(false);
+            return await _chatGpt(bypassPause, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {

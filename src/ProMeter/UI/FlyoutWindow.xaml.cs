@@ -150,7 +150,10 @@ public partial class FlyoutWindow : Window
 
     private void ApplyRefreshIndicator(bool active)
     {
-        var transition = active && IsVisible
+        var visibleActive = active && IsVisible;
+        RefreshAllIcon.Visibility = visibleActive ? Visibility.Collapsed : Visibility.Visible;
+        RefreshSpinner.Visibility = visibleActive ? Visibility.Visible : Visibility.Collapsed;
+        var transition = visibleActive
             ? _refreshIndicator.Apply(true)
             : _refreshIndicator.Reset();
         if (transition == RefreshIndicatorTransition.Started)
@@ -160,7 +163,7 @@ public partial class FlyoutWindow : Window
         else if (transition == RefreshIndicatorTransition.Stopped)
         {
             _refreshStoryboard?.Stop(this);
-            RefreshAllRotate.Angle = 0;
+            RefreshSpinnerRotate.Angle = 0;
         }
     }
 
@@ -178,7 +181,7 @@ public partial class FlyoutWindow : Window
             Duration = TimeSpan.FromSeconds(RefreshIndicatorController.DurationSeconds),
             RepeatBehavior = RepeatBehavior.Forever
         };
-        Storyboard.SetTarget(animation, RefreshAllRotate);
+        Storyboard.SetTarget(animation, RefreshSpinnerRotate);
         Storyboard.SetTargetProperty(animation, new PropertyPath(RotateTransform.AngleProperty));
         _refreshStoryboard = new Storyboard();
         _refreshStoryboard.Children.Add(animation);

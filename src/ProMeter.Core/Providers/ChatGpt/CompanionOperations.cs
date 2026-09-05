@@ -17,6 +17,27 @@ public enum CompanionOperation
     GetQuotaInit
 }
 
+public static class CompanionOperationPolicy
+{
+    public static bool IsReconnectRetrySafe(CompanionOperation operation) => operation switch
+    {
+        CompanionOperation.GetSessionStatus => true,
+        CompanionOperation.GetAccountCheck => true,
+        CompanionOperation.GetAccountMe => true,
+        CompanionOperation.GetModels => true,
+        CompanionOperation.GetConversationIndex => true,
+        CompanionOperation.GetArchivedConversationIndex => true,
+        CompanionOperation.GetProjects => true,
+        CompanionOperation.GetProjectConversations => true,
+        CompanionOperation.GetConversationHead => true,
+        CompanionOperation.GetConversationFull => true,
+        CompanionOperation.GetConversationLegacy => true,
+        CompanionOperation.GetOlderConversationMessages => true,
+        CompanionOperation.GetQuotaInit => true,
+        _ => false
+    };
+}
+
 public sealed class CompanionOperationArgs
 {
     public string? ConversationId { get; init; }

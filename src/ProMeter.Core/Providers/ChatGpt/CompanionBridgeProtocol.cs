@@ -24,6 +24,7 @@ public sealed class CompanionBridgeMessage
     public bool SchemaMismatch { get; set; }
     public bool PayloadTooLarge { get; set; }
     public bool Accepted { get; set; }
+    public string? Reason { get; set; }
 }
 
 public sealed class CompanionParseResult
@@ -104,7 +105,8 @@ public static class CompanionBridgeProtocol
             Error = ChatGptJson.GetString(node, "error"),
             SchemaMismatch = ChatGptJson.GetBool(node, "schemaMismatch", "schema_mismatch") == true,
             PayloadTooLarge = ChatGptJson.GetBool(node, "payloadTooLarge", "payload_too_large") == true,
-            Accepted = ChatGptJson.GetBool(node, "accepted") == true
+            Accepted = ChatGptJson.GetBool(node, "accepted") == true,
+            Reason = ChatGptJson.GetString(node, "reason")
         };
 
         if (node["args"] is JsonObject argsNode)

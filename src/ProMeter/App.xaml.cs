@@ -390,10 +390,10 @@ public partial class App : Application
         }
     }
 
-    private async Task RefreshAllAsync(bool forceChatGpt, CancellationToken cancellationToken)
+    private async Task RefreshAllAsync(bool bypassPause, CancellationToken cancellationToken)
     {
         var status = RefreshProStatusAsync(notifyFailure: false);
-        await _refresh.RefreshAllAsync(forceChatGpt, cancellationToken);
+        await _refresh.RefreshAllAsync(bypassPause, cancellationToken);
         await status;
     }
 

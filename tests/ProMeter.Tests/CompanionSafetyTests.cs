@@ -143,9 +143,18 @@ public class CompanionCallerOriginTests
     [Fact]
     public void ProductionEntrypoint_RejectsInvalidArgsWithoutConnecting()
     {
-        NativeMessagingHost.Run([]);
-        NativeMessagingHost.Run(["--parent-window=1234"]);
-        Assert.False(NativeMessagingHost.ShouldRun(["--parent-window=1234"], Registered));
+        var previous = CompanionHostLifecycle.LogSink;
+        CompanionHostLifecycle.LogSink = _ => { };
+        try
+        {
+            NativeMessagingHost.Run([]);
+            NativeMessagingHost.Run(["--parent-window=1234"]);
+            Assert.False(NativeMessagingHost.ShouldRun(["--parent-window=1234"], Registered));
+        }
+        finally
+        {
+            CompanionHostLifecycle.LogSink = previous;
+        }
     }
 
     [Fact]

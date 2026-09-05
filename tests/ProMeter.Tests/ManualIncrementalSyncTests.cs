@@ -36,11 +36,18 @@ public class ManualIncrementalSyncTests
         Assert.Contains("SyncRunOptions.Auto", app, StringComparison.Ordinal);
         Assert.Contains("SyncRunOptions.FlyoutStale", app, StringComparison.Ordinal);
         Assert.DoesNotContain("ForceBodyRescan = true", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("forceChatGpt", app, StringComparison.Ordinal);
+        Assert.Contains("private async Task RefreshAllAsync(bool bypassPause", app, StringComparison.Ordinal);
         Assert.Contains("RefreshAllAsync(true", app, StringComparison.Ordinal);
         Assert.Contains("_taskbarStrip.RefreshRequested", app, StringComparison.Ordinal);
         Assert.Contains("_widget.RefreshRequested", app, StringComparison.Ordinal);
         Assert.Contains("_flyout.SyncRequested", app, StringComparison.Ordinal);
         Assert.Contains("_tray.SyncRequested", app, StringComparison.Ordinal);
+        var coordinator = File.ReadAllText(Find("src/ProMeter.Core/Codex/CombinedRefreshCoordinator.cs"));
+        Assert.Contains("RefreshAllAsync(bool bypassPause", coordinator, StringComparison.Ordinal);
+        Assert.Contains("SafeChatGpt(bool bypassPause", coordinator, StringComparison.Ordinal);
+        Assert.DoesNotContain("forceChatGpt", coordinator, StringComparison.Ordinal);
+        Assert.DoesNotContain("ForceBodyRescan", coordinator, StringComparison.Ordinal);
     }
 
     private static (SyncEngine Engine, IncrementalSyncTests.CountingProvider Provider, AppSettings Settings, List<ConversationIndexItem> Items)

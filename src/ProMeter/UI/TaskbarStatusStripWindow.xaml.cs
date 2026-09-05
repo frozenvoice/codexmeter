@@ -22,6 +22,7 @@ public partial class TaskbarStatusStripWindow : Window
     private CodexQuotaSnapshot _codex = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
     private TaskbarLayoutResult _layout;
     public Action<string>? VisibilityLog { get; set; }
+    private string? _lastTopmostFailure;
     public TaskbarEdge LastEdge { get; private set; } = TaskbarEdge.Bottom;
     public Rect LastBounds => new(Left, Top, Width, Height);
 
@@ -109,6 +110,8 @@ public partial class TaskbarStatusStripWindow : Window
             {
                 Show();
             }
+
+            ReassertTopmost(decision.OverlayVisible);
         }
         catch
         {
@@ -123,6 +126,29 @@ public partial class TaskbarStatusStripWindow : Window
         _hwnd.AddHook(Hook);
         _fullscreenTimer.Start();
         Reposition();
+    }
+
+    private void ReassertTopmost(bool overlayVisible)
+    {
+        if (!TaskbarTopmostPlacement.ShouldReassert(overlayVisible))
+        {
+            return;
+        }
+
+        var hwnd = _hwnd?.Handle ?? IntPtr.Zero;
+        if (TaskbarWin32.ReassertTopmostNoActivate(hwnd, out var error))
+        {
+            return;
+        }
+
+        var line = $"taskbar topmost reassert failed error={error}";
+        if (string.Equals(line, _lastTopmostFailure, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastTopmostFailure = line;
+        VisibilityLog?.Invoke(line);
     }
 
     private IntPtr Hook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)

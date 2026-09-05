@@ -24,9 +24,41 @@
             CornerRadius="14"
             Padding="16">
         <StackPanel>
-            <DockPanel>
+            <Grid x:Name="FlyoutHeaderGrid">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*" MinWidth="0"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="TitleText"
+                           Grid.Column="0"
+                           Text="ProMeter"
+                           FontWeight="SemiBold"
+                           FontSize="16"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"
+                           Foreground="{DynamicResource TextBrush}"/>
+                <Grid Grid.Column="1" Margin="0,0,8,0" MinWidth="0">
+                    <TextBlock x:Name="StatusText"
+                               HorizontalAlignment="Stretch"
+                               TextAlignment="Right"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedBrush}"
+                               FontSize="11"/>
+                    <TextBlock x:Name="RefreshProgressText"
+                               HorizontalAlignment="Stretch"
+                               TextAlignment="Right"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource AccentBrush}"
+                               FontSize="11"
+                               Visibility="Collapsed"/>
+                </Grid>
                 <Button x:Name="RefreshAllButton"
-                        DockPanel.Dock="Right"
+                        Grid.Column="2"
                         Click="OnRefreshAllClick"
                         PreviewMouseDown="OnRefreshPreviewMouseDown"
                         ToolTip="Refresh all"
@@ -34,7 +66,6 @@
                         MinWidth="28"
                         MinHeight="28"
                         Padding="6,2"
-                        Margin="8,0,0,0"
                         Cursor="Hand"
                         Background="{DynamicResource GhostBrush}"
                         Foreground="{DynamicResource TextBrush}"
@@ -62,27 +93,46 @@
                             </ControlTemplate.Triggers>
                         </ControlTemplate>
                     </Button.Template>
-                    <TextBlock x:Name="RefreshAllIcon"
-                               Text="↻"
-                               FontSize="14"
-                               RenderTransformOrigin="0.5,0.5"
-                               Foreground="{DynamicResource TextBrush}">
-                        <TextBlock.RenderTransform>
-                            <RotateTransform x:Name="RefreshAllRotate" Angle="0"/>
-                        </TextBlock.RenderTransform>
-                    </TextBlock>
+                    <Grid Width="16" Height="16">
+                        <TextBlock x:Name="RefreshAllIcon"
+                                   Text="↻"
+                                   FontSize="14"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextBrush}"/>
+                        <Viewbox x:Name="RefreshSpinner"
+                                 Width="16"
+                                 Height="16"
+                                 Stretch="Uniform"
+                                 Visibility="Collapsed"
+                                 RenderTransformOrigin="0.5,0.5">
+                            <Viewbox.RenderTransform>
+                                <RotateTransform x:Name="RefreshSpinnerRotate" Angle="0"/>
+                            </Viewbox.RenderTransform>
+                            <Path Stroke="{DynamicResource AccentBrush}"
+                                  StrokeThickness="2.2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Fill="Transparent"
+                                  Stretch="None"
+                                  Width="16"
+                                  Height="16">
+                                <Path.Data>
+                                    <PathGeometry>
+                                        <PathFigure StartPoint="14,8" IsClosed="False">
+                                            <ArcSegment Point="8,2"
+                                                        Size="6,6"
+                                                        SweepDirection="Clockwise"
+                                                        IsLargeArc="True"
+                                                        IsStroked="True"/>
+                                        </PathFigure>
+                                    </PathGeometry>
+                                </Path.Data>
+                            </Path>
+                        </Viewbox>
+                    </Grid>
                 </Button>
-                <TextBlock x:Name="RefreshProgressText"
-                           DockPanel.Dock="Right"
-                           Margin="0,0,8,0"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource AccentBrush}"
-                           FontSize="11"
-                           Visibility="Collapsed"/>
-                <TextBlock x:Name="StatusText" DockPanel.Dock="Right" HorizontalAlignment="Right"
-                           Foreground="{DynamicResource MutedBrush}" FontSize="11"/>
-                <TextBlock Text="ProMeter" FontWeight="SemiBold" FontSize="16" Foreground="{DynamicResource TextBrush}"/>
-            </DockPanel>
+            </Grid>
 
             <TextBlock Style="{StaticResource SectionTitle}" Text="GPT PRO"/>
             <DockPanel>
