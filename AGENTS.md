@@ -131,6 +131,14 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Dark-theme flyout values must never rely on the platform default foreground.
 - Dark and light theme controls must never rely on Windows/WPF default foreground/background colors.
 - Every visible TextBlock, TextBox, ComboBox, TabControl, DataGrid and context UI must be readable in Dark, Light and System themes.
+- Stateful controls must make their current state obvious without hover or focus.
+- Checked/selected state must never depend on Windows default theme chrome.
+- Dark and light themes must both provide explicit visible selected, unselected, hover, pressed, focused, and disabled states.
+- Checkbox/radio selection indicators must have sufficient visual contrast.
+- Disabled checked controls must still visibly communicate that they are checked.
+- Custom dark-theme controls must not rely on platform default ControlTemplates when those templates can ignore or conflict with app theme resources.
+- UI-state regressions require tests.
+- Commit, push, remote SHA verification, and CI verification remain mandatory.
 - An incomplete reconstruction must not present "0 / quota" as though zero were a trustworthy usage measurement.
 - User-visible UI strings must go through localization resources.
 - Korean and English are supported UI languages.
