@@ -112,8 +112,31 @@ public class CodexSnapshotStoreTests
         Assert.Contains("C42%", TaskbarStatusFormatter.Format(new QuotaSnapshot(), result.Snapshot, TaskbarStripMode.Compact), StringComparison.Ordinal);
         Assert.Contains(UiText.CodexDataStale, CodexDisplayFormatting.StatusText(result.Snapshot), StringComparison.Ordinal);
         Assert.Contains(UiText.CodexProtocolChanged, CodexDisplayFormatting.StatusText(result.Snapshot), StringComparison.Ordinal);
-        Assert.Contains("codex refresh status=Stale", logs[0], StringComparison.Ordinal);
+        Assert.Contains("codex refresh status=ProtocolMismatch", logs[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("codex refresh status=Stale", string.Join(" ", logs), StringComparison.Ordinal);
         Assert.DoesNotContain("accountId", string.Join(" ", logs), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task TimedOut_PreservesLastGoodAsStale_AndLogsTimedOut()
+    {
+        var (service, logs) = CachedService(new CanceledReadProcessFactory());
+        var result = await service.RefreshAsync(@"C:\Tools\codex.exe", CancellationToken.None);
+        Assert.Equal(CodexQuotaStatus.Stale, result.Snapshot.Status);
+        Assert.Equal(42, result.Snapshot.Windows[0].UsedPercent);
+        Assert.Contains("codex refresh status=TimedOut", logs[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("codex refresh status=Stale", string.Join(" ", logs), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Unavailable_PreservesLastGoodAsStale_AndLogsUnavailable()
+    {
+        var (service, logs) = CachedService(new BoomProcessFactory());
+        var result = await service.RefreshAsync(@"C:\Tools\codex.exe", CancellationToken.None);
+        Assert.Equal(CodexQuotaStatus.Stale, result.Snapshot.Status);
+        Assert.Equal(42, result.Snapshot.Windows[0].UsedPercent);
+        Assert.Contains("codex refresh status=Unavailable", logs[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("codex refresh status=Stale", string.Join(" ", logs), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -137,4 +160,59 @@ public class CodexSnapshotStoreTests
 
     private static string TempFile() =>
         Path.Combine(Path.GetTempPath(), $"prometer-codex-{Guid.NewGuid():N}.json");
+
+    private static (CodexQuotaService Service, List<string> Logs) CachedService(ICodexProcessFactory factory)
+    {
+        var store = new CodexSnapshotStore(TempFile());
+        store.Save(new CodexQuotaSnapshot(
+            CodexQuotaStatus.Available,
+            "plus",
+            DateTimeOffset.Parse("2026-09-05T01:00:00Z"),
+            DateTimeOffset.Parse("2026-09-05T01:00:00Z"),
+            true,
+            null,
+            1,
+            [new CodexQuotaWindow(null, 42, 300, null, CodexWindowKind.FiveHour)],
+            null));
+        var files = new MemoryCodexFileSystem();
+        files.PathFolders.Add(@"C:\Tools");
+        files.Files.Add(@"C:\Tools\codex.exe");
+        var logs = new List<string>();
+        var service = new CodexQuotaService(
+            new CodexExecutableLocator(files),
+            new CodexAppServerClient(factory),
+            store,
+            "1.0.0",
+            logs.Add);
+        return (service, logs);
+    }
+
+    private sealed class BoomProcessFactory : ICodexProcessFactory
+    {
+        public ICodexProcess Start(CodexLaunchCommand command) => throw new InvalidOperationException("unavailable");
+    }
+
+    private sealed class CanceledReadProcessFactory : ICodexProcessFactory
+    {
+        public ICodexProcess Start(CodexLaunchCommand command) => new CanceledReadProcess();
+    }
+
+    private sealed class CanceledReadProcess : ICodexProcess
+    {
+        public Task WriteLineAsync(string line, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task<string?> ReadLineAsync(int maxBytes, CancellationToken cancellationToken) =>
+            Task.FromCanceled<string?>(new CancellationToken(canceled: true));
+        public Task DrainStderrAsync(System.Text.StringBuilder sink, int maxBytes, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+        public bool HasExited => true;
+        public bool KillCalled => true;
+        public int? ProcessId => null;
+        public string FileName => "canceled";
+        public string Arguments => "";
+        public Task<bool> WaitForExitAsync(TimeSpan timeout, CancellationToken cancellationToken) => Task.FromResult(true);
+        public void KillTree()
+        {
+        }
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
 }

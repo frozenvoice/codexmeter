@@ -158,7 +158,7 @@ public sealed class CodexQuotaService
             _store.Save(next);
         }
 
-        LogFailure(next.Status, stage, detail);
+        LogFailure(status, stage, detail);
         Publish(next);
         return new CodexRefreshResult(next, UsedCache: cached.HasUsablePercentages, detail);
     }
