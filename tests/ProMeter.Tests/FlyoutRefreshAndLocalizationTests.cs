@@ -54,6 +54,10 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.True(autoCodex.Enabled);
         Assert.True(autoCodex.Active);
 
+        var bothBackground = CombinedRefreshCoordinator.Present(true, true);
+        Assert.False(bothBackground.Enabled);
+        Assert.True(bothBackground.Active);
+
         var manual = CombinedRefreshCoordinator.Present(true, true, combinedManual: true);
         Assert.False(manual.Enabled);
         Assert.True(manual.Active);

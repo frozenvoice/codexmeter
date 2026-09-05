@@ -176,6 +176,12 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Stateful controls and buttons must remain visible in dark, light and system themes.
 - Manual refresh must provide unmistakable visible progress feedback.
 - A static color change alone is not sufficient progress feedback.
+- Combined manual refresh must be single-flight across every UI entry point.
+- A duplicate refresh request must never clear another invocation's busy state.
+- Only the invocation that owns the active refresh may set or clear the combined
+  manual-refresh state.
+- Refresh controls must remain disabled until the real shared refresh completes.
+- Overlapping refresh behavior requires deterministic concurrency tests.
 - Codex fixtures must match the official generated app-server protocol shape.
 - Root response metadata and selected rate-limit bucket metadata must not be conflated.
 - SystemEvents callbacks must marshal to the owning WPF Dispatcher before touching windows, controls, DispatcherTimer or presentation state.

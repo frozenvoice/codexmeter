@@ -13,6 +13,8 @@ public sealed class CombinedRefreshCoordinator
 {
     private readonly Func<bool, CancellationToken, Task<SyncOutcome>> _chatGpt;
     private readonly Func<CancellationToken, Task<CodexRefreshResult>> _codex;
+    private readonly object _gate = new();
+    private Task<CombinedRefreshResult>? _active;
 
     public CombinedRefreshCoordinator(
         Func<bool, CancellationToken, Task<SyncOutcome>> chatGpt,
@@ -26,65 +28,93 @@ public sealed class CombinedRefreshCoordinator
     public bool CodexRefreshing { get; private set; }
     public bool ManualRefreshInProgress { get; private set; }
     public bool BothRefreshing => ChatGptRefreshing && CodexRefreshing;
-    public bool RefreshButtonEnabled => !ManualRefreshInProgress;
+    public bool RefreshButtonEnabled => !ManualRefreshInProgress && !BothRefreshing;
     public bool RefreshButtonActive => ManualRefreshInProgress || ChatGptRefreshing || CodexRefreshing;
 
     public event Action? StateChanged;
 
     public async Task<CombinedRefreshResult> RefreshAllAsync(bool forceChatGpt, CancellationToken cancellationToken)
     {
-        ManualRefreshInProgress = true;
-        var chatStarted = !ChatGptRefreshing;
-        var codexStarted = !CodexRefreshing;
-        if (chatStarted)
+        Task<CombinedRefreshResult> shared;
+        TaskCompletionSource<CombinedRefreshResult>? owner = null;
+        var chatStarted = false;
+        var codexStarted = false;
+        lock (_gate)
         {
-            ChatGptRefreshing = true;
+            if (_active is { IsCompleted: false } running)
+            {
+                shared = running;
+            }
+            else
+            {
+                owner = new TaskCompletionSource<CombinedRefreshResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+                shared = owner.Task;
+                _active = shared;
+                ManualRefreshInProgress = true;
+                chatStarted = !ChatGptRefreshing;
+                codexStarted = !CodexRefreshing;
+                if (chatStarted)
+                {
+                    ChatGptRefreshing = true;
+                }
+
+                if (codexStarted)
+                {
+                    CodexRefreshing = true;
+                }
+            }
         }
 
-        if (codexStarted)
+        if (owner is null)
         {
-            CodexRefreshing = true;
+            return await WaitForSharedAsync(shared, cancellationToken).ConfigureAwait(false);
         }
 
         Raise();
+        CombinedRefreshResult? result = null;
+        Exception? error = null;
         try
         {
-            var chatTask = chatStarted
-                ? SafeChatGpt(forceChatGpt, cancellationToken)
-                : Task.FromResult<SyncOutcome?>(null);
-            var codexTask = codexStarted
-                ? SafeCodex(cancellationToken)
-                : Task.FromResult(new CodexRefreshResult(
-                    CodexQuotaSnapshot.Empty(CodexQuotaStatus.Refreshing),
-                    UsedCache: true,
-                    "already-running"));
-
-            await Task.WhenAll(chatTask, codexTask).ConfigureAwait(false);
-            var chat = await chatTask.ConfigureAwait(false);
-            var codex = await codexTask.ConfigureAwait(false);
-            var chatFailed = chat is not null && IsChatGptFailure(chat);
-            var codexFailed = IsCodexFailure(codex);
-            return new CombinedRefreshResult(
-                chat,
-                codex,
-                PartialFailure: chatFailed ^ codexFailed || (chat is null && codexFailed),
-                TotalFailure: chatFailed && codexFailed);
+            result = await ExecuteOwnedAsync(forceChatGpt, chatStarted, codexStarted, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            error = ex;
         }
         finally
         {
-            if (chatStarted)
+            lock (_gate)
             {
-                ChatGptRefreshing = false;
+                if (ReferenceEquals(_active, shared))
+                {
+                    _active = null;
+                }
+
+                if (chatStarted)
+                {
+                    ChatGptRefreshing = false;
+                }
+
+                if (codexStarted)
+                {
+                    CodexRefreshing = false;
+                }
+
+                ManualRefreshInProgress = false;
             }
 
-            if (codexStarted)
-            {
-                CodexRefreshing = false;
-            }
-
-            ManualRefreshInProgress = false;
             Raise();
         }
+
+        if (error is not null)
+        {
+            owner.TrySetException(error);
+            throw error;
+        }
+
+        owner.TrySetResult(result!);
+        return result!;
     }
 
     public static FlyoutRefreshPresentation Present(
@@ -92,9 +122,59 @@ public sealed class CombinedRefreshCoordinator
         bool codexRefreshing,
         bool combinedManual = false) =>
         new(
-            !combinedManual,
+            !combinedManual && !(chatGptRefreshing && codexRefreshing),
             combinedManual || chatGptRefreshing || codexRefreshing,
             combinedManual || chatGptRefreshing || codexRefreshing ? UiText.RefreshAllProgress : "");
+
+    private async Task<CombinedRefreshResult> ExecuteOwnedAsync(
+        bool forceChatGpt,
+        bool chatStarted,
+        bool codexStarted,
+        CancellationToken cancellationToken)
+    {
+        var chatTask = chatStarted
+            ? SafeChatGpt(forceChatGpt, cancellationToken)
+            : Task.FromResult<SyncOutcome?>(null);
+        var codexTask = codexStarted
+            ? SafeCodex(cancellationToken)
+            : Task.FromResult(new CodexRefreshResult(
+                CodexQuotaSnapshot.Empty(CodexQuotaStatus.Refreshing),
+                UsedCache: true,
+                "already-running"));
+
+        await Task.WhenAll(chatTask, codexTask).ConfigureAwait(false);
+        var chat = await chatTask.ConfigureAwait(false);
+        var codex = await codexTask.ConfigureAwait(false);
+        var chatFailed = chat is not null && IsChatGptFailure(chat);
+        var codexFailed = IsCodexFailure(codex);
+        return new CombinedRefreshResult(
+            chat,
+            codex,
+            PartialFailure: chatFailed ^ codexFailed || (chat is null && codexFailed),
+            TotalFailure: chatFailed && codexFailed);
+    }
+
+    private static async Task<CombinedRefreshResult> WaitForSharedAsync(
+        Task<CombinedRefreshResult> shared,
+        CancellationToken cancellationToken)
+    {
+        if (!cancellationToken.CanBeCanceled)
+        {
+            return await shared.ConfigureAwait(false);
+        }
+
+        var canceled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = cancellationToken.Register(
+            static state => ((TaskCompletionSource)state!).TrySetResult(),
+            canceled);
+        var completed = await Task.WhenAny(shared, canceled.Task).ConfigureAwait(false);
+        if (completed != shared)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+        }
+
+        return await shared.ConfigureAwait(false);
+    }
 
     private async Task<CodexRefreshResult> SafeCodex(CancellationToken cancellationToken)
     {
