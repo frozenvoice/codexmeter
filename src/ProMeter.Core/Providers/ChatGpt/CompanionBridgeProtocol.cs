@@ -256,20 +256,31 @@ public static class CompanionDiagnostics
 
 public static class OnboardingOutcomeMapper
 {
-    public static OnboardingPresentation From(AppSyncStatus status, int used, int limit, string? detail, bool usageUnavailable = false)
+    public static OnboardingPresentation From(
+        AppSyncStatus status,
+        int used,
+        int limit,
+        string? detail,
+        bool usageUnavailable = false,
+        bool usesServerCount = false)
     {
+        var reconstructed = used.ToString(CultureInfo.InvariantCulture) + "+";
         return status switch
         {
             AppSyncStatus.UpToDate => new OnboardingPresentation(
-                UiText.OnboardingUpToDate(used, limit),
+                usesServerCount
+                    ? UiText.OnboardingUpToDate(used, limit)
+                    : UiText.OnboardingConfirmed(reconstructed),
                 ShowCount: true,
                 AllowFinish: true,
                 AllowRetrySync: false,
                 AllowSignInAgain: false),
             AppSyncStatus.PartialData => new OnboardingPresentation(
                 usageUnavailable
-                    ? UiText.OnboardingIncompleteCount(limit)
-                    : UiText.OnboardingPartial(used, limit),
+                    ? UiText.OnboardingIncompleteConfirmed
+                    : usesServerCount
+                        ? UiText.OnboardingPartial(used, limit)
+                        : UiText.OnboardingPartialConfirmed(reconstructed),
                 ShowCount: !usageUnavailable,
                 AllowFinish: true,
                 AllowRetrySync: true,
@@ -288,7 +299,7 @@ public static class OnboardingOutcomeMapper
                 AllowSignInAgain: false),
             AppSyncStatus.ProviderSchemaMismatch => new OnboardingPresentation(
                 usageUnavailable
-                    ? UiText.OnboardingIncompleteCount(limit)
+                    ? UiText.OnboardingIncompleteConfirmed
                     : UiText.OnboardingSchemaMismatch,
                 ShowCount: false,
                 AllowFinish: true,

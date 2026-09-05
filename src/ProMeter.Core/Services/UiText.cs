@@ -38,6 +38,21 @@ public static class UiText
     public static string Coverage => T("Coverage", "데이터 상태");
     public static string DataStatus => T("Data status", "데이터 상태");
     public static string Remaining => T("Remaining", "남은 횟수");
+    public static string ExactRemaining => T("Exact remaining", "정확한 잔여 횟수");
+    public static string ExactRemainingUnavailable => T("Unavailable", "확인 불가");
+    public static string ConfirmedRequests => T("Confirmed requests", "확인된 요청");
+    public static string ConfirmedProRequests => T("Confirmed Pro requests", "확인된 Pro 요청");
+    public static string HistoryStatistics => T("History statistics", "기록 통계");
+    public static string ProRestricted => T("Restricted", "제한됨");
+    public static string ProNoServerRestriction => T("No server restriction observed", "서버 제한 없음");
+    public static string ProRestrictionMatchesReset => T(
+        "Server restriction matches the Pro model reset window",
+        "서버 제한과 Pro 모델 리셋 시각이 일치함");
+    public static string ServerReset => T("Server reset", "서버 리셋");
+    public static string ServerReason => T("Server reason", "서버 사유");
+    public static string MultipleProResets => T("Multiple model resets", "모델별 리셋이 다름");
+    public static string Stale => T("Stale", "오래됨");
+    public static string ReconstructedHistory => T("Reconstructed from history", "기록 재구성");
     public static string Reset => T("Reset", "리셋");
     public static string ResetTime => T("Reset time", "리셋 시각");
     public static string Estimate => T("Estimate", "추정 기준");
@@ -211,7 +226,21 @@ public static class UiText
     public static string CodexWindows => T("Codex windows", "Codex 기간");
     public static string CodexFailureCategory => T("Codex status detail", "Codex 상태 세부 정보");
     public static string Plan => T("PLAN", "요금제");
-    public static string ResetAnchor => T("RESET ANCHOR", "리셋 기준");
+    public static string ResetAnchor => T("RECONSTRUCTION WINDOW", "기록 재구성 기준");
+    public static string TaskbarStatusHint => T(
+        "Shows compact Pro/Codex status beside the Windows notification area.",
+        "Windows 알림 영역 옆에 간단한 Pro/Codex 상태를 표시합니다.");
+    public static string FloatingWidgetHint => T(
+        "Shows server Pro status, reset time, Codex usage and reconstructed history.",
+        "서버 Pro 상태, 리셋 시각, Codex 사용량, 재구성한 기록을 표시합니다.");
+    public static string WidgetOpacity => T("Widget opacity", "위젯 투명도");
+    public static string WidgetAlwaysOnTop => T("Always on top", "항상 위");
+    public static string WidgetClickThrough => T("Click through", "클릭 통과");
+    public static string WidgetClickThroughHint => T(
+        "When click-through is on, the widget ignores mouse input until you turn it off.",
+        "클릭 통과를 켜면 끌 때까지 위젯에서 마우스 입력을 받지 않습니다.");
+    public static string ToastProRestriction => T("A Pro restriction was detected.", "Pro 제한이 감지되었습니다.");
+    public static string ToastProRestrictionCleared => T("The Pro server restriction was cleared.", "Pro 서버 제한이 해제되었습니다.");
     public static string Connection => T("CONNECTION", "연결");
     public static string AppSection => T("APP", "앱");
     public static string Notifications => T("NOTIFICATIONS", "알림");
@@ -397,11 +426,11 @@ public static class UiText
         "WebView2 was not selected. A passing full verification and explicit confirmation are required.",
         "WebView2가 선택되지 않았습니다. 전체 검증 통과와 명시적 확인이 필요합니다.");
     public static string ResetAnchorHint => T(
-        "Weekday and time are estimates unless you confirm them below. Saving other settings does not confirm this anchor.",
-        "요일과 시각은 아래에서 확인하기 전까지 추정값입니다. 다른 설정을 저장해도 이 기준이 확정되지는 않습니다.");
+        "Used only for history statistics when a server reset time is unavailable. This is not the actual Pro quota reset.",
+        "서버 리셋을 확인할 수 없을 때 통계 구간에만 사용합니다. 실제 Pro 한도 리셋 시각을 의미하지 않습니다.");
     public static string ResetAnchorCheck => T(
-        "Use this reset anchor when the server reset time is unavailable",
-        "서버 리셋 시각을 모를 때 이 기준을 사용");
+        "Use this reconstruction window when the server reset time is unavailable",
+        "서버 리셋 시각을 모를 때 이 통계 구간을 사용");
     public static string ConnectionHint => T(
         "Browser companion uses your normal Chrome or Edge ChatGPT session and avoids embedded social OAuth. It does not make unofficial ChatGPT endpoints official. WebView2 is a fallback only when that sign-in method works. Google/Microsoft/Apple login inside WebView2 is unsupported. Data Export remains the lower-risk non-real-time fallback.",
         "브라우저 도우미는 Chrome 또는 Edge의 일반 ChatGPT 세션을 사용하며, 내장 소셜 로그인을 피합니다. 비공식 ChatGPT 엔드포인트가 공식 API가 되는 것은 아닙니다. WebView2는 그 방식으로 로그인이 될 때만 대체 경로입니다. WebView2 안의 Google/Microsoft/Apple 로그인은 지원하지 않습니다. 데이터 내보내기는 실시간은 아니지만 위험이 더 낮은 대체 수단입니다.");
@@ -486,6 +515,18 @@ public static class UiText
     public static string GptProUsageServer(string usage, int reconstructed) => T(
         $"GPT Pro usage: {usage}  (server · reconstructed {reconstructed})",
         $"GPT Pro 사용량: {usage}  (서버 · 재구성 {reconstructed})");
+    public static string GptProConfirmedHeadline(string count) => T(
+        $"Confirmed Pro requests {count}",
+        $"확인된 Pro 요청 {count}");
+    public static string OnboardingConfirmed(string count) => T(
+        $"Confirmed Pro requests {count}. Exact remaining count unavailable.",
+        $"확인된 Pro 요청 {count}. 정확한 잔여 횟수는 확인할 수 없습니다.");
+    public static string OnboardingPartialConfirmed(string count) => T(
+        $"Confirmed Pro requests {count}. Coverage is incomplete. Exact remaining count unavailable.",
+        $"확인된 Pro 요청 {count}. 데이터 상태가 불완전합니다. 정확한 잔여 횟수는 확인할 수 없습니다.");
+    public static string OnboardingIncompleteConfirmed => T(
+        "GPT Pro: exact remaining unavailable. Incomplete reconstruction.",
+        "GPT Pro: 정확한 잔여 횟수 확인 불가. 대화 기록 재구성이 불완전합니다.");
     public static string RemainingWithCount(string remaining) => T($" remaining {remaining}", $" 남은 횟수 {remaining}");
     public static string CurrentPeriod(string start, string end) => T($"Current period {start} – {end}", $"현재 기간 {start} – {end}");
     public static string Soon => T("soon", "곧");

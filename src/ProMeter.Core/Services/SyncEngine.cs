@@ -132,7 +132,9 @@ public sealed class SyncEngine
             }
 
             var periodReference = _clock.UtcNow;
-            var serverReset = LastQuotaMetadata?.WeeklyWindow(settings.PlanPreset)?.ResetAt;
+            var proStatus = LastQuotaMetadata?.ProServerStatus;
+            var proReset = proStatus?.ResetConfidence == ServerResetConfidence.Server ? proStatus.ResetAt : null;
+            var serverReset = proReset ?? LastQuotaMetadata?.WeeklyWindow(settings.PlanPreset)?.ResetAt;
             var (calculatedPeriodStart, _) = QuotaPeriodCalculator.CurrentPeriod(settings, periodReference, serverReset);
             var periodStart = options.PeriodStartOverride ?? calculatedPeriodStart;
             var minUpdate = periodStart.ToUnixTimeSeconds();

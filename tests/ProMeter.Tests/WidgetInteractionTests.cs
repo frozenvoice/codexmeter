@@ -1,0 +1,93 @@
+using System.Xml.Linq;
+using ProMeter.Services;
+
+namespace ProMeter.Tests;
+
+public class WidgetInteractionTests
+{
+    [Fact]
+    public void DragThreshold_SeparatesClickFromDrag()
+    {
+        Assert.True(WidgetInteraction.IsClick(0, 0, 2, 2));
+        Assert.False(WidgetInteraction.IsDrag(0, 0, 2, 2));
+        Assert.True(WidgetInteraction.IsDrag(0, 0, 10, 0));
+        Assert.False(WidgetInteraction.IsClick(0, 0, 10, 1));
+    }
+
+    [Fact]
+    public void EventSubscription_HappensOnlyOnce()
+    {
+        var binder = new OnceEventSubscription();
+        var count = 0;
+        Assert.True(binder.TrySubscribe(() => count++));
+        Assert.False(binder.TrySubscribe(() => count++));
+        Assert.Equal(1, count);
+        Assert.Equal(1, binder.Count);
+    }
+
+    [Fact]
+    public void FloatingWidgetXaml_UsesThemeResourcesAndHasNoExactQuotaPrototype()
+    {
+        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "FloatingWidget.xaml"));
+        var xaml = document.ToString();
+        Assert.Contains("CardBrush", xaml, StringComparison.Ordinal);
+        Assert.Contains("TextBrush", xaml, StringComparison.Ordinal);
+        Assert.Contains("MutedBrush", xaml, StringComparison.Ordinal);
+        Assert.Contains("AccentBrush", xaml, StringComparison.Ordinal);
+        Assert.Contains("OnPreviewLeftDown", xaml, StringComparison.Ordinal);
+        Assert.Contains("OnMouseDown", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("31/50", xaml, StringComparison.Ordinal);
+        var widgetCode = File.ReadAllText(Find("src/ProMeter/UI/FloatingWidget.xaml.cs"));
+        Assert.Contains("FlyoutRequested", widgetCode, StringComparison.Ordinal);
+        Assert.Contains("RefreshRequested", widgetCode, StringComparison.Ordinal);
+        Assert.Contains("ContextMenuRequested", widgetCode, StringComparison.Ordinal);
+        Assert.Contains("WidgetInteraction.IsDrag", widgetCode, StringComparison.Ordinal);
+        Assert.Contains("MouseButton.Middle", widgetCode, StringComparison.Ordinal);
+        var appCode = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
+        Assert.Contains("_widgetEvents.TrySubscribe", appCode, StringComparison.Ordinal);
+        Assert.Contains("RefreshProStatusAsync", appCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryGetConversation", appCode, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SettingsXaml_RenamesReconstructionWindowAndKeepsSurfaceToggles()
+    {
+        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "SettingsWindow.xaml"));
+        var xaml = document.ToString();
+        Assert.Contains("RECONSTRUCTION WINDOW", xaml, StringComparison.Ordinal);
+        Assert.Contains("WidgetBox", xaml, StringComparison.Ordinal);
+        Assert.Contains("TaskbarStatusBox", xaml, StringComparison.Ordinal);
+        Assert.Contains("WidgetOpacityBox", xaml, StringComparison.Ordinal);
+        Assert.Contains("WidgetClickThroughBox", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("RESET ANCHOR", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FlyoutXaml_HasServerStatusRows()
+    {
+        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "FlyoutWindow.xaml"));
+        var xaml = document.ToString();
+        Assert.Contains("ProStateText", xaml, StringComparison.Ordinal);
+        Assert.Contains("ServerResetText", xaml, StringComparison.Ordinal);
+        Assert.Contains("ExactRemainingText", xaml, StringComparison.Ordinal);
+        Assert.Contains("ConfirmedRequestsText", xaml, StringComparison.Ordinal);
+        Assert.Contains("CODEX", xaml, StringComparison.Ordinal);
+    }
+
+    private static string Find(string relative)
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, relative.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new FileNotFoundException(relative);
+    }
+}

@@ -24,6 +24,7 @@ public sealed class QuotaSnapshot
     public int ReconstructedUsed { get; set; }
     public bool UsesServerCount { get; set; }
     public bool DisplayUsageUnavailable { get; set; }
+    public ProServerStatus ProServerStatus { get; set; } = ProServerStatus.Unknown();
     public bool IsSyncing { get; set; }
     public int? SolProDailyLimit { get; set; }
     public int? CombinedDailyLimit { get; set; }

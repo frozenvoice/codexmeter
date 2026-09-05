@@ -37,6 +37,9 @@ public partial class SettingsWindow : Window
         IntervalBox.Text = settings.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture);
         StartupBox.IsChecked = settings.StartWithWindows;
         WidgetBox.IsChecked = settings.FloatingWidgetEnabled;
+        WidgetOpacityBox.Text = settings.WidgetOpacity.ToString("0.00", CultureInfo.InvariantCulture);
+        WidgetTopBox.IsChecked = settings.WidgetAlwaysOnTop;
+        WidgetClickThroughBox.IsChecked = settings.WidgetClickThrough;
         TaskbarStatusBox.IsChecked = settings.TaskbarStatusEnabled;
         CodexExeBox.Text = settings.CodexExePath ?? "";
         ThemeBox.SelectedIndex = (int)settings.Theme;
@@ -111,7 +114,10 @@ public partial class SettingsWindow : Window
             NotifyExhausted = NEx.IsChecked == true,
             NotifyReset = NReset.IsChecked == true,
             NotifySyncError = NErr.IsChecked == true,
-            ImportHistoricalStatistics = HistoricalBox.IsChecked == true
+            ImportHistoricalStatistics = HistoricalBox.IsChecked == true,
+            WidgetOpacity = ParseOpacity(WidgetOpacityBox.Text, _settings.WidgetOpacity),
+            WidgetAlwaysOnTop = WidgetTopBox.IsChecked == true,
+            WidgetClickThrough = WidgetClickThroughBox.IsChecked == true
         });
         Saved?.Invoke(_settings);
         Close();
@@ -297,7 +303,13 @@ public partial class SettingsWindow : Window
         IntervalLabel.Text = UiText.SyncInterval;
         StartupBox.Content = UiText.StartWithWindows;
         WidgetBox.Content = UiText.FloatingWidget;
+        WidgetHint.Text = UiText.FloatingWidgetHint;
+        WidgetOpacityLabel.Text = UiText.WidgetOpacity;
+        WidgetTopBox.Content = UiText.WidgetAlwaysOnTop;
+        WidgetClickThroughBox.Content = UiText.WidgetClickThrough;
+        WidgetClickThroughHint.Text = UiText.WidgetClickThroughHint;
         TaskbarStatusBox.Content = UiText.TaskbarStatusEnabled;
+        TaskbarStatusHint.Text = UiText.TaskbarStatusHint;
         CodexExeLabel.Text = UiText.CodexExePath;
         CodexExeHint.Text = UiText.CodexExePathHint;
         LanguageLabel.Text = UiText.LanguageCaption;
@@ -347,4 +359,9 @@ public partial class SettingsWindow : Window
 
     private static int? ParseNullable(string? text) =>
         int.TryParse(text, out var value) ? value : null;
+
+    private static double ParseOpacity(string? text, double fallback) =>
+        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+            ? Math.Clamp(value, 0.3, 1)
+            : fallback;
 }

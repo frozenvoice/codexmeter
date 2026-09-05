@@ -637,9 +637,27 @@ public static class BridgeProjection
         return true;
     }
 
+    private static readonly string[] QuotaItemKeys =
+    [
+        "feature_name", "name", "slug", "model", "model_slug", "used", "limit",
+        "resets_at", "reset_at", "resetAt", "resetsAt", "resets_after", "reset_after",
+        "period", "window", "description"
+    ];
+
+    private static readonly string[] BlockedFeatureKeys =
+    [
+        "name", "feature_name", "limit", "resets_after", "reset_after",
+        "resets_at", "reset_at", "resetsAt", "resetAt", "block_reason", "description"
+    ];
+
+    private static readonly string[] QuotaResetKeys =
+    [
+        "resets_at", "reset_at", "resetAt", "resetsAt", "resets_after", "reset_after"
+    ];
+
     private static bool IsQuota(JsonNode node, out string error)
     {
-        if (!ExpectObject(node, ["limits_progress", "model_limits"], 2, out var obj, out error))
+        if (!ExpectObject(node, ["limits_progress", "model_limits", "blocked_features"], 3, out var obj, out error))
         {
             return false;
         }
@@ -658,28 +676,62 @@ public static class BridgeProjection
 
             foreach (var item in items)
             {
-                if (!ExpectObject(item, ["feature_name", "name", "slug", "model", "model_slug", "used", "limit", "resets_at", "reset_at", "resetAt", "resetsAt", "period", "window"], 12, out var entry, out error))
+                if (!ExpectObject(item, QuotaItemKeys, QuotaItemKeys.Length, out var entry, out error))
                 {
                     return false;
                 }
 
                 foreach (var numeric in new[] { "used", "limit" })
                 {
-                    if (entry[numeric] is not null && !IsNumber(entry[numeric]))
+                    if (entry[numeric] is not null && !IsJsonNull(entry[numeric]) && !IsNumber(entry[numeric]))
                     {
                         return Fail("quota numeric field rejected", out error);
                     }
                 }
 
-                foreach (var stamp in new[] { "resets_at", "reset_at", "resetAt", "resetsAt" })
+                foreach (var stamp in QuotaResetKeys)
                 {
-                    if (entry[stamp] is not null && !IsString(entry[stamp]) && !IsNumber(entry[stamp]))
+                    if (entry[stamp] is not null && !IsJsonNull(entry[stamp]) && !IsString(entry[stamp]) && !IsNumber(entry[stamp]))
                     {
                         return Fail("quota reset field rejected", out error);
                     }
                 }
 
-                if (!OptionalStrings(entry, ["feature_name", "name", "slug", "model", "model_slug", "period", "window"], out error))
+                if (!OptionalStrings(entry, ["feature_name", "name", "slug", "model", "model_slug", "period", "window", "description"], out error))
+                {
+                    return false;
+                }
+            }
+        }
+
+        if (obj["blocked_features"] is JsonArray blocked)
+        {
+            if (blocked.Count > 200)
+            {
+                return Fail("quota list too large", out error);
+            }
+
+            foreach (var item in blocked)
+            {
+                if (!ExpectObject(item, BlockedFeatureKeys, BlockedFeatureKeys.Length, out var entry, out error))
+                {
+                    return false;
+                }
+
+                if (entry["limit"] is not null && !IsJsonNull(entry["limit"]) && !IsNumber(entry["limit"]))
+                {
+                    return Fail("quota numeric field rejected", out error);
+                }
+
+                foreach (var stamp in QuotaResetKeys)
+                {
+                    if (entry[stamp] is not null && !IsJsonNull(entry[stamp]) && !IsString(entry[stamp]) && !IsNumber(entry[stamp]))
+                    {
+                        return Fail("quota reset field rejected", out error);
+                    }
+                }
+
+                if (!OptionalNullableStrings(entry, ["name", "feature_name", "block_reason", "description"], out error))
                 {
                     return false;
                 }
@@ -746,6 +798,23 @@ public static class BridgeProjection
         error = "";
         return true;
     }
+
+    private static bool OptionalNullableStrings(JsonObject obj, IEnumerable<string> keys, out string error)
+    {
+        foreach (var key in keys)
+        {
+            if (obj[key] is not null && !IsJsonNull(obj[key]) && !IsString(obj[key]))
+            {
+                return Fail(key + " must be a string", out error);
+            }
+        }
+
+        error = "";
+        return true;
+    }
+
+    private static bool IsJsonNull(JsonNode? node) =>
+        node is JsonValue value && value.GetValueKind() == JsonValueKind.Null;
 
     private static bool IsString(JsonNode? node) =>
         node is JsonValue value && value.GetValueKind() == JsonValueKind.String;
@@ -1101,6 +1170,11 @@ public static class BridgeProjection
             result["model_limits"] = ProjectQuotaArray(models, "slug", "model", "model_slug", "name");
         }
 
+        if (node["blocked_features"] is JsonArray blocked)
+        {
+            result["blocked_features"] = ProjectBlockedFeatures(blocked);
+        }
+
         return result;
     }
 
@@ -1114,8 +1188,26 @@ public static class BridgeProjection
                 continue;
             }
 
-            var entry = Pick(obj, nameKeys.Concat(["used", "limit", "resets_at", "reset_at", "resetAt", "resetsAt", "period", "window"]).ToArray());
+            var entry = PickScalars(
+                obj,
+                nameKeys.Concat(["used", "limit", "resets_at", "reset_at", "resetAt", "resetsAt", "resets_after", "reset_after", "period", "window", "description"]).ToArray());
             projected.Add(entry);
+        }
+
+        return projected;
+    }
+
+    private static JsonArray ProjectBlockedFeatures(JsonArray items)
+    {
+        var projected = new JsonArray();
+        foreach (var item in ChatGptJson.Enumerate(items))
+        {
+            if (item is not JsonObject obj)
+            {
+                continue;
+            }
+
+            projected.Add(PickScalars(obj, BlockedFeatureKeys));
         }
 
         return projected;
@@ -1134,6 +1226,38 @@ public static class BridgeProjection
             if (source[key] is JsonNode node)
             {
                 result[key] = node.DeepClone();
+            }
+        }
+
+        return result;
+    }
+
+    private static JsonObject PickScalars(JsonObject? source, params string[] keys)
+    {
+        var result = new JsonObject();
+        if (source is null)
+        {
+            return result;
+        }
+
+        foreach (var key in keys)
+        {
+            if (!source.TryGetPropertyValue(key, out var node))
+            {
+                continue;
+            }
+
+            if (node is null)
+            {
+                result[key] = JsonNode.Parse("null");
+                continue;
+            }
+
+            if (node is JsonValue value
+                && value.GetValueKind() is JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True
+                    or JsonValueKind.False or JsonValueKind.Null)
+            {
+                result[key] = value.DeepClone();
             }
         }
 

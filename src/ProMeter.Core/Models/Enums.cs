@@ -95,6 +95,20 @@ public enum ResetAnchorSource
     Server
 }
 
+public enum ProRestrictionState
+{
+    Unknown,
+    NoCorrelatedRestrictionObserved,
+    CorrelatedRestriction
+}
+
+public enum ServerResetConfidence
+{
+    None,
+    Server,
+    Ambiguous
+}
+
 public enum TrayIconStyle
 {
     RemainingNumber,

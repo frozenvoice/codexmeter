@@ -111,7 +111,10 @@ public class SettingsApplicationTests
         NotifyExhausted = settings.NotifyExhausted,
         NotifyReset = settings.NotifyReset,
         NotifySyncError = settings.NotifySyncError,
-        ImportHistoricalStatistics = settings.ImportHistoricalStatistics
+        ImportHistoricalStatistics = settings.ImportHistoricalStatistics,
+        WidgetOpacity = settings.WidgetOpacity,
+        WidgetAlwaysOnTop = settings.WidgetAlwaysOnTop,
+        WidgetClickThrough = settings.WidgetClickThrough
     };
 }
 

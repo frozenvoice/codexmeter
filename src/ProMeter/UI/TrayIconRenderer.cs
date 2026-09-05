@@ -22,19 +22,24 @@ public static class TrayIconRenderer
         graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         graphics.Clear(DrawingColor.Transparent);
 
-        var unavailable = snapshot.DisplayUsageUnavailable;
-        var ratio = unavailable || snapshot.Limit <= 0
+        var presentation = ProStatusPresentation.From(snapshot);
+        var exact = presentation.ExactRemainingAvailable;
+        var ratio = !exact || snapshot.Limit <= 0
             ? 0
             : snapshot.Remaining / (double)snapshot.Limit;
-        var fill = unavailable
+        var fill = !presentation.ServerStatusKnown
             ? DrawingColor.FromArgb(251, 191, 36)
-            : ratio switch
-            {
-                <= 0 => DrawingColor.FromArgb(248, 113, 113),
-                <= 0.2 => DrawingColor.FromArgb(251, 191, 36),
-                _ => DrawingColor.FromArgb(59, 130, 246)
-            };
-        var text = DisplayFormatting.TrayIconText(snapshot);
+            : presentation.Restricted
+                ? DrawingColor.FromArgb(248, 113, 113)
+                : exact
+                    ? ratio switch
+                    {
+                        <= 0 => DrawingColor.FromArgb(248, 113, 113),
+                        <= 0.2 => DrawingColor.FromArgb(251, 191, 36),
+                        _ => DrawingColor.FromArgb(59, 130, 246)
+                    }
+                    : DrawingColor.FromArgb(59, 130, 246);
+        var text = presentation.TrayIconGlyph;
 
         if (style == TrayIconStyle.ProgressRing)
         {
@@ -43,9 +48,13 @@ public static class TrayIconRenderer
             var pad = size / 8f;
             var rect = new RectangleF(pad, pad, size - pad * 2, size - pad * 2);
             graphics.DrawArc(bg, rect, -90, 360);
-            if (!unavailable)
+            if (exact)
             {
                 graphics.DrawArc(fg, rect, -90, (float)(360 * ratio));
+            }
+            else
+            {
+                graphics.DrawArc(fg, rect, -90, presentation.Restricted ? 360 : 220);
             }
 
             DrawGlyph(graphics, text, size, DrawingColor.White);

@@ -9,8 +9,47 @@
         Topmost="True"
         ResizeMode="NoResize"
         SizeToContent="WidthAndHeight"
-        MouseLeftButtonDown="OnDrag">
-    <Border Background="{DynamicResource CardBrush}" CornerRadius="10" Padding="10,6" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1">
-        <TextBlock x:Name="Label" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold" FontSize="13"/>
+        PreviewMouseLeftButtonDown="OnPreviewLeftDown"
+        PreviewMouseMove="OnPreviewMouseMove"
+        PreviewMouseLeftButtonUp="OnPreviewLeftUp"
+        MouseDown="OnMouseDown">
+    <Border Background="{DynamicResource CardBrush}"
+            CornerRadius="10"
+            Padding="10,8"
+            BorderBrush="{DynamicResource LineBrush}"
+            BorderThickness="1"
+            MinWidth="168">
+        <StackPanel>
+            <DockPanel>
+                <TextBlock x:Name="ProStateValue"
+                           DockPanel.Dock="Right"
+                           Foreground="{DynamicResource TextBrush}"
+                           FontWeight="SemiBold"
+                           FontSize="12"/>
+                <TextBlock x:Name="ProLabel"
+                           Text="Pro"
+                           Foreground="{DynamicResource MutedBrush}"
+                           FontSize="12"/>
+            </DockPanel>
+            <TextBlock x:Name="ResetValue"
+                       Foreground="{DynamicResource AccentBrush}"
+                       FontSize="12"
+                       Margin="0,2,0,0"
+                       HorizontalAlignment="Right"/>
+            <DockPanel Margin="0,6,0,0">
+                <TextBlock x:Name="CodexValue"
+                           DockPanel.Dock="Right"
+                           Foreground="{DynamicResource TextBrush}"
+                           FontSize="12"/>
+                <TextBlock x:Name="CodexLabel"
+                           Text="Codex"
+                           Foreground="{DynamicResource MutedBrush}"
+                           FontSize="12"/>
+            </DockPanel>
+            <TextBlock x:Name="HistoryValue"
+                       Foreground="{DynamicResource MutedBrush}"
+                       FontSize="11"
+                       Margin="0,6,0,0"/>
+        </StackPanel>
     </Border>
 </Window>

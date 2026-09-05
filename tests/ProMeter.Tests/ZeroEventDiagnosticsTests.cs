@@ -46,7 +46,7 @@ public class ZeroEventDiagnosticsTests
             engine.LastStatus,
             engine.LastStatusDetail);
         Assert.True(snapshot.DisplayUsageUnavailable);
-        Assert.Equal("? / 50", DisplayFormatting.UsageLabel(snapshot));
+        Assert.Equal("?", DisplayFormatting.UsageLabel(snapshot));
         Assert.Equal("Incomplete reconstruction", DisplayFormatting.CountSourceLabel(snapshot));
         Assert.DoesNotContain("0 / 50", DisplayFormatting.UsageLabel(snapshot), StringComparison.Ordinal);
         Assert.DoesNotContain("0 / 50", DisplayFormatting.Headline(snapshot), StringComparison.Ordinal);
@@ -93,8 +93,9 @@ public class ZeroEventDiagnosticsTests
             engine.LastStatusDetail);
         Assert.False(snapshot.DisplayUsageUnavailable);
         Assert.Equal(0, snapshot.Used);
-        Assert.Equal("0 / 50", DisplayFormatting.UsageLabel(snapshot));
-        Assert.Contains("0 / 50", DisplayFormatting.Headline(snapshot), StringComparison.Ordinal);
+        Assert.Equal("0+", DisplayFormatting.UsageLabel(snapshot));
+        Assert.Contains("0+", DisplayFormatting.Headline(snapshot), StringComparison.Ordinal);
+        Assert.DoesNotContain("0 / 50", DisplayFormatting.UsageLabel(snapshot), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -117,7 +118,7 @@ public class ZeroEventDiagnosticsTests
             new QuotaMetadataSet(),
             AppSyncStatus.ProviderSchemaMismatch);
         Assert.True(snapshot.DisplayUsageUnavailable);
-        Assert.Equal("? / 50", DisplayFormatting.UsageLabel(snapshot));
+        Assert.Equal("?", DisplayFormatting.UsageLabel(snapshot));
         Assert.Equal("Incomplete reconstruction", DisplayFormatting.CountSourceLabel(snapshot));
     }
 

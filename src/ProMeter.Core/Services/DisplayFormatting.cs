@@ -26,6 +26,17 @@ public static class DisplayFormatting
 
     public static ResetDisplayInfo ResetDisplay(QuotaSnapshot snapshot)
     {
+        var presentation = ProStatusPresentation.From(snapshot);
+        if (presentation.HasServerReset && snapshot.ProServerStatus?.ResetAt is DateTimeOffset serverReset)
+        {
+            return new ResetDisplayInfo(UiText.ServerReset, FormatStamp(serverReset), null, null);
+        }
+
+        if (presentation.ResetAmbiguous)
+        {
+            return new ResetDisplayInfo(UiText.ServerReset, UiText.MultipleProResets, null, null);
+        }
+
         if (snapshot.ResetAt is null)
         {
             return new ResetDisplayInfo(UiText.ResetTime, UiText.NotConfirmed, null, null);
@@ -34,7 +45,7 @@ public static class DisplayFormatting
         var stamp = FormatStamp(snapshot.ResetAt.Value);
         return snapshot.ResetAnchorSource switch
         {
-            ResetAnchorSource.Server => new ResetDisplayInfo(UiText.ResetTime, UiText.ResetServer(stamp), null, null),
+            ResetAnchorSource.Server => new ResetDisplayInfo(UiText.ServerReset, UiText.ResetServer(stamp), null, null),
             ResetAnchorSource.UserConfigured => new ResetDisplayInfo(UiText.ResetTime, UiText.ResetUserConfigured(stamp), null, null),
             _ => new ResetDisplayInfo(UiText.ResetTime, UiText.NotConfirmed, UiText.Estimate, stamp)
         };
@@ -107,13 +118,16 @@ public static class DisplayFormatting
 
     public static string UsageLabel(QuotaSnapshot snapshot)
     {
-        var used = snapshot.DisplayUsageUnavailable
-            ? "?"
-            : snapshot.Used.ToString(CultureInfo.InvariantCulture);
-        return $"{used} / {snapshot.Limit}";
+        var presentation = ProStatusPresentation.From(snapshot);
+        return presentation.ExactRemainingAvailable
+            ? $"{snapshot.Used} / {snapshot.Limit}"
+            : presentation.ReconstructedText;
     }
 
-    public static string TrayIconText(QuotaSnapshot snapshot)
+    public static string TrayIconText(QuotaSnapshot snapshot) =>
+        ProStatusPresentation.From(snapshot).TrayIconGlyph;
+
+    public static string AuthoritativeRemainingGlyph(QuotaSnapshot snapshot)
     {
         if (snapshot.DisplayUsageUnavailable)
         {
@@ -125,19 +139,8 @@ public static class DisplayFormatting
             : snapshot.Remaining.ToString(CultureInfo.InvariantCulture);
     }
 
-    public static string CountSourceLabel(QuotaSnapshot snapshot)
-    {
-        var label = snapshot.DisplayUsageUnavailable
-            ? UiText.IncompleteReconstruction
-            : snapshot.UsesServerCount
-                ? UiText.ServerCount(snapshot.ReconstructedUsed)
-                : snapshot.Coverage.CountConfidence == CoverageConfidence.HighConfidence
-                    ? UiText.ReconstructedHigh
-                    : UiText.ReconstructedEstimated;
-        return snapshot.IsSyncing && snapshot.LastSync is not null
-            ? $"{UiText.PreviousData} · {label}"
-            : label;
-    }
+    public static string CountSourceLabel(QuotaSnapshot snapshot) =>
+        ProStatusPresentation.From(snapshot).CountSourceText;
 
     public static string OverallCollectionLabel(CoverageInfo coverage) => coverage.OverallState switch
     {
@@ -179,37 +182,11 @@ public static class DisplayFormatting
     };
 
     public static string Headline(QuotaSnapshot snapshot) =>
-        snapshot.UsesServerCount
-            ? UiText.GptProUsageServer(UsageLabel(snapshot), snapshot.ReconstructedUsed)
-            : UiText.GptProUsage(UsageLabel(snapshot));
+        ProStatusPresentation.From(snapshot).Headline;
 
-    public static string TrayTooltip(QuotaSnapshot snapshot)
-    {
-        var remaining = snapshot.DisplayUsageUnavailable
-            ? "?"
-            : snapshot.Remaining.ToString(CultureInfo.InvariantCulture);
-        var state = snapshot.IsSyncing
-            ? StatusLabel(snapshot)
-            : snapshot.LastSync is DateTimeOffset
-                ? $"{UiText.LastSync}: {LastSyncLabel(snapshot.LastSync)}"
-                : StatusLabel(snapshot);
-        return NotifyIconText.Safe(
-            $"{UiText.ProductName}\n{UiText.GptPro}: {UsageLabel(snapshot)} · {UiText.Remaining}: {remaining}\n{state}");
-    }
+    public static string TrayTooltip(QuotaSnapshot snapshot) =>
+        ProStatusPresentation.From(snapshot).TrayTooltip(snapshot);
 
-    public static string Tooltip(QuotaSnapshot snapshot)
-    {
-        var reset = ResetDisplay(snapshot);
-        var resetLine = reset.EstimateValue is null
-            ? $"{reset.TimeLabel}: {reset.TimeValue}"
-            : $"{reset.TimeLabel}: {reset.TimeValue}\n{reset.EstimateLabel}: {reset.EstimateValue}";
-        return $"""
-            {UiText.ProductName}
-            {UiText.GptPro}: {UsageLabel(snapshot)}
-            {UiText.Remaining}: {(snapshot.DisplayUsageUnavailable ? "?" : snapshot.Remaining.ToString(CultureInfo.InvariantCulture))}
-            {resetLine}
-            {UiText.LastSync}: {LastSyncLabel(snapshot.LastSync)}
-            {UiText.DataStatus}: {CoverageFlyoutValue(snapshot)}
-            """;
-    }
+    public static string Tooltip(QuotaSnapshot snapshot) =>
+        ProStatusPresentation.From(snapshot).DetailedTooltip(snapshot);
 }

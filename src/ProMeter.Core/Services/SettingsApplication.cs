@@ -31,6 +31,9 @@ public sealed record SettingsEdit
     public bool NotifyReset { get; set; }
     public bool NotifySyncError { get; set; }
     public bool ImportHistoricalStatistics { get; set; }
+    public double WidgetOpacity { get; set; } = 0.92;
+    public bool WidgetAlwaysOnTop { get; set; } = true;
+    public bool WidgetClickThrough { get; set; }
 }
 
 public static class SettingsApplication
@@ -67,5 +70,8 @@ public static class SettingsApplication
         target.NotifyReset = edit.NotifyReset;
         target.NotifySyncError = edit.NotifySyncError;
         target.ImportHistoricalStatistics = edit.ImportHistoricalStatistics;
+        target.WidgetOpacity = Math.Clamp(edit.WidgetOpacity, 0.3, 1);
+        target.WidgetAlwaysOnTop = edit.WidgetAlwaysOnTop;
+        target.WidgetClickThrough = edit.WidgetClickThrough;
     }
 }

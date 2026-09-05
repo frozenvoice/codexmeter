@@ -166,7 +166,7 @@ public class CompanionBridgeFailureTests
         Assert.Contains("companion-reconnect.js", background, StringComparison.Ordinal);
         Assert.Contains("chrome.alarms", background, StringComparison.Ordinal);
         Assert.DoesNotContain("pairingToken", background, StringComparison.Ordinal);
-        Assert.Equal(1, ProMeterCanonicalPageBridgeVersion());
+        Assert.Equal(2, ProMeterCanonicalPageBridgeVersion());
     }
 
     private static int ProMeterCanonicalPageBridgeVersion()

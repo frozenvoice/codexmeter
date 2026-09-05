@@ -207,7 +207,7 @@ public class TrayIconTextTests
         Assert.Equal(50, snapshot.Remaining);
         Assert.Equal("?", DisplayFormatting.TrayIconText(snapshot));
         Assert.NotEqual("50", DisplayFormatting.TrayIconText(snapshot));
-        Assert.Equal("? / 50", DisplayFormatting.UsageLabel(snapshot));
+        Assert.Equal("?", DisplayFormatting.UsageLabel(snapshot));
     }
 
     [Fact]
@@ -216,7 +216,8 @@ public class TrayIconTextTests
         var snapshot = new QuotaSnapshot
         {
             Limit = 50,
-            Used = 12
+            Used = 12,
+            UsesServerCount = true
         };
         Assert.Equal("38", DisplayFormatting.TrayIconText(snapshot));
     }

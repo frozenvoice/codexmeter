@@ -37,22 +37,39 @@ public partial class FlyoutWindow : Window
         bool combinedManual = false)
     {
         ApplyLocalizedTexts();
+        var presentation = ProStatusPresentation.From(snapshot);
         StatusText.Text = DisplayFormatting.StatusLabel(snapshot);
-        ProCountText.Text = DisplayFormatting.UsageLabel(snapshot);
-        RemainingText.Text = snapshot.DisplayUsageUnavailable
-            ? "?"
-            : snapshot.Remaining.ToString(CultureInfo.InvariantCulture);
-        CountSourceText.Text = DisplayFormatting.CountSourceLabel(snapshot);
+        ProStateText.Text = presentation.ProStateText;
+        ServerResetText.Text = presentation.ResetText;
+        ExactRemainingText.Text = presentation.ExactRemainingText;
+        RestrictionDetailText.Text = presentation.RestrictionDetail;
+        RestrictionDetailText.Visibility = string.IsNullOrWhiteSpace(presentation.RestrictionDetail)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        ConfirmedRequestsText.Text = presentation.ConfirmedRequestsText;
+        CountSourceText.Text = presentation.CountSourceText;
+        AuthoritativeCountPanel.Visibility = presentation.ExactRemainingAvailable ? Visibility.Visible : Visibility.Collapsed;
+        if (presentation.ExactRemainingAvailable)
+        {
+            ProCountText.Text = $"{snapshot.Used} / {snapshot.Limit}";
+        }
+
         var showPro200 = snapshot.SolProDailyLimit is not null || snapshot.CombinedDailyLimit is not null;
         Pro200Panel.Visibility = showPro200 ? Visibility.Visible : Visibility.Collapsed;
         if (showPro200)
         {
-            Gpt6WeekText.Text = $"{snapshot.Gpt6WeeklyUsed} / {snapshot.Limit}{UiText.RemainingWithCount(Math.Max(0, snapshot.Limit - snapshot.Gpt6WeeklyUsed).ToString(CultureInfo.InvariantCulture))}";
+            Gpt6WeekText.Text = snapshot.UsesServerCount
+                ? $"{snapshot.Gpt6WeeklyUsed} / {snapshot.Limit}"
+                : $"{snapshot.Gpt6WeeklyUsed}+";
             SolDailyText.Text = snapshot.SolProDailyLimit is int sol
-                ? $"{snapshot.TodaySolPro} / {sol}{UiText.RemainingWithCount(snapshot.SolProDailyRemaining.ToString(CultureInfo.InvariantCulture))}"
+                ? snapshot.UsesServerCount
+                    ? $"{snapshot.TodaySolPro} / {sol}"
+                    : $"{snapshot.TodaySolPro}+"
                 : "—";
             CombinedDailyText.Text = snapshot.CombinedDailyLimit is int combined
-                ? $"{snapshot.CombinedToday} / {combined}{UiText.RemainingWithCount(snapshot.CombinedDailyRemaining.ToString(CultureInfo.InvariantCulture))}"
+                ? snapshot.UsesServerCount
+                    ? $"{snapshot.CombinedToday} / {combined}"
+                    : $"{snapshot.CombinedToday}+"
                 : "—";
         }
 
@@ -92,6 +109,12 @@ public partial class FlyoutWindow : Window
 
         Dispatcher.BeginInvoke(() =>
         {
+            if (!presentation.ExactRemainingAvailable)
+            {
+                ProBar.Width = 0;
+                return;
+            }
+
             var width = Math.Max(8, (ProBar.Parent as FrameworkElement)?.ActualWidth * snapshot.PercentUsed ?? 0);
             ProBar.Width = width;
         });
@@ -168,7 +191,11 @@ public partial class FlyoutWindow : Window
 
     public void ApplyLocalizedTexts()
     {
-        RemainingLabel.Text = UiText.Remaining;
+        ProStateLabel.Text = UiText.T("Status", "상태");
+        ServerResetLabel.Text = UiText.ServerReset;
+        ExactRemainingLabel.Text = UiText.ExactRemaining;
+        HistoryStatsLabel.Text = UiText.HistoryStatistics;
+        ConfirmedRequestsLabel.Text = UiText.ConfirmedProRequests;
         Gpt6WeekLabel.Text = UiText.Gpt6ProWeek;
         SolDailyLabel.Text = UiText.SolProDaily;
         CombinedDailyLabel.Text = UiText.CombinedDaily;

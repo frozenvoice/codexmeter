@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ProMeter Settings"
         Width="520"
-        Height="760"
+        Height="840"
         WindowStartupLocation="CenterScreen"
         Style="{StaticResource AppWindow}">
     <ScrollViewer Padding="24">
@@ -36,8 +36,8 @@
                 <TextBox x:Name="ReasoningBox" Grid.Row="4" Grid.Column="1" Margin="0,4"/>
             </Grid>
 
-            <TextBlock x:Name="ResetTitle" Style="{StaticResource SectionTitle}" Text="RESET ANCHOR"/>
-            <TextBlock x:Name="ResetHint" Text="Weekday and time are estimates unless you confirm them below. Saving other settings does not confirm this anchor."
+            <TextBlock x:Name="ResetTitle" Style="{StaticResource SectionTitle}" Text="RECONSTRUCTION WINDOW"/>
+            <TextBlock x:Name="ResetHint" Text="Used only for history statistics when a server reset time is unavailable. This is not the actual Pro quota reset."
                        Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,0,0,8"/>
             <DockPanel>
                 <ComboBox x:Name="WeekdayBox" Width="140">
@@ -86,7 +86,16 @@
             </DockPanel>
             <CheckBox x:Name="StartupBox" Content="Start with Windows" Foreground="{DynamicResource TextBrush}" Margin="0,8,0,4"/>
             <CheckBox x:Name="WidgetBox" Content="Floating widget" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
+            <TextBlock x:Name="WidgetHint" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="18,0,0,4"/>
+            <DockPanel x:Name="WidgetOptionsPanel" Margin="18,0,0,4">
+                <TextBlock x:Name="WidgetOpacityLabel" Text="Opacity" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBox x:Name="WidgetOpacityBox" Width="64" DockPanel.Dock="Right" HorizontalAlignment="Right" Margin="8,0,0,0"/>
+            </DockPanel>
+            <CheckBox x:Name="WidgetTopBox" Content="Always on top" Foreground="{DynamicResource TextBrush}" Margin="18,2,0,0"/>
+            <CheckBox x:Name="WidgetClickThroughBox" Content="Click through" Foreground="{DynamicResource TextBrush}" Margin="18,2,0,0"/>
+            <TextBlock x:Name="WidgetClickThroughHint" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="18,0,0,4"/>
             <CheckBox x:Name="TaskbarStatusBox" Content="Always show taskbar status" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>
+            <TextBlock x:Name="TaskbarStatusHint" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="18,0,0,4"/>
             <TextBlock x:Name="CodexExeLabel" Text="Codex executable path (optional)" Foreground="{DynamicResource MutedBrush}" Margin="0,8,0,4"/>
             <TextBox x:Name="CodexExeBox" Margin="0,0,0,4"/>
             <TextBlock x:Name="CodexExeHint" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,0,0,4"/>

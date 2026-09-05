@@ -22,8 +22,8 @@ public class TaskbarStatusLayoutTests
     [Fact]
     public void CompactAndUltra_FallBackWhenGapShrinks()
     {
-        Assert.Equal(TaskbarStripMode.Compact, TaskbarStatusPositioner.Place(Bottom(gap: 100)).Mode);
-        Assert.Equal(TaskbarStripMode.UltraCompact, TaskbarStatusPositioner.Place(Bottom(gap: 80)).Mode);
+        Assert.Equal(TaskbarStripMode.Compact, TaskbarStatusPositioner.Place(Bottom(gap: 130)).Mode);
+        Assert.Equal(TaskbarStripMode.UltraCompact, TaskbarStatusPositioner.Place(Bottom(gap: 100)).Mode);
         var above = TaskbarStatusPositioner.Place(Bottom(gap: 20));
         Assert.Equal(TaskbarStripMode.AboveTaskbar, above.Mode);
         Assert.True(above.Bounds.Bottom <= 1032);
@@ -184,7 +184,7 @@ public class TaskbarStatusLayoutTests
     [Fact]
     public void Formatting_CoversUnavailableStaleRefreshingAndModes()
     {
-        var gpt = new QuotaSnapshot { Used = 31, Limit = 50 };
+        var gpt = new QuotaSnapshot { Used = 31, Limit = 50, ReconstructedUsed = 31 };
         var weekly = new CodexQuotaSnapshot(
             CodexQuotaStatus.Available,
             null,
@@ -195,9 +195,10 @@ public class TaskbarStatusLayoutTests
             null,
             [new CodexQuotaWindow(null, 42, 10080, null, CodexWindowKind.Weekly)],
             null);
-        Assert.Equal("P 31/50 · C 42%", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.Full));
-        Assert.Equal("P31  C42%", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.Compact));
-        Assert.Equal("P31 C42", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.UltraCompact));
+        Assert.Equal("P? · C 42%", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.Full));
+        Assert.Equal("P? C42%", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.Compact));
+        Assert.Equal("P? C42", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.UltraCompact));
+        Assert.DoesNotContain("31/50", TaskbarStatusFormatter.Format(gpt, weekly, TaskbarStripMode.Full), StringComparison.Ordinal);
 
         var missing = new QuotaSnapshot { DisplayUsageUnavailable = true, Limit = 50 };
         var none = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
@@ -212,7 +213,7 @@ public class TaskbarStatusLayoutTests
     [Fact]
     public void Tooltips_ExistInKoreanAndEnglish()
     {
-        var gpt = new QuotaSnapshot { Used = 31, Limit = 50 };
+        var gpt = new QuotaSnapshot { Used = 31, Limit = 50, ReconstructedUsed = 31 };
         var weekly = new CodexQuotaSnapshot(
             CodexQuotaStatus.Available,
             null,
@@ -225,13 +226,16 @@ public class TaskbarStatusLayoutTests
             null);
         UiText.SetLanguage(UiLanguage.English);
         var english = TaskbarStatusFormatter.Tooltip(gpt, weekly);
-        Assert.Contains("GPT Pro usage 31/50", english, StringComparison.Ordinal);
+        Assert.Contains("GPT Pro:", english, StringComparison.Ordinal);
+        Assert.Contains("31+", english, StringComparison.Ordinal);
+        Assert.DoesNotContain("31/50", english, StringComparison.Ordinal);
         Assert.Contains("weekly", english, StringComparison.OrdinalIgnoreCase);
         UiText.SetLanguage(UiLanguage.Korean);
         try
         {
             var korean = TaskbarStatusFormatter.Tooltip(gpt, weekly);
-            Assert.Contains("GPT Pro 사용 31/50", korean, StringComparison.Ordinal);
+            Assert.Contains("GPT Pro:", korean, StringComparison.Ordinal);
+            Assert.Contains("31+", korean, StringComparison.Ordinal);
             Assert.Contains("주간", korean, StringComparison.Ordinal);
             Assert.Contains("마지막 확인", korean, StringComparison.Ordinal);
         }
@@ -258,8 +262,8 @@ public class TaskbarStatusLayoutTests
     public void WidthDecision_UsesAvailableGap()
     {
         Assert.Equal(TaskbarStripMode.Full, TaskbarStatusPositioner.ChooseMode(200, 1));
-        Assert.Equal(TaskbarStripMode.Compact, TaskbarStatusPositioner.ChooseMode(100, 1));
-        Assert.Equal(TaskbarStripMode.UltraCompact, TaskbarStatusPositioner.ChooseMode(80, 1));
+        Assert.Equal(TaskbarStripMode.Compact, TaskbarStatusPositioner.ChooseMode(120, 1));
+        Assert.Equal(TaskbarStripMode.UltraCompact, TaskbarStatusPositioner.ChooseMode(90, 1));
         Assert.Equal(TaskbarStripMode.AboveTaskbar, TaskbarStatusPositioner.ChooseMode(20, 1));
     }
 

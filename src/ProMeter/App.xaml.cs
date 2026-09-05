@@ -33,6 +33,8 @@ public partial class App : Application
     private ToastNotificationService _toasts = null!;
     private readonly DispatcherTimer _timer = new();
     private readonly DispatcherTimer _codexTimer = new();
+    private readonly DispatcherTimer _proStatusTimer = new();
+    private readonly DispatcherTimer _proResetRecheckTimer = new() { Interval = TimeSpan.FromSeconds(8) };
     private FlyoutWindow? _flyout;
     private MainWindow? _main;
     private FloatingWidget? _widget;
@@ -42,6 +44,8 @@ public partial class App : Application
     private readonly WebViewOperationGate _webViewOperation = new();
     private CodexQuotaService _codex = null!;
     private CombinedRefreshCoordinator _refresh = null!;
+    private ProServerStatusService _proStatus = null!;
+    private readonly OnceEventSubscription _widgetEvents = new();
     private readonly CodexExecutableLocator _codexLocator = new(new WindowsCodexFileSystem());
     private readonly CancellationTokenSource _lifetime = new();
 
@@ -102,6 +106,8 @@ public partial class App : Application
             (force, _) => SyncAsync(force, SyncOrigin.Manual),
             ct => _codex.RefreshAsync(_settings.CodexExePath, ct));
         _refresh.StateChanged += () => Dispatcher.BeginInvoke(RefreshSnapshot);
+        _proStatus = new ProServerStatusService();
+        _proStatus.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
         _tray.LoginRequested += () => _ = SignInAsync();
         _tray.SettingsRequested += ShowSettings;
         _tray.OpenLogsRequested += OpenLogs;
@@ -132,7 +138,25 @@ public partial class App : Application
                 await _codex.RefreshAsync(_settings.CodexExePath, _lifetime.Token);
             }
         };
+        _proStatusTimer.Interval = ProServerStatusService.RefreshInterval;
+        _proStatusTimer.Tick += async (_, _) =>
+        {
+            if (ProServerStatusService.ShouldPeriodicRefresh(_settings)
+                && _settings.AuthTransport == AuthTransportKind.BrowserCompanion)
+            {
+                await RefreshProStatusAsync(notifyFailure: false);
+            }
+        };
+        _proResetRecheckTimer.Tick += async (_, _) =>
+        {
+            _proResetRecheckTimer.Stop();
+            if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion)
+            {
+                await RefreshProStatusAsync(notifyFailure: false);
+            }
+        };
         ApplyCodexTimer();
+        ApplyProStatusTimer();
 
         if (!_settings.FirstRunCompleted)
         {
@@ -152,6 +176,16 @@ public partial class App : Application
             await _codex.RefreshAsync(_settings.CodexExePath, _lifetime.Token);
         };
         startupCodex.Start();
+        if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion)
+        {
+            var startupStatus = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+            startupStatus.Tick += async (_, _) =>
+            {
+                startupStatus.Stop();
+                await RefreshProStatusAsync(notifyFailure: false);
+            };
+            startupStatus.Start();
+        }
     }
 
     private void RunWelcome()
@@ -245,7 +279,13 @@ public partial class App : Application
 
             welcome.SetBusy(UiText.RunningFirstSync);
             var outcome = await SyncAsync(true, SyncOrigin.Manual);
-            welcome.ApplyOutcome(OnboardingOutcomeMapper.From(outcome.Status, _snapshot.Used, _snapshot.Limit, outcome.Detail, _snapshot.DisplayUsageUnavailable));
+            welcome.ApplyOutcome(OnboardingOutcomeMapper.From(
+                outcome.Status,
+                _snapshot.Used,
+                _snapshot.Limit,
+                outcome.Detail,
+                _snapshot.DisplayUsageUnavailable,
+                _snapshot.UsesServerCount));
             _log.Info("welcome sync " + outcome.Status);
         };
         if (welcome.ShowDialog() == true)
@@ -274,6 +314,8 @@ public partial class App : Application
                 _settings,
                 force,
                 new SyncRunOptions { Origin = origin });
+            _proStatus.ApplyFromMetadata(_sync.LastQuotaMetadata);
+            ScheduleProResetRecheck();
             ApplySyncFailurePresentation(outcome, origin);
             return outcome;
         }
@@ -314,13 +356,19 @@ public partial class App : Application
     private void RefreshSnapshot()
     {
         var events = _store.GetUsageEvents();
+        var metadata = _sync.LastQuotaMetadata ?? new QuotaMetadataSet();
+        if (_proStatus.Current.ServerObserved)
+        {
+            metadata.ProServerStatus = _proStatus.Current;
+        }
+
         _snapshot = _quota.Build(
             events,
             _settings,
             DateTimeOffset.Now,
             _sync.LastSyncCompleted,
             _sync.LastCoverage,
-            _sync.LastQuotaMetadata,
+            metadata,
             _sync.LastStatus,
             _sync.LastStatusDetail);
         _snapshot.IsSyncing = _syncing;
@@ -337,7 +385,7 @@ public partial class App : Application
             _syncing || _refresh.ChatGptRefreshing,
             _codex.IsRefreshing || _refresh.CodexRefreshing,
             _refresh.ManualRefreshInProgress);
-        _widget?.Bind(_snapshot);
+        _widget?.Bind(_snapshot, _codex.Snapshot);
         _taskbarStrip?.Bind(_snapshot, _codex.Snapshot);
         if (_main is { IsVisible: true })
         {
@@ -346,8 +394,12 @@ public partial class App : Application
         }
     }
 
-    private Task RefreshAllAsync(bool forceChatGpt, CancellationToken cancellationToken) =>
-        _refresh.RefreshAllAsync(forceChatGpt, cancellationToken);
+    private async Task RefreshAllAsync(bool forceChatGpt, CancellationToken cancellationToken)
+    {
+        var status = RefreshProStatusAsync(notifyFailure: false);
+        await _refresh.RefreshAllAsync(forceChatGpt, cancellationToken);
+        await status;
+    }
 
     private void ToggleFlyout() => ToggleFlyout(FlyoutOpenSource.Tray, null, null);
 
@@ -396,6 +448,12 @@ public partial class App : Application
         {
             _ = _codex.RefreshAsync(_settings.CodexExePath, _lifetime.Token);
         }
+
+        if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion
+            && ProServerStatusService.ShouldRefreshOnFlyoutOpen(_proStatus.Current, DateTimeOffset.Now))
+        {
+            _ = RefreshProStatusAsync(notifyFailure: false);
+        }
     }
 
     private void ShowMain()
@@ -437,6 +495,7 @@ public partial class App : Application
             _main?.ApplyLocalizedTexts();
             ApplyWidget();
             ApplyCodexTimer();
+            ApplyProStatusTimer();
             ApplyTaskbarStrip();
             _taskbarStrip?.ApplyThemeResources();
             RefreshSnapshot();
@@ -727,6 +786,59 @@ public partial class App : Application
         }
     }
 
+    private void ApplyProStatusTimer()
+    {
+        if (ProServerStatusService.ShouldPeriodicRefresh(_settings)
+            && _settings.AuthTransport == AuthTransportKind.BrowserCompanion)
+        {
+            _proStatusTimer.Start();
+            ScheduleProResetRecheck();
+        }
+        else
+        {
+            _proStatusTimer.Stop();
+            _proResetRecheckTimer.Stop();
+        }
+    }
+
+    private void ScheduleProResetRecheck()
+    {
+        _proResetRecheckTimer.Stop();
+        var due = ProServerStatusService.NextResetRecheck(_proStatus.Current, DateTimeOffset.Now);
+        if (due is null)
+        {
+            return;
+        }
+
+        var delay = due.Value - DateTimeOffset.Now;
+        if (delay < TimeSpan.Zero)
+        {
+            delay = ProServerStatusService.ResetRecheckMin;
+        }
+
+        _proResetRecheckTimer.Interval = delay;
+        _proResetRecheckTimer.Start();
+    }
+
+    private async Task RefreshProStatusAsync(bool notifyFailure)
+    {
+        try
+        {
+            await _proStatus.RefreshAsync(_provider, _lifetime.Token);
+            ScheduleProResetRecheck();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (notifyFailure)
+            {
+                _log.Warn("pro status refresh failed: " + AppLog.Sanitize(ex.Message));
+            }
+        }
+    }
+
     private void ApplyTaskbarStrip()
     {
         if (!_settings.TaskbarStatusEnabled)
@@ -762,14 +874,20 @@ public partial class App : Application
         }
 
         _widget ??= new FloatingWidget();
-        _widget.Moved += (left, top) =>
+        _widgetEvents.TrySubscribe(() =>
         {
-            _settings.WidgetLeft = left;
-            _settings.WidgetTop = top;
-            _settingsStore.Save(_settings);
-        };
+            _widget.Moved += (left, top) =>
+            {
+                _settings.WidgetLeft = left;
+                _settings.WidgetTop = top;
+                _settingsStore.Save(_settings);
+            };
+            _widget.FlyoutRequested += ToggleFlyout;
+            _widget.RefreshRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
+            _widget.ContextMenuRequested += () => _tray.ShowContextMenu();
+        });
         _widget.Apply(_settings);
-        _widget.Bind(_snapshot);
+        _widget.Bind(_snapshot, _codex.Snapshot);
         _widget.Show();
     }
 
@@ -813,6 +931,8 @@ public partial class App : Application
         _lifetime.Cancel();
         _timer.Stop();
         _codexTimer.Stop();
+        _proStatusTimer.Stop();
+        _proResetRecheckTimer.Stop();
         _taskbarStrip?.Close();
         _taskbarStrip = null;
         _tray.Dispose();

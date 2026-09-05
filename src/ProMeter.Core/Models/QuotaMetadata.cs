@@ -18,6 +18,7 @@ public sealed class QuotaMetadataSet
     public QuotaWindow? SolProDaily { get; set; }
     public QuotaWindow? CombinedProDaily { get; set; }
     public List<QuotaWindow> Diagnostics { get; } = [];
+    public ProServerStatus ProServerStatus { get; set; } = ProServerStatus.Unknown();
     public string? RawSummary { get; set; }
 
     public bool Found =>
@@ -25,7 +26,9 @@ public sealed class QuotaMetadataSet
         || Gpt6ProWeekly is not null
         || SolProDaily is not null
         || CombinedProDaily is not null
-        || Diagnostics.Count > 0;
+        || Diagnostics.Count > 0
+        || ProServerStatus.ModelLimits.Count > 0
+        || ProServerStatus.RestrictionState == ProRestrictionState.CorrelatedRestriction;
 
     public bool MatchesGptProAllowance =>
         SharedProWeekly is not null

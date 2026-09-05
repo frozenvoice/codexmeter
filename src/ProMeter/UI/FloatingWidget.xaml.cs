@@ -1,21 +1,38 @@
 using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
+using ProMeter.Codex;
 
 namespace ProMeter.UI;
 
 public partial class FloatingWidget : Window
 {
     public event Action<double, double>? Moved;
+    public event Action? FlyoutRequested;
+    public event Action? RefreshRequested;
+    public event Action? ContextMenuRequested;
+
+    private System.Windows.Point _dragStart;
+    private bool _dragging;
+    private bool _leftDown;
 
     public FloatingWidget()
     {
         InitializeComponent();
     }
 
-    public void Bind(QuotaSnapshot snapshot)
+    public void Bind(QuotaSnapshot snapshot, CodexQuotaSnapshot? codex = null)
     {
-        Label.Text = $"Pro {DisplayFormatting.UsageLabel(snapshot)} | XH {snapshot.Reasoning.ExtraHigh}";
+        var presentation = ProStatusPresentation.From(snapshot);
+        ProLabel.Text = UiText.GptPro;
+        ProStateValue.Text = presentation.ProStateText;
+        var reset = WidgetStatusFormatter.ResetLine(presentation);
+        ResetValue.Text = reset;
+        ResetValue.Visibility = string.IsNullOrWhiteSpace(reset) ? Visibility.Collapsed : Visibility.Visible;
+        var codexSnapshot = codex ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
+        CodexLabel.Text = "Codex";
+        CodexValue.Text = WidgetStatusFormatter.CodexLine(codexSnapshot).Replace("Codex ", "", StringComparison.Ordinal);
+        HistoryValue.Text = WidgetStatusFormatter.HistoryLine(presentation, snapshot);
     }
 
     public void Apply(AppSettings settings)
@@ -27,12 +44,65 @@ public partial class FloatingWidget : Window
         SetClickThrough(settings.WidgetClickThrough);
     }
 
-    private void OnDrag(object sender, MouseButtonEventArgs e)
+    private void OnPreviewLeftDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ButtonState == MouseButtonState.Pressed)
+        _leftDown = true;
+        _dragging = false;
+        _dragStart = e.GetPosition(this);
+        CaptureMouse();
+    }
+
+    private void OnPreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_leftDown || e.LeftButton != MouseButtonState.Pressed)
         {
+            return;
+        }
+
+        var current = e.GetPosition(this);
+        if (!_dragging && WidgetInteraction.IsDrag(_dragStart.X, _dragStart.Y, current.X, current.Y))
+        {
+            _dragging = true;
             DragMove();
             Moved?.Invoke(Left, Top);
+        }
+    }
+
+    private void OnPreviewLeftUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_leftDown)
+        {
+            return;
+        }
+
+        _leftDown = false;
+        ReleaseMouseCapture();
+        if (!_dragging)
+        {
+            FlyoutRequested?.Invoke();
+        }
+        else
+        {
+            Moved?.Invoke(Left, Top);
+        }
+
+        _dragging = false;
+        e.Handled = true;
+    }
+
+    private void OnMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Middle)
+        {
+            RefreshRequested?.Invoke();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.ChangedButton == MouseButton.Right)
+        {
+            ContextMenuRequested?.Invoke();
+            e.Handled = true;
         }
     }
 

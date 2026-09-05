@@ -13,8 +13,11 @@ public sealed class QuotaEngine
         string? statusDetail = null)
     {
         var weekly = serverQuota?.WeeklyWindow(settings.PlanPreset);
+        var proStatus = serverQuota?.ProServerStatus ?? ProServerStatus.Unknown();
         var weeklyReset = weekly?.ResetAt;
-        var (start, end) = QuotaPeriodCalculator.CurrentPeriod(settings, now, weeklyReset);
+        var proReset = proStatus.ResetConfidence == ServerResetConfidence.Server ? proStatus.ResetAt : null;
+        var serverReset = proReset ?? weeklyReset;
+        var (start, end) = QuotaPeriodCalculator.CurrentPeriod(settings, now, serverReset);
         var todayStart = QuotaPeriodCalculator.LocalDayStart(now, settings);
         var periodEvents = events.Where(e => QuotaPeriodCalculator.InRange(e.CreatedAt, start, end)).ToList();
         var todayEvents = events.Where(e => e.CreatedAt >= todayStart).ToList();
@@ -30,7 +33,7 @@ public sealed class QuotaEngine
         var allowCombinedDaily = AllowsDailyWindow(settings, settings.CombinedDailyQuota);
         var solWindow = allowSolDaily ? serverQuota?.SolProDaily : null;
         var combinedWindow = allowCombinedDaily ? serverQuota?.CombinedProDaily : null;
-        var resetSource = weeklyReset is not null
+        var resetSource = serverReset is not null
             ? ResetAnchorSource.Server
             : settings.ResetAnchorConfigured
                 ? ResetAnchorSource.UserConfigured
@@ -97,6 +100,7 @@ public sealed class QuotaEngine
             ReconstructedUsed = reconstructed,
             UsesServerCount = useServerCount,
             DisplayUsageUnavailable = usageUnavailable,
+            ProServerStatus = proStatus,
             SolProDailyLimit = solLimit,
             CombinedDailyLimit = combinedLimit,
             Reasoning = new ReasoningStats

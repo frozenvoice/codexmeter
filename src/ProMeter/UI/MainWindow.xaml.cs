@@ -41,12 +41,16 @@ public partial class MainWindow : Window
         CodexQuotaSnapshot? codex = null)
     {
         ApplyLocalizedTexts();
-        Headline.Text = DisplayFormatting.Headline(snapshot);
+        var presentation = ProStatusPresentation.From(snapshot);
+        Headline.Text = presentation.Headline;
+        ProStatusText.Text = presentation.HasServerReset
+            ? $"{UiText.GptPro}  {presentation.ProStateText}   ·   {UiText.ServerReset} {presentation.ResetText}"
+            : $"{UiText.GptPro}  {presentation.ProStateText}";
         var reset = DisplayFormatting.ResetDisplay(snapshot);
         PeriodText.Text = snapshot.SolProDailyLimit is int sol && snapshot.CombinedDailyLimit is int combined
-            ? $"{UiText.CurrentPeriod(DisplayFormatting.FormatDay(snapshot.PeriodStart), DisplayFormatting.FormatDay(snapshot.PeriodEnd))}   ·   {UiText.Gpt6Pro} {snapshot.Gpt6WeeklyUsed}   ·   {UiText.SolPro} {snapshot.TodaySolPro}/{sol}   ·   {UiText.CombinedDaily} {snapshot.CombinedToday}/{combined}"
-            : $"{UiText.CurrentPeriod(DisplayFormatting.FormatDay(snapshot.PeriodStart), DisplayFormatting.FormatDay(snapshot.PeriodEnd))}   ·   {UiText.Today} {snapshot.TodayPro}";
-        StatusText.Text = $"{DisplayFormatting.StatusLabel(snapshot)}   ·   {reset.TimeLabel} {reset.TimeValue}{(reset.EstimateValue is null ? "" : $"   ·   {reset.EstimateLabel} {reset.EstimateValue}")}   ·   {UiText.DataStatus} {DisplayFormatting.CoverageFlyoutValue(snapshot)}";
+            ? $"{UiText.HistoryStatistics} {DisplayFormatting.FormatDay(snapshot.PeriodStart)} – {DisplayFormatting.FormatDay(snapshot.PeriodEnd)}   ·   {UiText.ConfirmedProRequests} {presentation.ReconstructedText}   ·   {UiText.Gpt6Pro} {snapshot.Gpt6WeeklyUsed}+   ·   {UiText.SolPro} {snapshot.TodaySolPro}+   ·   {UiText.CombinedDaily} {snapshot.CombinedToday}+"
+            : $"{UiText.HistoryStatistics} {DisplayFormatting.FormatDay(snapshot.PeriodStart)} – {DisplayFormatting.FormatDay(snapshot.PeriodEnd)}   ·   {UiText.ConfirmedProRequests} {presentation.ReconstructedText}   ·   {UiText.Today} {snapshot.TodayPro}+";
+        StatusText.Text = $"{DisplayFormatting.StatusLabel(snapshot)}   ·   {reset.TimeLabel} {reset.TimeValue}{(reset.EstimateValue is null ? "" : $"   ·   {reset.EstimateLabel} {reset.EstimateValue}")}   ·   {UiText.DataStatus} {presentation.DataStatusText}   ·   {UiText.ExactRemaining} {presentation.ExactRemainingText}";
         CodexText.Text = CodexDisplayFormatting.OverviewText(codex ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable));
         ReasonText.Text = snapshot.Reasoning.Limit is int limit
             ? $"{UiText.Today} {snapshot.Reasoning.Today}   {UiText.ThisWeek} {snapshot.Reasoning.ThisWeek}   {UiText.Medium} {snapshot.Reasoning.Medium}   {UiText.High} {snapshot.Reasoning.High}   {UiText.ExtraHigh} {snapshot.Reasoning.ExtraHigh}   {UiText.LimitInfo} {limit}   ·   {UiText.ReasoningReconstructedNote}"

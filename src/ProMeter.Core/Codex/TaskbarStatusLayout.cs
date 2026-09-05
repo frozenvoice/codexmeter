@@ -53,9 +53,9 @@ public readonly record struct TaskbarLayoutResult(
 
 public static class TaskbarStatusPositioner
 {
-    public const int FullWidthDip = 118;
-    public const int CompactWidthDip = 86;
-    public const int UltraWidthDip = 72;
+    public const int FullWidthDip = 148;
+    public const int CompactWidthDip = 112;
+    public const int UltraWidthDip = 82;
     public const int HeightDip = 26;
     public const int PaddingPx = 4;
 

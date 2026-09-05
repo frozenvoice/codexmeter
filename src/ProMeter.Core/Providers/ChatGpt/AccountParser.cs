@@ -257,6 +257,7 @@ public static class AccountParser
             ApplyQuotaEntry(set, slug, item);
         }
 
+        set.ProServerStatus = ProServerStatusParser.Parse(root);
         return set;
     }
 
@@ -365,7 +366,14 @@ public static class AccountParser
             window.Limit = window.Used + (int)remaining.Value;
         }
 
-        window.ResetAt = TimestampParser.ToDateTimeOffset(item, "reset_after", "resets_after", "reset_at", "resetAt", "resets_at");
+        window.ResetAt = TimestampParser.ToDateTimeOffset(
+            item,
+            "reset_after",
+            "resets_after",
+            "reset_at",
+            "resetAt",
+            "resets_at",
+            "resetsAt");
         return window;
     }
 

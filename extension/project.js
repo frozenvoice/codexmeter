@@ -231,16 +231,70 @@
     return result;
   }
 
-  function projectQuota(node) {
-    function quotaItem(item) {
-      return pick(item, ["feature_name", "name", "slug", "model", "model_slug", "used", "limit", "resets_at", "reset_at", "resetAt", "resetsAt", "period", "window"]);
+  function pickScalar(obj, keys) {
+    var out = {};
+    if (!obj || typeof obj !== "object") {
+      return out;
     }
+    for (var i = 0; i < keys.length; i++) {
+      if (!Object.prototype.hasOwnProperty.call(obj, keys[i]) || obj[keys[i]] === undefined) {
+        continue;
+      }
+      var value = obj[keys[i]];
+      if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        out[keys[i]] = value;
+      }
+    }
+    return out;
+  }
+
+  function projectQuota(node) {
+    var quotaKeys = [
+      "feature_name",
+      "name",
+      "slug",
+      "model",
+      "model_slug",
+      "used",
+      "limit",
+      "resets_at",
+      "reset_at",
+      "resetAt",
+      "resetsAt",
+      "resets_after",
+      "reset_after",
+      "period",
+      "window",
+      "description"
+    ];
+    var blockedKeys = [
+      "name",
+      "feature_name",
+      "limit",
+      "resets_after",
+      "reset_after",
+      "resets_at",
+      "reset_at",
+      "resetsAt",
+      "resetAt",
+      "block_reason",
+      "description"
+    ];
     var result = {};
     if (Array.isArray(node.limits_progress)) {
-      result.limits_progress = node.limits_progress.map(quotaItem);
+      result.limits_progress = node.limits_progress.map(function (item) {
+        return pickScalar(item, quotaKeys);
+      });
     }
     if (Array.isArray(node.model_limits)) {
-      result.model_limits = node.model_limits.map(quotaItem);
+      result.model_limits = node.model_limits.map(function (item) {
+        return pickScalar(item, quotaKeys);
+      });
+    }
+    if (Array.isArray(node.blocked_features)) {
+      result.blocked_features = node.blocked_features.map(function (item) {
+        return pickScalar(item, blockedKeys);
+      });
     }
     return result;
   }

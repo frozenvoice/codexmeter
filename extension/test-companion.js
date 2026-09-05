@@ -266,7 +266,7 @@ assert.strictEqual(preserved.json, false);
 const reconnect = require("./companion-reconnect.js");
 assert.deepStrictEqual(reconnect.DELAYS_MS, [1000, 2000, 5000, 10000, 30000]);
 assert.strictEqual(reconnect.formatDelayLog(1000), "companion reconnect scheduled delay=1s");
-assert.strictEqual(canonical.PAGE_BRIDGE_VERSION, 1);
+assert.strictEqual(canonical.PAGE_BRIDGE_VERSION, 2);
 
 const optedIn = reconnect.createState();
 const swStart = reconnect.onServiceWorkerStart(optedIn, true);
@@ -346,6 +346,39 @@ assert.ok(backgroundSource.indexOf("replacePort") >= 0);
 assert.ok(!/pairingToken/.test(backgroundSource));
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "manifest.json"), "utf8"));
 assert.ok(manifest.permissions.indexOf("alarms") >= 0);
+
+const quotaProjected = project.project("GetQuotaInit", {
+  account_id: "acc-secret",
+  email: "user@example.invalid",
+  limits_progress: [],
+  model_limits: [{
+    model_slug: "gpt-6-pro",
+    resets_after: "2026-09-06T05:20:13.358703+00:00",
+    nested_secret: { accessToken: "must-not-leave" },
+    prompt: "SYNTHETIC_PROMPT_DO_NOT_STORE"
+  }],
+  blocked_features: [{
+    name: "reason",
+    limit: 50,
+    resets_after: "2026-09-06T05:20:13.358703+00:00",
+    block_reason: null,
+    description: "server supplied restriction notice",
+    conversation_id: "c-secret"
+  }]
+});
+assert.strictEqual(quotaProjected.ok, true);
+assert.strictEqual(quotaProjected.body.account_id, undefined);
+assert.strictEqual(quotaProjected.body.email, undefined);
+assert.strictEqual(quotaProjected.body.model_limits[0].model_slug, "gpt-6-pro");
+assert.strictEqual(quotaProjected.body.model_limits[0].resets_after, "2026-09-06T05:20:13.358703+00:00");
+assert.strictEqual(quotaProjected.body.model_limits[0].nested_secret, undefined);
+assert.strictEqual(quotaProjected.body.model_limits[0].prompt, undefined);
+assert.strictEqual(quotaProjected.body.blocked_features[0].name, "reason");
+assert.strictEqual(quotaProjected.body.blocked_features[0].limit, 50);
+assert.strictEqual(quotaProjected.body.blocked_features[0].resets_after, "2026-09-06T05:20:13.358703+00:00");
+assert.strictEqual(quotaProjected.body.blocked_features[0].block_reason, null);
+assert.strictEqual(quotaProjected.body.blocked_features[0].description, "server supplied restriction notice");
+assert.strictEqual(quotaProjected.body.blocked_features[0].conversation_id, undefined);
 
 await require("./test-page-context.js")();
 

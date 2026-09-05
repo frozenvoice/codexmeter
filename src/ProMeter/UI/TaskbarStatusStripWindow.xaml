@@ -9,7 +9,7 @@
         ShowActivated="False"
         ResizeMode="NoResize"
         Topmost="True"
-        Width="118"
+        Width="148"
         Height="26"
         Focusable="False">
     <Border x:Name="Chrome"

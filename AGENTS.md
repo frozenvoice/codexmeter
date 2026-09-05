@@ -18,6 +18,17 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Quota windows with different reset periods must never be mixed. Never use a daily reset to compute the seven-day reconstruction period.
 - Ambiguous quota metadata must remain diagnostic-only.
 - Reconstructed counts must never be labeled Authoritative.
+- Conversation-history reconstruction is never an authoritative remaining-quota count unless the server explicitly supplies authoritative used/remaining metadata.
+- A locally configured plan limit must never be combined with reconstructed usage to present an exact "remaining" count.
+- Server model-limit reset metadata may be authoritative for reset timing even when server used/remaining counts are unavailable.
+- Count confidence and reset confidence are separate concepts.
+- blocked_features metadata may be correlated with Pro model-limit reset metadata, but correlation must not be presented as an explicit server relationship unless the server actually provides one.
+- A null block_reason must not be converted into "quota exhausted", "safeguard", or another invented cause.
+- Every visible UI surface must use the same Pro status presentation semantics: tray, Flyout, Main window, taskbar strip, floating widget, tooltip and notifications.
+- Reconstructed counts must be clearly labelled as confirmed/reconstructed history, preferably as a lower bound such as "31+" when server completeness is not guaranteed.
+- Fake Monday/local reset anchors are allowed only for historical reconstruction estimates, never as authoritative quota reset times.
+- Taskbar and floating widget must never show a reconstructed value in a form that looks like authoritative remaining quota.
+- Lightweight server-status refresh must not require a full conversation-history scan.
 - Count confidence must include confidence in the quota-period boundary. Untouched default Monday 00:00 local is not a confirmed reset.
 - Last sync means completion time, not scan start/reference time.
 - Coverage must describe concrete collection state, not imply a probabilistic accuracy percentage.
@@ -130,6 +141,8 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Sync should tolerate a short transient companion disconnect before declaring failure.
 - Extension reconnect changes require extension regression tests.
 - If PAGE_FILES/page-bridge behavior is changed, increment PAGE_BRIDGE_VERSION. Merely changing background/native reconnect logic does not require a page bridge version bump.
+- PAGE_BRIDGE_VERSION must be incremented whenever page bridge projection/schema behavior changes.
+- Changes to extension projection require extension regression tests and the final report must explicitly tell the user to Reload the unpacked Edge extension.
 
 ## Architecture
 

@@ -15,8 +15,9 @@ public class TrayTooltipTests
 
             Assert.True(text.Length < 128);
             Assert.True(text.Length <= NotifyIconText.MaximumLength);
-            Assert.Contains("29 / 50", text, StringComparison.Ordinal);
-            Assert.Contains("21", text, StringComparison.Ordinal);
+            Assert.Contains("29+", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("29 / 50", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Remaining: 21", text, StringComparison.Ordinal);
         });
     }
 
@@ -58,8 +59,9 @@ public class TrayTooltipTests
                 Status = AppSyncStatus.PartialData
             });
 
-            Assert.Contains("? / 50", text, StringComparison.Ordinal);
-            Assert.Contains("Remaining: ?", text, StringComparison.Ordinal);
+            Assert.Contains("?", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("? / 50", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Remaining: ?", text, StringComparison.Ordinal);
             Assert.True(text.Length < 128);
         });
     }
@@ -124,8 +126,9 @@ public class TrayTooltipTests
             Assert.False(char.IsHighSurrogate(nativeText[^1]));
 
             var detailed = DisplayFormatting.Tooltip(snapshot);
-            Assert.Contains(UiText.ResetTime, detailed, StringComparison.Ordinal);
-            Assert.Contains(UiText.Estimate, detailed, StringComparison.Ordinal);
+            Assert.Contains(UiText.ServerReset, detailed, StringComparison.Ordinal);
+            Assert.Contains(UiText.ConfirmedRequests, detailed, StringComparison.Ordinal);
+            Assert.Contains(UiText.ExactRemaining, detailed, StringComparison.Ordinal);
             Assert.Contains(UiText.LastSync, detailed, StringComparison.Ordinal);
             Assert.Contains(UiText.DataStatus, detailed, StringComparison.Ordinal);
             Assert.True(detailed.Length > nativeText.Length);
@@ -144,6 +147,7 @@ public class TrayTooltipTests
         {
             Used = 29,
             Limit = 50,
+            ReconstructedUsed = 29,
             ResetAt = new DateTimeOffset(resetLocal, TimeZoneInfo.Local.GetUtcOffset(resetLocal)),
             ResetAnchorSource = ResetAnchorSource.Default,
             ResetEstimated = true,

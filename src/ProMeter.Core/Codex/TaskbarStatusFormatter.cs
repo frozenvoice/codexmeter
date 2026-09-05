@@ -13,18 +13,23 @@ public static class TaskbarStatusFormatter
         return mode switch
         {
             TaskbarStripMode.Full => $"{p} · {c}",
-            TaskbarStripMode.Compact => $"{p}  {c}",
+            TaskbarStripMode.Compact => $"{p} {c}",
             _ => $"{p} {c}"
         };
     }
 
     public static string Tooltip(QuotaSnapshot chatgpt, CodexQuotaSnapshot codex)
     {
-        var gpt = chatgpt.DisplayUsageUnavailable
-            ? $"{UiText.GptPro} ?"
-            : UiText.T(
-                $"GPT Pro usage {chatgpt.Used}/{chatgpt.Limit}",
-                $"GPT Pro 사용 {chatgpt.Used}/{chatgpt.Limit}");
+        var presentation = ProStatusPresentation.From(chatgpt);
+        var gpt = string.Join(
+            Environment.NewLine,
+            new[]
+            {
+                $"{UiText.GptPro}: {presentation.ProStateText}",
+                presentation.HasServerReset ? $"{UiText.ServerReset}: {presentation.ResetText}" : null,
+                $"{UiText.ExactRemaining}: {presentation.ExactRemainingText}",
+                $"{UiText.ConfirmedRequests}: {presentation.ReconstructedText}"
+            }.Where(line => !string.IsNullOrWhiteSpace(line)));
         var window = codex.CompactWindow;
         string codexLine;
         if (codex.Status == CodexQuotaStatus.Refreshing && window?.UsedPercent is null)
@@ -54,16 +59,28 @@ public static class TaskbarStatusFormatter
         _ => TaskbarStatusPositioner.UltraWidthDip
     };
 
-    private static string ChatGptToken(QuotaSnapshot snapshot, TaskbarStripMode mode)
+    public static string ChatGptToken(QuotaSnapshot snapshot, TaskbarStripMode mode)
     {
-        if (snapshot.DisplayUsageUnavailable)
+        var presentation = ProStatusPresentation.From(snapshot);
+        if (!presentation.ServerStatusKnown || presentation.ResetAmbiguous)
         {
             return "P?";
         }
 
-        return mode == TaskbarStripMode.Full
-            ? $"P {snapshot.Used}/{snapshot.Limit}"
-            : $"P{snapshot.Used}";
+        if (presentation.Restricted)
+        {
+            var stale = presentation.Stale && mode != TaskbarStripMode.Full ? "" : "";
+            if (presentation.HasServerReset && mode != TaskbarStripMode.UltraCompact)
+            {
+                return mode == TaskbarStripMode.Full
+                    ? $"P! {presentation.ResetCompactTime}"
+                    : $"P!{presentation.ResetCompactTime}{stale}";
+            }
+
+            return "P!";
+        }
+
+        return mode == TaskbarStripMode.Full ? "P OK" : "POK";
     }
 
     private static string CodexToken(CodexQuotaSnapshot snapshot, TaskbarStripMode mode)

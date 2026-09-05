@@ -58,6 +58,8 @@ public sealed class AppSettings
     public string LastSyncErrorToastAt { get; set; } = "";
     public string LastSyncFailureCategory { get; set; } = "";
     public string LastSyncFailureAt { get; set; } = "";
+    public string LastNotifiedProRestrictionState { get; set; } = "";
+    public string LastNotifiedProRestrictionKey { get; set; } = "";
 
     public static AppSettings CreateDefaults() => new();
 
