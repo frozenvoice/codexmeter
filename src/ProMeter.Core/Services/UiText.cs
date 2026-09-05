@@ -211,6 +211,18 @@ public static class UiText
     public static string WebViewInitializationFailed => T(
         "WebView2 initialization failed.",
         "WebView2 초기화에 실패했습니다.");
+    public static string WebViewNavigationTimedOut => T(
+        "WebView2 navigation timed out.",
+        "WebView2 탐색 시간이 초과되었습니다.");
+    public static string WebViewNavigationFailed => T(
+        "WebView2 navigation failed.",
+        "WebView2 탐색에 실패했습니다.");
+    public static string WebViewRequestTimedOut => T(
+        "WebView2 request timed out.",
+        "WebView2 요청 시간이 초과되었습니다.");
+    public static string WebViewRequestFailed => T(
+        "WebView2 request failed.",
+        "WebView2 요청에 실패했습니다.");
     public static string TechnicalDetail(string detail) => T($"Technical detail: {detail}", $"기술 세부 정보: {detail}");
     public static string WebViewDiagnosticTechnical(string operation, int status = 0, string? reason = null)
     {

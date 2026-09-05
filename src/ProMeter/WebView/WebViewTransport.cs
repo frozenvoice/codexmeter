@@ -20,9 +20,9 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
     private readonly WebViewHostSession _session = new();
     private readonly SessionAuthCoordinator _auth = new();
     private readonly LoginNavigationMachine _login = new();
+    private readonly WebViewNavigationWait _navigation = new();
     private WebView2 _webView;
-    private TaskCompletionSource<bool>? _navigationSignal;
-    private int _navigationEpoch;
+    private Action? _detachNavigationHandler;
     private int _probeGeneration;
     private bool _coreReady;
     private bool _ensureAttempted;
@@ -172,7 +172,7 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
 
         try
         {
-            return await wait;
+            return await wait.WaitAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -358,10 +358,13 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
 
             LogStage(WebViewDiagnosticStages.HomeNavigationStart);
             var navigation = await OnUiAsync(() => StartNavigation(ChatGptEndpoints.HomeUrl));
-            await WebViewBoundedWait.WaitNavigationAsync(
-                navigation,
-                WebViewBoundedWait.StageTimeout,
-                cancellationToken);
+            var navigated = await CompleteNavigationAsync(navigation, cancellationToken);
+            if (!navigated.Succeeded)
+            {
+                LogNavigationFailure(navigated);
+                return WebViewInitializationOutcome.NavigationFailed();
+            }
+
             LogStage(WebViewDiagnosticStages.HomeNavigationComplete);
             return WebViewInitializationOutcome.Succeeded();
         }
@@ -406,37 +409,86 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
     {
         LogStage(WebViewDiagnosticStages.HomeNavigationStart);
         var navigation = await OnUiAsync(() => StartNavigation(url));
-        await WebViewBoundedWait.WaitNavigationAsync(
-            navigation,
-            WebViewBoundedWait.StageTimeout,
-            cancellationToken);
+        var navigated = await CompleteNavigationAsync(navigation, cancellationToken);
+        if (!navigated.Succeeded)
+        {
+            LogNavigationFailure(navigated);
+            throw new WebViewInitializationException(navigated.Failure, navigated.Stage);
+        }
+
         LogStage(WebViewDiagnosticStages.HomeNavigationComplete);
     }
 
-    private Task StartNavigation(string url)
+    private async Task<WebViewNavigationResult> CompleteNavigationAsync(
+        Task<WebViewNavigationResult> navigation,
+        CancellationToken cancellationToken)
     {
-        var signal = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _navigationEpoch++;
-        var epoch = _navigationEpoch;
-        _navigationSignal = signal;
-        _webView.CoreWebView2.NavigationCompleted += OnEpochComplete;
-        _webView.CoreWebView2.Navigate(url);
-        return signal.Task;
+        try
+        {
+            return await WebViewBoundedWait.WaitNavigationAsync(
+                navigation,
+                WebViewBoundedWait.StageTimeout,
+                cancellationToken);
+        }
+        catch (WebViewInitializationException)
+        {
+            await OnUiAsync(InvalidatePendingNavigation);
+            LogStage(WebViewDiagnosticStages.NavigationTimeout);
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            await OnUiAsync(InvalidatePendingNavigation);
+            LogStage(WebViewDiagnosticStages.Cancelled);
+            throw;
+        }
+    }
 
+    private Task<WebViewNavigationResult> StartNavigation(string url)
+    {
+        InvalidatePendingNavigation();
+        var (epoch, task) = _navigation.Begin();
         void OnEpochComplete(object? sender, CoreWebView2NavigationCompletedEventArgs e)
         {
-            _webView.CoreWebView2.NavigationCompleted -= OnEpochComplete;
-            if (epoch == _navigationEpoch)
-            {
-                signal.TrySetResult(e.IsSuccess);
-            }
+            var status = e.IsSuccess ? null : e.WebErrorStatus.ToString();
+            _navigation.TryComplete(epoch, e.IsSuccess, status);
+            RemoveNavigationHandler();
         }
+
+        _detachNavigationHandler = () =>
+        {
+            if (_webView.CoreWebView2 is { } core)
+            {
+                core.NavigationCompleted -= OnEpochComplete;
+            }
+        };
+        _webView.CoreWebView2.NavigationCompleted += OnEpochComplete;
+        _webView.CoreWebView2.Navigate(url);
+        return task;
+    }
+
+    private void RemoveNavigationHandler()
+    {
+        var detach = _detachNavigationHandler;
+        _detachNavigationHandler = null;
+        detach?.Invoke();
     }
 
     private void InvalidatePendingNavigation()
     {
-        _navigationEpoch++;
-        _navigationSignal?.TrySetCanceled();
+        RemoveNavigationHandler();
+        _navigation.Invalidate();
+    }
+
+    private void LogNavigationFailure(WebViewNavigationResult result)
+    {
+        if (result.WebErrorStatus is { Length: > 0 } status)
+        {
+            _log.Info("webview diagnostic stage=" + WebViewDiagnosticStages.HomeNavigationFailed + " status=" + status);
+            return;
+        }
+
+        LogStage(WebViewDiagnosticStages.HomeNavigationFailed);
     }
 
     private void ConfigureCore()
@@ -498,7 +550,11 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
 
     private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        _ = e;
+        if (!e.IsSuccess)
+        {
+            return;
+        }
+
         var generation = _login.Generation;
         if (!_login.AcceptsProbe(generation, CurrentUri, navigationCompleted: true))
         {
@@ -516,7 +572,7 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
 
                 if (delay > TimeSpan.Zero)
                 {
-                    await Task.Delay(delay);
+                    await Task.Delay(delay, CancellationToken.None);
                 }
 
                 if (generation != _login.Generation || !SessionProbePolicy.CanProbe(CurrentUri))
@@ -546,75 +602,64 @@ public sealed class WebViewTransport : IChatGptTransport, IWebViewInteractiveLog
         string? accessToken,
         CancellationToken cancellationToken)
     {
-        _ = cancellationToken;
         if (!BackendTargetPolicy.TryValidate(path, out var safePath, out var error)
             || !OriginPolicy.AllowsBackendFetch(CurrentUri))
         {
             return Task.FromResult(new ProviderResponse { Status = 0, Error = error, SchemaMismatch = true });
         }
 
-        return ExecuteScriptFetchAsync(method, safePath, jsonBody, accessToken);
+        return ExecuteScriptFetchAsync(method, safePath, jsonBody, accessToken, cancellationToken);
     }
 
-    private async Task<ProviderResponse> ExecuteScriptFetchAsync(string method, string path, string? body, string? accessToken)
+    private async Task<ProviderResponse> ExecuteScriptFetchAsync(
+        string method,
+        string path,
+        string? body,
+        string? accessToken,
+        CancellationToken cancellationToken)
     {
-        var script = BuildFetchScript(method, path, body, accessToken);
+        var script = WebViewFetchScript.Build(method, path, body, accessToken);
         try
         {
-            var raw = await _webView.ExecuteScriptAsync(script);
-            var decoded = DecodeScriptResult(raw);
-            var node = ChatGptJson.ParseNode(decoded);
-            if (node is null)
+            var execute = await OnUiAsync(() => _webView.ExecuteScriptAsync(script));
+            string raw;
+            try
             {
-                return new ProviderResponse { Status = 0, Error = "empty transport result", SchemaMismatch = true };
+                raw = await WebViewBoundedWait.WaitRequestAsync(
+                    execute,
+                    WebViewFetchScript.ScriptGuardTimeout,
+                    cancellationToken);
+            }
+            catch (WebViewInitializationException)
+            {
+                LogStage(WebViewDiagnosticStages.RequestTimeoutFor(WebViewFetchScript.SafeOperation(path)));
+                return new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.ScriptExecutionTimeout };
+            }
+            catch (OperationCanceledException)
+            {
+                LogStage(WebViewDiagnosticStages.Cancelled);
+                return new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.Cancelled };
             }
 
-            return new ProviderResponse
+            var response = WebViewFetchScript.MapScriptResult(DecodeScriptResult(raw));
+            if (response.Error is WebViewInitializationCodes.RequestTimeout
+                or WebViewInitializationCodes.ScriptExecutionTimeout)
             {
-                Status = (int)(ChatGptJson.GetDouble(node, "status") ?? 0),
-                RetryAfter = ChatGptJson.GetString(node, "retryAfter"),
-                Body = ChatGptJson.GetString(node, "body") ?? "",
-                Error = ChatGptJson.GetString(node, "error"),
-                SchemaMismatch = ChatGptJson.GetBool(node, "schemaMismatch") == true
-            };
+                LogStage(WebViewDiagnosticStages.RequestTimeoutFor(WebViewFetchScript.SafeOperation(path)));
+            }
+
+            return response;
+        }
+        catch (OperationCanceledException)
+        {
+            LogStage(WebViewDiagnosticStages.Cancelled);
+            return new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.Cancelled };
         }
         catch (Exception ex)
         {
-            _log.Error("webview fetch failed", ex);
-            return new ProviderResponse { Status = 0, Error = "offline" };
+            _log.Warn("webview fetch failed: " + ex.GetType().Name);
+            return new ProviderResponse { Status = 0, Error = WebViewInitializationCodes.RequestFailed };
         }
-    }
-
-    private static string BuildFetchScript(string method, string path, string? body, string? accessToken)
-    {
-        var methodJson = JsonSerializer.Serialize(method);
-        var pathJson = JsonSerializer.Serialize(path);
-        var bodyJson = body is null ? "null" : JsonSerializer.Serialize(body);
-        var tokenJson = accessToken is null ? "null" : JsonSerializer.Serialize(accessToken);
-        return $$"""
-            (async () => {
-              try {
-                const token = {{tokenJson}};
-                const headers = { 'Accept': 'application/json' };
-                if (token) headers['Authorization'] = 'Bearer ' + token;
-                const init = { method: {{methodJson}}, credentials: 'include', headers };
-                const body = {{bodyJson}};
-                if (body) {
-                  headers['Content-Type'] = 'application/json';
-                  init.body = body;
-                }
-                const res = await fetch({{pathJson}}, init);
-                const text = await res.text();
-                return JSON.stringify({
-                  status: res.status,
-                  retryAfter: res.headers.get('retry-after'),
-                  body: text
-                });
-              } catch (error) {
-                return JSON.stringify({ status: 0, error: String(error && error.message ? error.message : error) });
-              }
-            })()
-            """;
     }
 
     private string? CurrentUri => _webView.Source?.AbsoluteUri;

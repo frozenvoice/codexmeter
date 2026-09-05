@@ -109,8 +109,15 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - WebView2 diagnostic progress/failure stages must be logged before the final result.
 - Closing Settings or cancelling a diagnostic must release the diagnostic-running state.
 - Browser Companion must remain untouched by WebView2 diagnostic failures.
-- Commit, push, verify remote SHA, and check CI as already required.
-- If page-bridge JS files change, increment `PAGE_BRIDGE_VERSION`.
+- No WebView2 network request may wait indefinitely after initialization succeeds.
+- WebView2 fetch execution must have a bounded request timeout.
+- NavigationCompleted with IsSuccess=false is a navigation failure, not successful completion.
+- Cancellation and timeout must return control to the UI even if WebView2 internally cannot synchronously abort every underlying operation.
+- Timeout/error diagnostics must distinguish initialization, navigation and API request stages.
+- Diagnostic failures must never alter Browser Companion state, selected transport, production usage data, watermarks, AutoSync or StartWithWindows.
+- Startup/UI/WebView2 regression paths require tests.
+- Commit, push, remote SHA verification, and pushed CI verification remain mandatory.
+- PAGE_BRIDGE_VERSION changes only if extension page-bridge JavaScript is modified.
 
 ## Architecture
 

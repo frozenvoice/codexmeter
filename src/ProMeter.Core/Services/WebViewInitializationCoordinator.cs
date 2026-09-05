@@ -14,6 +14,10 @@ public enum WebViewInitializationFailure
     HostNotRealized,
     Timeout,
     NavigationTimeout,
+    NavigationFailed,
+    RequestTimeout,
+    ScriptExecutionTimeout,
+    RequestFailed,
     Cancelled,
     RuntimeUnavailable,
     EnvironmentFailed
@@ -26,18 +30,40 @@ public static class WebViewDiagnosticStages
     public const string CoreReady = "core-ready";
     public const string HomeNavigationStart = "home-navigation-start";
     public const string HomeNavigationComplete = "home-navigation-complete";
+    public const string HomeNavigationFailed = "home-navigation-failed";
     public const string SessionProbe = "session-probe";
     public const string InitializeTimeout = "initialize-timeout";
     public const string NavigationTimeout = "navigation-timeout";
+    public const string RequestTimeout = "request-timeout";
+    public const string ScriptExecutionTimeout = "script-execution-timeout";
     public const string Cancelled = "cancelled";
     public const string RuntimeUnavailable = "runtime-unavailable";
     public const string HostInvalid = "host-invalid";
+
+    public static string RequestTimeoutFor(string operation) =>
+        $"{RequestTimeout} operation={SanitizeOperation(operation)}";
+
+    public static string SanitizeOperation(string? operation) => operation switch
+    {
+        "session" => "session",
+        "session-verification" => "session-verification",
+        "account-detection" => "account-detection",
+        "models" => "models",
+        "conversation-index" => "conversation-index",
+        "interactive-login" => "interactive-login",
+        "diagnostic" => "diagnostic",
+        _ => "request"
+    };
 }
 
 public static class WebViewInitializationCodes
 {
     public const string Timeout = "initialize-timeout";
     public const string NavigationTimeout = "navigation-timeout";
+    public const string NavigationFailed = "navigation-failed";
+    public const string RequestTimeout = "request-timeout";
+    public const string ScriptExecutionTimeout = "script-execution-timeout";
+    public const string RequestFailed = "request-failed";
     public const string RuntimeUnavailable = "runtime-unavailable";
     public const string HostInvalid = "host-invalid";
     public const string EnvironmentFailed = "environment-failed";
@@ -47,6 +73,10 @@ public static class WebViewInitializationCodes
     {
         WebViewInitializationFailure.Timeout => Timeout,
         WebViewInitializationFailure.NavigationTimeout => NavigationTimeout,
+        WebViewInitializationFailure.NavigationFailed => NavigationFailed,
+        WebViewInitializationFailure.RequestTimeout => RequestTimeout,
+        WebViewInitializationFailure.ScriptExecutionTimeout => ScriptExecutionTimeout,
+        WebViewInitializationFailure.RequestFailed => RequestFailed,
         WebViewInitializationFailure.RuntimeUnavailable => RuntimeUnavailable,
         WebViewInitializationFailure.HostNotRealized => HostInvalid,
         WebViewInitializationFailure.Cancelled => Cancelled,
@@ -70,6 +100,12 @@ public sealed record WebViewInitializationOutcome(
 
     public static WebViewInitializationOutcome NavigationTimedOut() =>
         new(false, WebViewInitializationFailure.NavigationTimeout, WebViewDiagnosticStages.NavigationTimeout);
+
+    public static WebViewInitializationOutcome NavigationFailed() =>
+        new(false, WebViewInitializationFailure.NavigationFailed, WebViewDiagnosticStages.HomeNavigationFailed);
+
+    public static WebViewInitializationOutcome RequestTimedOut() =>
+        new(false, WebViewInitializationFailure.RequestTimeout, WebViewDiagnosticStages.RequestTimeout);
 
     public static WebViewInitializationOutcome HostNotRealized() =>
         new(false, WebViewInitializationFailure.HostNotRealized, WebViewDiagnosticStages.HostInvalid);
@@ -137,6 +173,51 @@ public static class WebViewBoundedWait
             throw new WebViewInitializationException(
                 WebViewInitializationFailure.NavigationTimeout,
                 WebViewDiagnosticStages.NavigationTimeout);
+        }
+    }
+
+    public static async Task<WebViewNavigationResult> WaitNavigationAsync(
+        Task<WebViewNavigationResult> task,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await task.WaitAsync(timeout, cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            throw new WebViewInitializationException(
+                WebViewInitializationFailure.NavigationTimeout,
+                WebViewDiagnosticStages.NavigationTimeout);
+        }
+    }
+
+    public static async Task WaitRequestAsync(Task task, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await task.WaitAsync(timeout, cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            throw new WebViewInitializationException(
+                WebViewInitializationFailure.ScriptExecutionTimeout,
+                WebViewDiagnosticStages.ScriptExecutionTimeout);
+        }
+    }
+
+    public static async Task<T> WaitRequestAsync<T>(Task<T> task, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await task.WaitAsync(timeout, cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            throw new WebViewInitializationException(
+                WebViewInitializationFailure.ScriptExecutionTimeout,
+                WebViewDiagnosticStages.ScriptExecutionTimeout);
         }
     }
 }

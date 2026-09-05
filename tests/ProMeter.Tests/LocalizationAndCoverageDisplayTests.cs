@@ -17,6 +17,10 @@ public class LocalizationAndCoverageDisplayTests
             Assert.Equal("Checking ChatGPT session...", UiText.CheckingChatGptSession);
             Assert.Equal("WebView2 initialization timed out.", UiText.WebViewInitializationTimedOut);
             Assert.Equal("WebView2 initialization failed.", UiText.WebViewInitializationFailed);
+            Assert.Equal("WebView2 navigation timed out.", UiText.WebViewNavigationTimedOut);
+            Assert.Equal("WebView2 navigation failed.", UiText.WebViewNavigationFailed);
+            Assert.Equal("WebView2 request timed out.", UiText.WebViewRequestTimedOut);
+            Assert.Equal("WebView2 request failed.", UiText.WebViewRequestFailed);
             Assert.Contains("WebView2 works on this PC/account.", UiText.WebViewDiagnosticPass, StringComparison.Ordinal);
             Assert.Contains("FAIL_AUTH", UiText.WebViewDiagnosticFailAuth, StringComparison.Ordinal);
             Assert.Contains("FAIL_SESSION", UiText.WebViewDiagnosticFailSession, StringComparison.Ordinal);
@@ -39,6 +43,10 @@ public class LocalizationAndCoverageDisplayTests
             Assert.Equal("ChatGPT 세션을 확인하는 중...", UiText.CheckingChatGptSession);
             Assert.Equal("WebView2 초기화 시간이 초과되었습니다.", UiText.WebViewInitializationTimedOut);
             Assert.Equal("WebView2 초기화에 실패했습니다.", UiText.WebViewInitializationFailed);
+            Assert.Equal("WebView2 탐색 시간이 초과되었습니다.", UiText.WebViewNavigationTimedOut);
+            Assert.Equal("WebView2 탐색에 실패했습니다.", UiText.WebViewNavigationFailed);
+            Assert.Equal("WebView2 요청 시간이 초과되었습니다.", UiText.WebViewRequestTimedOut);
+            Assert.Equal("WebView2 요청에 실패했습니다.", UiText.WebViewRequestFailed);
             Assert.Contains("이 PC와 계정에서 정상 동작합니다", UiText.WebViewDiagnosticPass, StringComparison.Ordinal);
             Assert.Contains("로그인 방식은 WebView2에서 지원되지 않거나", UiText.WebViewDiagnosticFailAuth, StringComparison.Ordinal);
             Assert.Contains("ChatGPT 세션을 확인하지 못했습니다", UiText.WebViewDiagnosticFailSession, StringComparison.Ordinal);

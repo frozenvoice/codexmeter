@@ -192,6 +192,12 @@ public sealed class WebViewCompatibilityDiagnostic
         var response = await _transport.SendAsync("GET", path, cancellationToken: cancellationToken);
         if (MapInitializationFailure(response) is { } failure)
         {
+            if (response.Error is WebViewInitializationCodes.RequestTimeout
+                or WebViewInitializationCodes.ScriptExecutionTimeout)
+            {
+                _logStage?.Invoke(WebViewDiagnosticStages.RequestTimeoutFor(WebViewFetchScript.SafeOperation(path)));
+            }
+
             throw new WebViewDiagnosticInitializationException(failure);
         }
 
@@ -205,12 +211,40 @@ public sealed class WebViewCompatibilityDiagnostic
             return null;
         }
 
-        if (response.Error is WebViewInitializationCodes.Timeout
-            or WebViewInitializationCodes.NavigationTimeout)
+        if (response.Error == WebViewInitializationCodes.Timeout)
         {
             return new WebViewDiagnosticResult(
                 WebViewDiagnosticStatus.FailApi,
                 TechnicalDetail: UiText.WebViewInitializationTimedOut);
+        }
+
+        if (response.Error == WebViewInitializationCodes.NavigationTimeout)
+        {
+            return new WebViewDiagnosticResult(
+                WebViewDiagnosticStatus.FailApi,
+                TechnicalDetail: UiText.WebViewNavigationTimedOut);
+        }
+
+        if (response.Error == WebViewInitializationCodes.NavigationFailed)
+        {
+            return new WebViewDiagnosticResult(
+                WebViewDiagnosticStatus.FailApi,
+                TechnicalDetail: UiText.WebViewNavigationFailed);
+        }
+
+        if (response.Error is WebViewInitializationCodes.RequestTimeout
+            or WebViewInitializationCodes.ScriptExecutionTimeout)
+        {
+            return new WebViewDiagnosticResult(
+                WebViewDiagnosticStatus.FailApi,
+                TechnicalDetail: UiText.WebViewRequestTimedOut);
+        }
+
+        if (response.Error == WebViewInitializationCodes.RequestFailed)
+        {
+            return new WebViewDiagnosticResult(
+                WebViewDiagnosticStatus.FailApi,
+                TechnicalDetail: UiText.WebViewRequestFailed);
         }
 
         if (response.Error is WebViewInitializationCodes.RuntimeUnavailable
