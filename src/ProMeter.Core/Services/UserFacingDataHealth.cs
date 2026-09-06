@@ -28,7 +28,7 @@ public static class UserFacingHealth
             return new UserFacingDataHealth(
                 UserFacingHealthKind.Syncing,
                 UiText.SyncingEllipsis,
-                snapshot.LastSync is null ? UiText.SyncingEllipsis : UiText.DataUsable,
+                previousUsable ? UiText.DataUsable : UiText.SyncingEllipsis,
                 previousUsable,
                 false);
         }

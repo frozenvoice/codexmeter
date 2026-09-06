@@ -99,6 +99,83 @@ public class UserFacingHealthTests
     }
 
     [Fact]
+    public void Syncing_NoPreviousSync()
+    {
+        var snapshot = new QuotaSnapshot
+        {
+            IsSyncing = true,
+            LastSync = null
+        };
+        var health = UserFacingHealth.From(snapshot);
+        Assert.Equal(UserFacingHealthKind.Syncing, health.Kind);
+        Assert.Equal(UiText.SyncingEllipsis, health.HeaderText);
+        Assert.Equal(UiText.SyncingEllipsis, health.DataStatusText);
+        Assert.False(health.PrimaryDataUsable);
+        Assert.False(health.Actionable);
+    }
+
+    [Fact]
+    public void Syncing_LastSyncExistsButPrimaryUnusable()
+    {
+        var snapshot = new QuotaSnapshot
+        {
+            IsSyncing = true,
+            LastSync = DateTimeOffset.UtcNow,
+            Status = AppSyncStatus.Idle,
+            ProServerStatus = new ProServerStatus
+            {
+                ServerObserved = false,
+                RestrictionState = ProRestrictionState.Unknown
+            }
+        };
+        var health = UserFacingHealth.From(snapshot);
+        Assert.Equal(UserFacingHealthKind.Syncing, health.Kind);
+        Assert.Equal(UiText.SyncingEllipsis, health.HeaderText);
+        Assert.Equal(UiText.SyncingEllipsis, health.DataStatusText);
+        Assert.False(health.PrimaryDataUsable);
+        Assert.False(health.Actionable);
+        Assert.NotEqual(UiText.DataUsable, health.DataStatusText);
+
+        UiText.SetLanguage(UiLanguage.Korean);
+        try
+        {
+            var korean = UserFacingHealth.From(snapshot);
+            Assert.Equal("동기화 중...", korean.HeaderText);
+            Assert.Equal("동기화 중...", korean.DataStatusText);
+            Assert.DoesNotContain("사용 가능", korean.DataStatusText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            UiText.SetLanguage(UiLanguage.English);
+        }
+    }
+
+    [Fact]
+    public void Syncing_PreviousPrimaryUsable()
+    {
+        var snapshot = Restricted(34, AppSyncStatus.UpToDate, CompleteCoverage());
+        snapshot.IsSyncing = true;
+        var health = UserFacingHealth.From(snapshot);
+        Assert.Equal(UserFacingHealthKind.Syncing, health.Kind);
+        Assert.Equal(UiText.SyncingEllipsis, health.HeaderText);
+        Assert.Equal(UiText.DataUsable, health.DataStatusText);
+        Assert.True(health.PrimaryDataUsable);
+        Assert.False(health.Actionable);
+
+        UiText.SetLanguage(UiLanguage.Korean);
+        try
+        {
+            var korean = UserFacingHealth.From(snapshot);
+            Assert.Equal("동기화 중...", korean.HeaderText);
+            Assert.Equal("사용 가능", korean.DataStatusText);
+        }
+        finally
+        {
+            UiText.SetLanguage(UiLanguage.English);
+        }
+    }
+
+    [Fact]
     public void CaseC_CompanionDisconnected_IsActionable()
     {
         var snapshot = Restricted(34, AppSyncStatus.CompanionDisconnected, CompleteCoverage());
