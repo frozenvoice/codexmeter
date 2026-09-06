@@ -1,0 +1,82 @@
+using ProMeter.Codex;
+using ProMeter.Services;
+
+namespace ProMeter.Tests;
+
+public class CodexRingPresentationTests
+{
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(50)]
+    [InlineData(99)]
+    [InlineData(100)]
+    public void KnownPercent_IsAvailableAndClamped(double percent)
+    {
+        var snapshot = Available(percent);
+        var presentation = CodexRingPresentation.From(snapshot);
+        Assert.True(presentation.IsAvailable);
+        Assert.Equal(Math.Clamp(percent, 0, 100), presentation.UsedPercent);
+        Assert.Equal(percent >= 100, presentation.IsDangerLevel);
+        Assert.NotEqual("?", presentation.CenterValueText);
+    }
+
+    [Fact]
+    public void Unavailable_DoesNotFabricateZero()
+    {
+        var snapshot = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
+        var presentation = CodexRingPresentation.From(snapshot);
+        Assert.False(presentation.IsAvailable);
+        Assert.Null(presentation.UsedPercent);
+        Assert.Equal("?", presentation.CenterValueText);
+        Assert.False(presentation.IsDangerLevel);
+    }
+
+    [Fact]
+    public void CodexNotFound_DoesNotFabricateZero()
+    {
+        var snapshot = CodexQuotaSnapshot.Empty(CodexQuotaStatus.CodexNotFound);
+        var presentation = CodexRingPresentation.From(snapshot);
+        Assert.False(presentation.IsAvailable);
+        Assert.Null(presentation.UsedPercent);
+    }
+
+    [Fact]
+    public void Stale_PreservesLastKnownPercent()
+    {
+        var snapshot = Available(87).AsStale(DateTimeOffset.UtcNow, "timed-out");
+        var presentation = CodexRingPresentation.From(snapshot);
+        Assert.Equal(CodexQuotaStatus.Stale, snapshot.Status);
+        Assert.True(presentation.IsAvailable);
+        Assert.Equal(87, presentation.UsedPercent);
+    }
+
+    [Fact]
+    public void BadgeText_IsServerBasedAccurate()
+    {
+        UiText.SetLanguage(UiLanguage.English);
+        try
+        {
+            var presentation = CodexRingPresentation.From(Available(10));
+            Assert.Equal("Server-based · accurate", presentation.BadgeText);
+            UiText.SetLanguage(UiLanguage.Korean);
+            var korean = CodexRingPresentation.From(Available(10));
+            Assert.Equal("서버 기반 정확", korean.BadgeText);
+        }
+        finally
+        {
+            UiText.SetLanguage(UiLanguage.English);
+        }
+    }
+
+    private static CodexQuotaSnapshot Available(double percent) => new(
+        CodexQuotaStatus.Available,
+        null,
+        DateTimeOffset.UtcNow,
+        DateTimeOffset.UtcNow,
+        null,
+        null,
+        null,
+        [new CodexQuotaWindow(null, percent, CodexWindowClassifier.WeeklyMinutes, null, CodexWindowKind.Weekly)],
+        null);
+}

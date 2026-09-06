@@ -267,6 +267,13 @@ public static class UiText
     public static string ReasoningReconstructedNote => T(
         "Sol reasoning counts are reconstructed statistics, not an official remaining quota.",
         "Sol 추론 횟수는 대화 기록에서 재구성한 통계이며, 공식 잔여 한도가 아닙니다.");
+    public static string HistoryBasedEstimateBadge => T("History-based estimate", "기록 기반 추정");
+    public static string ServerBasedAccurateBadge => T("Server-based · accurate", "서버 기반 정확");
+    public static string PartialRevalidationNotice => T(
+        "Some history is being revalidated.",
+        "일부 기록 재검증 중");
+    public static string CodexLegendUsed => T("Used", "사용");
+    public static string CodexLegendRemaining => T("Remaining", "남음");
 
     public static string ResetServer(string stamp) => T($"{stamp} (server)", $"{stamp} (서버)");
     public static string ResetUserConfigured(string stamp) => T($"{stamp} (user configured)", $"{stamp} (사용자 설정)");

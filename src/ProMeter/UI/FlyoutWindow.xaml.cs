@@ -58,20 +58,23 @@ public partial class FlyoutWindow : Window
         ApplyLocalizedTexts();
         var presentation = ProStatusPresentation.From(snapshot);
         StatusText.Text = DisplayFormatting.FlyoutHeader(snapshot);
-        ProStateText.Text = presentation.ProStateText;
-        ExactRemainingText.Text = presentation.ExactRemainingText;
-        RestrictionDetailText.Text = presentation.RestrictionDetail;
-        RestrictionDetailText.Visibility = string.IsNullOrWhiteSpace(presentation.RestrictionDetail)
-            ? Visibility.Collapsed
-            : Visibility.Visible;
-        ConfirmedUsagePanel.Visibility = presentation.ShowHistoryLowerBound ? Visibility.Visible : Visibility.Collapsed;
-        HistoryLowerBoundCaption.Visibility = presentation.ShowHistoryLowerBound ? Visibility.Visible : Visibility.Collapsed;
+
         ConfirmedUsageText.Text = presentation.ConfirmedRequestsText;
+        GptProBadge.Visibility = presentation.ExactRemainingAvailable ? Visibility.Collapsed : Visibility.Visible;
+        HistoryLowerBoundCaption.Visibility = presentation.ShowHistoryLowerBound ? Visibility.Visible : Visibility.Collapsed;
         HistoryLowerBoundCaption.Text = presentation.HistoryLowerBoundCaption;
-        UnresolvedPendingPanel.Visibility = presentation.UnresolvedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
-        UnresolvedPendingText.Text = presentation.UnresolvedCount > 0
-            ? UiText.UnresolvedPendingCount(presentation.UnresolvedCount)
-            : "";
+
+        GptProRestrictionBanner.Visibility = presentation.Restricted ? Visibility.Visible : Visibility.Collapsed;
+        ProStateText.Text = presentation.ProStateText;
+        RestrictionDetailText.Text = presentation.RestrictionDetail;
+
+        var reliabilityConcern = !presentation.ExactRemainingAvailable && ProStatusPresentation.HasReliabilityConcern(snapshot);
+        ReliabilityNoticeText.Visibility = reliabilityConcern ? Visibility.Visible : Visibility.Collapsed;
+        ReliabilityNoticeText.Text = reliabilityConcern ? UiText.PartialRevalidationNotice : "";
+
+        ExactRemainingPanel.Visibility = presentation.ExactRemainingAvailable ? Visibility.Visible : Visibility.Collapsed;
+        ExactRemainingText.Text = presentation.ExactRemainingText;
+
         HistoryStatsPanel.Visibility = Visibility.Collapsed;
         ConfirmedRequestsText.Text = presentation.ConfirmedRequestsText;
         CountSourceText.Text = presentation.CountSourceText;
@@ -115,11 +118,16 @@ public partial class FlyoutWindow : Window
 
         SyncText.Text = DisplayFormatting.LastSyncLabel(snapshot.LastSync);
         CoverageText.Text = DisplayFormatting.CoverageFlyoutValue(snapshot);
-        ReasonToday.Text = snapshot.Reasoning.Today.ToString(CultureInfo.InvariantCulture);
-        ReasonWeek.Text = snapshot.Reasoning.ThisWeek.ToString(CultureInfo.InvariantCulture);
-        ReasonMedium.Text = snapshot.Reasoning.Medium.ToString(CultureInfo.InvariantCulture);
-        ReasonHigh.Text = snapshot.Reasoning.High.ToString(CultureInfo.InvariantCulture);
-        ReasonExtra.Text = snapshot.Reasoning.ExtraHigh.ToString(CultureInfo.InvariantCulture);
+        var tone = UserFacingHealthTone.From(UserFacingHealth.From(snapshot).Kind);
+        StatusHealthDot.Fill = (Brush)FindResource(ToneBrushKey(tone));
+
+        var reasoning = snapshot.Reasoning;
+        ReasonToday.Text = reasoning.Today.ToString(CultureInfo.InvariantCulture);
+        ReasonWeek.Text = reasoning.ThisWeek.ToString(CultureInfo.InvariantCulture);
+        ReasonMedium.Text = reasoning.Medium.ToString(CultureInfo.InvariantCulture);
+        ReasonHigh.Text = reasoning.High.ToString(CultureInfo.InvariantCulture);
+        ReasonExtra.Text = reasoning.ExtraHigh.ToString(CultureInfo.InvariantCulture);
+        ReasonWeekCenterValue.Text = DisplayFormatting.CountWithUnit(reasoning.ThisWeek);
         if (snapshot.Reasoning.Limit is int limit)
         {
             ReasonLimitPanel.Visibility = Visibility.Visible;
@@ -138,11 +146,14 @@ public partial class FlyoutWindow : Window
             if (!presentation.ExactRemainingAvailable)
             {
                 ProBar.Width = 0;
-                return;
+            }
+            else
+            {
+                var width = Math.Max(8, (ProBar.Parent as FrameworkElement)?.ActualWidth * snapshot.PercentUsed ?? 0);
+                ProBar.Width = width;
             }
 
-            var width = Math.Max(8, (ProBar.Parent as FrameworkElement)?.ActualWidth * snapshot.PercentUsed ?? 0);
-            ProBar.Width = width;
+            ApplyReasoningBars(reasoning);
         });
 
         ModelRows.Items.Clear();
@@ -257,14 +268,17 @@ public partial class FlyoutWindow : Window
         ExactRemainingLabel.Text = UiText.RemainingCount;
         ConfirmedUsageLabel.Text = UiText.CurrentCycleReconstructed;
         HistoryLowerBoundCaption.Text = UiText.ReconstructedObservedCaption;
-        UnresolvedPendingLabel.Text = UiText.UnresolvedPending;
+        GptProBadgeText.Text = UiText.HistoryBasedEstimateBadge;
         HistoryStatsLabel.Text = UiText.HistoryStatistics;
         ConfirmedRequestsLabel.Text = UiText.ConfirmedProRequests;
         Gpt6WeekLabel.Text = UiText.Gpt6ProWeek;
         SolDailyLabel.Text = UiText.SolProDaily;
         CombinedDailyLabel.Text = UiText.CombinedDaily;
         CodexSectionTitle.Text = CodexDisplayFormatting.SectionTitle;
+        CodexBadgeText.Text = UiText.ServerBasedAccurateBadge;
         ReasoningSectionTitle.Text = UiText.SolReasoning;
+        ReasoningBadgeText.Text = UiText.HistoryBasedEstimateBadge;
+        ReasonWeekCenterLabel.Text = UiText.ThisWeek;
         ReasonTodayLabel.Text = UiText.Today;
         ReasonWeekLabel.Text = UiText.ThisWeek;
         ReasonMediumLabel.Text = UiText.Medium;
@@ -319,6 +333,11 @@ public partial class FlyoutWindow : Window
         Top = top;
     }
 
+    private const double CodexRingDiameter = 92;
+    private const double CodexRingStrokeThickness = 9;
+    private const double CodexRingRadius = (CodexRingDiameter - CodexRingStrokeThickness) / 2;
+    private const double CodexRingCenter = CodexRingDiameter / 2;
+
     private void BindCodex(CodexQuotaSnapshot snapshot)
     {
         CodexStatusText.Text = CodexDisplayFormatting.StatusText(snapshot);
@@ -347,7 +366,65 @@ public partial class FlyoutWindow : Window
             row.Children.Add(value);
             CodexRows.Items.Add(row);
         }
+
+        ApplyCodexRing(snapshot);
     }
+
+    private void ApplyCodexRing(CodexQuotaSnapshot snapshot)
+    {
+        var ring = CodexRingPresentation.From(snapshot);
+        CodexBadge.Visibility = ring.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
+        CodexRingValueText.Text = ring.CenterValueText;
+        CodexRingSubLabel.Text = ring.CenterSubLabel;
+
+        var arcColor = (Brush)FindResource(ring.IsDangerLevel ? "DangerBrush" : "AccentBrush");
+        CodexRingArcPath.Stroke = arcColor;
+        CodexRingFullCircle.Stroke = arcColor;
+        CodexRingTrack.Stroke = (Brush)FindResource(ring.IsAvailable ? "LineBrush" : "DisabledBrush");
+
+        var arc = RingGeometry.ComputeUsedArc(ring.UsedPercent, CodexRingCenter, CodexRingCenter, CodexRingRadius);
+        CodexRingArcPath.Visibility = arc.Visible ? Visibility.Visible : Visibility.Collapsed;
+        CodexRingFullCircle.Visibility = arc.IsFullCircle ? Visibility.Visible : Visibility.Collapsed;
+        if (arc.Visible)
+        {
+            CodexRingFigure.StartPoint = new System.Windows.Point(arc.Start.X, arc.Start.Y);
+            CodexRingArcSegment.Point = new System.Windows.Point(arc.End.X, arc.End.Y);
+            CodexRingArcSegment.Size = new System.Windows.Size(CodexRingRadius, CodexRingRadius);
+            CodexRingArcSegment.IsLargeArc = arc.IsLargeArc;
+        }
+
+        CodexLegendPanel.Visibility = ring.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
+        if (ring.IsAvailable)
+        {
+            var usedPercent = ring.UsedPercent!.Value;
+            CodexLegendUsedText.Text = $"{UiText.CodexLegendUsed} {ring.CenterValueText}";
+            CodexLegendRemainingText.Text = $"{UiText.CodexLegendRemaining} {CodexDisplayFormatting.PercentText(Math.Clamp(100 - usedPercent, 0, 100))}";
+        }
+    }
+
+    private void ApplyReasoningBars(ReasoningStats reasoning)
+    {
+        var bars = SolBarSet.Compute(reasoning);
+        SetBarWidth(ReasonTodayBar, bars.Today);
+        SetBarWidth(ReasonWeekBar, bars.ThisWeek);
+        SetBarWidth(ReasonMediumBar, bars.Medium);
+        SetBarWidth(ReasonHighBar, bars.High);
+        SetBarWidth(ReasonExtraBar, bars.ExtraHigh);
+    }
+
+    private static void SetBarWidth(FrameworkElement bar, double fraction)
+    {
+        var trackWidth = (bar.Parent as FrameworkElement)?.ActualWidth ?? 0;
+        bar.Width = fraction <= 0 ? 0 : Math.Max(3, trackWidth * fraction);
+    }
+
+    private static string ToneBrushKey(StatusToneKind tone) => tone switch
+    {
+        StatusToneKind.Ok => "OkBrush",
+        StatusToneKind.Accent => "AccentBrush",
+        StatusToneKind.Danger => "DangerBrush",
+        _ => "MutedBrush"
+    };
 
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {

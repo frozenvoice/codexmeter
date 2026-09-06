@@ -289,6 +289,14 @@ public static class DisplayFormatting
             || coverage.ProjectsIndexState is CollectionState.Partial or CollectionState.Failed;
     }
 
+    /// <summary>
+    /// A bare count with the Korean counter suffix ("5회") when the UI language is Korean,
+    /// otherwise the plain number. Used for compact circular statistic badges that are not
+    /// quota meters (e.g. the Sol Reasoning "this week" badge).
+    /// </summary>
+    public static string CountWithUnit(int count) =>
+        UiText.IsKorean ? $"{count.ToString(CultureInfo.InvariantCulture)}회" : count.ToString(CultureInfo.InvariantCulture);
+
     public static string ReasoningLimitValue(int? limit) =>
         limit is int value ? value.ToString(CultureInfo.InvariantCulture) : UiText.NotAvailable;
 

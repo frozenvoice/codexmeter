@@ -133,6 +133,14 @@ public sealed class ProStatusPresentation
         return SupportsLowerBound(snapshot) ? n + "+" : UiText.ReconstructedCount(snapshot.ReconstructedUsed);
     }
 
+    /// <summary>
+    /// True when unresolved or legacy-migration evidence could still affect the current cycle's
+    /// displayed count. The Flyout uses this only to show a short, number-free reliability note
+    /// ("some history is being revalidated") — never the raw pending-row count.
+    /// </summary>
+    public static bool HasReliabilityConcern(QuotaSnapshot snapshot) =>
+        snapshot.UnresolvedCount > 0 || snapshot.LegacyPendingCount > 0;
+
     public static bool SupportsLowerBound(QuotaSnapshot snapshot)
     {
         if (snapshot.ReconstructionIsLowerBound)
