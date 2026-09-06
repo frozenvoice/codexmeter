@@ -4,6 +4,8 @@ public static class TaskbarVisibilityDetector
 {
     public const int RevealedThicknessPx = 20;
     public const int HiddenPeekThicknessPx = 4;
+    public const int FullscreenPollMilliseconds = 250;
+    public const int FullscreenTolerancePx = 4;
 
     public static int ExposedThickness(ScreenRect taskbar, ScreenRect monitor, TaskbarEdge edge)
     {
@@ -183,6 +185,10 @@ public sealed class TaskbarStripVisibilityGate
         else if (action == TaskbarStripVisibilityAction.Hide)
         {
             line = $"taskbar strip hidden reason={sample.Reason}";
+            if (sample.ImmediateHide)
+            {
+                line += $" foregroundCoversMonitor=true taskbarVisible={(input.TaskbarVisible ? "true" : "false")}";
+            }
         }
         else if (sample.InvalidGeometry && _overlayVisible)
         {

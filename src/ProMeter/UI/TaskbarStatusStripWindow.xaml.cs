@@ -15,7 +15,10 @@ public partial class TaskbarStatusStripWindow : Window
     private readonly LayoutSignalDebouncer _debounce = new();
     private readonly TaskbarStripVisibilityGate _visibility = new();
     private readonly DispatcherTimer _layoutTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
-    private readonly DispatcherTimer _fullscreenTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DispatcherTimer _fullscreenTimer = new()
+    {
+        Interval = TimeSpan.FromMilliseconds(TaskbarVisibilityDetector.FullscreenPollMilliseconds)
+    };
     private HwndSource? _hwnd;
     private bool _closed;
     private QuotaSnapshot _chatgpt = new();
@@ -85,7 +88,8 @@ public partial class TaskbarStatusStripWindow : Window
 
             if (!decision.OverlayVisible)
             {
-                if (decision.Action == TaskbarStripVisibilityAction.Hide && IsVisible)
+                Topmost = false;
+                if (IsVisible && decision.Action == TaskbarStripVisibilityAction.Hide)
                 {
                     Hide();
                 }
@@ -103,14 +107,14 @@ public partial class TaskbarStatusStripWindow : Window
                 Height = Math.Max(1, dip.Height);
             }
 
-            Topmost = decision.OverlayVisible;
+            Topmost = true;
             ApplyText();
             if (!IsVisible)
             {
                 Show();
             }
 
-            ReassertTopmost(decision.OverlayVisible);
+            ReassertTopmost(true);
         }
         catch
         {

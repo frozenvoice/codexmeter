@@ -93,11 +93,124 @@ public class TaskbarStatusLayoutTests
     {
         var monitor = new ScreenRect(0, 0, 1920, 1080);
         var work = new ScreenRect(0, 0, 1920, 1040);
-        Assert.True(TaskbarStatusPositioner.IsExclusiveFullscreen(monitor, monitor, work, taskbarVisible: false));
-        Assert.False(TaskbarStatusPositioner.IsExclusiveFullscreen(work, monitor, work, taskbarVisible: true));
-        Assert.False(TaskbarStatusPositioner.ShouldShow(true, true, false));
+        Assert.True(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(monitor, monitor, work));
+        Assert.True(TaskbarStatusPositioner.IsExclusiveFullscreen(monitor, monitor, work));
+        Assert.False(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(work, monitor, work));
+        Assert.False(TaskbarStatusPositioner.ShouldShow(true, true, true));
         Assert.True(TaskbarStatusPositioner.ShouldShow(true, false, true));
         Assert.False(TaskbarStatusPositioner.ShouldShow(false, false, true));
+    }
+
+    [Fact]
+    public void BorderlessFullscreen_IgnoresTaskbarVisibleFlag()
+    {
+        var monitor = new ScreenRect(0, 0, 1920, 1080);
+        var work = new ScreenRect(0, 0, 1920, 1040);
+        var input = Bottom(gap: 400) with { ExclusiveFullscreenOnMonitor = true, TaskbarVisible = true };
+        Assert.True(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(monitor, monitor, work));
+        Assert.False(TaskbarStatusPositioner.ShouldShow(input));
+        Assert.Equal(TaskbarStripMode.Hidden, TaskbarStatusPositioner.Place(input).Mode);
+        var gate = new TaskbarStripVisibilityGate();
+        gate.Observe(Bottom(gap: 400), TaskbarStripMode.Full);
+        var hidden = gate.Observe(input, TaskbarStripMode.Hidden);
+        Assert.Equal(TaskbarStripVisibilityAction.Hide, hidden.Action);
+        Assert.False(hidden.OverlayVisible);
+        Assert.Contains("exclusive-fullscreen", hidden.LogLine, StringComparison.Ordinal);
+        Assert.Contains("foregroundCoversMonitor=true", hidden.LogLine, StringComparison.Ordinal);
+        Assert.Contains("taskbarVisible=true", hidden.LogLine, StringComparison.Ordinal);
+        var source = File.ReadAllText(Find("src/ProMeter.Core/Codex/TaskbarStatusLayout.cs"));
+        var method = source[source.IndexOf("IsForegroundFullscreenOnMonitor(", StringComparison.Ordinal)..];
+        Assert.DoesNotContain("taskbarVisible", method[..method.IndexOf("public static bool CoversMonitor", StringComparison.Ordinal)], StringComparison.Ordinal);
+        var win32 = File.ReadAllText(Find("src/ProMeter/UI/TaskbarWin32.cs"));
+        var exclusive = win32[win32.IndexOf("private static bool ExclusiveFullscreen", StringComparison.Ordinal)..];
+        exclusive = exclusive[..exclusive.IndexOf("private static string WindowClassName", StringComparison.Ordinal)];
+        Assert.DoesNotContain("IsWindowVisible", exclusive, StringComparison.Ordinal);
+        Assert.Contains("IsIgnoredFullscreenForeground", exclusive, StringComparison.Ordinal);
+        Assert.Contains("stripHwnd", exclusive, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ForegroundThatLeavesTaskbarUncovered_IsNotFullscreen()
+    {
+        var monitor = new ScreenRect(0, 0, 1920, 1080);
+        var work = new ScreenRect(0, 0, 1920, 1040);
+        var maximized = work;
+        var small = new ScreenRect(100, 100, 800, 600);
+        var almost = new ScreenRect(0, 0, 1920, 1070);
+        Assert.False(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(maximized, monitor, work));
+        Assert.False(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(small, monitor, work));
+        Assert.False(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(almost, monitor, work));
+        var input = Bottom(gap: 400) with { ExclusiveFullscreenOnMonitor = false, TaskbarVisible = true };
+        Assert.True(TaskbarStatusPositioner.Place(input).Visible);
+    }
+
+    [Fact]
+    public void FullscreenTolerance_AcceptsTwoAndThreePixelFrames()
+    {
+        var monitor = new ScreenRect(0, 0, 1920, 1080);
+        var work = new ScreenRect(0, 0, 1920, 1040);
+        Assert.True(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(
+            new ScreenRect(0, 0, 1920, 1078), monitor, work));
+        Assert.True(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(
+            new ScreenRect(-2, -2, 1924, 1084), monitor, work));
+        Assert.True(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(
+            new ScreenRect(-3, -3, 1926, 1086), monitor, work));
+        Assert.False(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(
+            new ScreenRect(0, 0, 1920, 1070), monitor, work));
+        Assert.False(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(work, monitor, work));
+    }
+
+    [Fact]
+    public void FullscreenOnAnotherMonitor_DoesNotHideThisStrip()
+    {
+        var monitorA = new ScreenRect(0, 0, 1920, 1080);
+        var workA = new ScreenRect(0, 0, 1920, 1040);
+        var monitorB = new ScreenRect(1920, 0, 1920, 1080);
+        var workB = new ScreenRect(1920, 0, 1920, 1040);
+        var foregroundB = monitorB;
+        Assert.False(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(foregroundB, monitorA, workA));
+        Assert.True(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(foregroundB, monitorB, workB));
+        var input = Bottom(gap: 400) with { ExclusiveFullscreenOnMonitor = false, TaskbarVisible = true };
+        Assert.True(TaskbarStatusPositioner.Place(input).Visible);
+    }
+
+    [Fact]
+    public void AutoHideMaximizedCoveringWorkAreaEqualsMonitor_IsNotExclusiveFullscreen()
+    {
+        var monitor = new ScreenRect(0, 0, 1920, 1080);
+        Assert.False(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(monitor, monitor, monitor, foregroundIsMaximized: true));
+        Assert.True(TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(monitor, monitor, monitor, foregroundIsMaximized: false));
+    }
+
+    [Fact]
+    public void IgnoredForegroundClasses_AreNotFullscreen()
+    {
+        Assert.True(TaskbarStatusPositioner.IsIgnoredFullscreenForeground("Shell_TrayWnd"));
+        Assert.True(TaskbarStatusPositioner.IsIgnoredFullscreenForeground("Shell_SecondaryTrayWnd"));
+        Assert.True(TaskbarStatusPositioner.IsIgnoredFullscreenForeground("Progman"));
+        Assert.True(TaskbarStatusPositioner.IsIgnoredFullscreenForeground("WorkerW"));
+        Assert.False(TaskbarStatusPositioner.IsIgnoredFullscreenForeground("Chrome_WidgetWin_1"));
+        Assert.False(TaskbarStatusPositioner.IsIgnoredFullscreenForeground(null));
+    }
+
+    [Fact]
+    public void VisibilityGate_HidesImmediatelyWhenTaskbarStillVisible()
+    {
+        var gate = new TaskbarStripVisibilityGate();
+        var visible = Bottom(gap: 400);
+        Assert.Equal(TaskbarStripVisibilityAction.Show, gate.Observe(visible, TaskbarStripMode.Full).Action);
+        var fullscreen = visible with { ExclusiveFullscreenOnMonitor = true, TaskbarVisible = true };
+        var first = gate.Observe(fullscreen, TaskbarStripMode.Hidden);
+        Assert.Equal(TaskbarStripVisibilityAction.Hide, first.Action);
+        Assert.False(first.OverlayVisible);
+        Assert.Contains("exclusive-fullscreen", first.LogLine, StringComparison.Ordinal);
+        var still = gate.Observe(fullscreen, TaskbarStripMode.Hidden);
+        Assert.Equal(TaskbarStripVisibilityAction.Retain, still.Action);
+        Assert.False(still.OverlayVisible);
+        var restored = gate.Observe(visible, TaskbarStripMode.Full);
+        Assert.Equal(TaskbarStripVisibilityAction.Show, restored.Action);
+        Assert.True(restored.OverlayVisible);
+        Assert.Contains("taskbar strip shown", restored.LogLine, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -263,10 +376,19 @@ public class TaskbarStatusLayoutTests
         Assert.DoesNotContain("SetParent", win32, StringComparison.Ordinal);
         Assert.DoesNotContain("SetWindowsHook", win32, StringComparison.Ordinal);
         var strip = File.ReadAllText(FindStripWindow());
-        var reposition = strip[strip.IndexOf("public void Reposition()", StringComparison.Ordinal)..];
-        Assert.Contains("ReassertTopmost(decision.OverlayVisible)", reposition, StringComparison.Ordinal);
+        var reposition = strip[strip.IndexOf("public void Reposition()", StringComparison.Ordinal)..strip.IndexOf("private void OnSourceInitialized", StringComparison.Ordinal)];
         Assert.Contains("if (!decision.OverlayVisible)", reposition, StringComparison.Ordinal);
+        Assert.Contains("Topmost = false", reposition, StringComparison.Ordinal);
+        Assert.Contains("ReassertTopmost(true)", reposition, StringComparison.Ordinal);
+        var hidden = reposition[reposition.IndexOf("if (!decision.OverlayVisible)", StringComparison.Ordinal)..reposition.IndexOf("if (placed.Visible)", StringComparison.Ordinal)];
+        Assert.Contains("Topmost = false", hidden, StringComparison.Ordinal);
+        Assert.Contains("Hide();", hidden, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReassertTopmost(true)", hidden, StringComparison.Ordinal);
         Assert.DoesNotContain("SetForegroundWindow", strip, StringComparison.Ordinal);
+        Assert.Contains("FullscreenPollMilliseconds", strip, StringComparison.Ordinal);
+        Assert.DoesNotContain("FromSeconds(1)", strip, StringComparison.Ordinal);
+        Assert.Equal(250, TaskbarVisibilityDetector.FullscreenPollMilliseconds);
+        Assert.Equal(4, TaskbarVisibilityDetector.FullscreenTolerancePx);
     }
 
     private static string FindStripWindow() => Find("src/ProMeter/UI/TaskbarStatusStripWindow.xaml.cs");

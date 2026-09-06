@@ -78,21 +78,52 @@ public static class TaskbarStatusPositioner
         ScreenRect foreground,
         ScreenRect monitor,
         ScreenRect workArea,
-        bool taskbarVisible)
+        bool foregroundIsMaximized = false,
+        int tolerancePx = TaskbarVisibilityDetector.FullscreenTolerancePx) =>
+        IsForegroundFullscreenOnMonitor(foreground, monitor, workArea, foregroundIsMaximized, tolerancePx);
+
+    public static bool IsForegroundFullscreenOnMonitor(
+        ScreenRect foreground,
+        ScreenRect monitor,
+        ScreenRect workArea,
+        bool foregroundIsMaximized = false,
+        int tolerancePx = TaskbarVisibilityDetector.FullscreenTolerancePx)
     {
-        if (taskbarVisible)
+        if (!CoversMonitor(foreground, monitor, tolerancePx))
         {
             return false;
         }
 
-        var coversMonitor = foreground.Width >= monitor.Width - 2
-                            && foreground.Height >= monitor.Height - 2
-                            && Math.Abs(foreground.X - monitor.X) <= 2
-                            && Math.Abs(foreground.Y - monitor.Y) <= 2;
-        var largerThanWorkArea = foreground.Width >= workArea.Width
-                                 && foreground.Height > workArea.Height + 8;
-        return coversMonitor && largerThanWorkArea;
+        if (CoversMonitor(workArea, monitor, tolerancePx))
+        {
+            return !foregroundIsMaximized;
+        }
+
+        return true;
     }
+
+    public static bool CoversMonitor(
+        ScreenRect window,
+        ScreenRect monitor,
+        int tolerancePx = TaskbarVisibilityDetector.FullscreenTolerancePx)
+    {
+        if (tolerancePx < 0
+            || monitor.Width <= 0
+            || monitor.Height <= 0
+            || window.Width <= 0
+            || window.Height <= 0)
+        {
+            return false;
+        }
+
+        return Math.Abs(window.X - monitor.X) <= tolerancePx
+            && Math.Abs(window.Y - monitor.Y) <= tolerancePx
+            && Math.Abs(window.Right - monitor.Right) <= tolerancePx
+            && Math.Abs(window.Bottom - monitor.Bottom) <= tolerancePx;
+    }
+
+    public static bool IsIgnoredFullscreenForeground(string? className) =>
+        className is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "Progman" or "WorkerW";
 
     public static TaskbarLayoutResult Place(
         TaskbarLayoutInput input,

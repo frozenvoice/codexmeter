@@ -8,6 +8,8 @@ internal static class TaskbarWin32
     private const uint AbmGetTaskbarPos = 5;
     private const uint AbmGetState = 4;
     private const int AbsAutoHide = 1;
+    private const int GwlStyle = -16;
+    private const int WsMaximize = 0x01000000;
     public const int WmDisplayChange = 0x007E;
     public const int WmDpiChanged = 0x02E0;
     public const int WmSettingChange = 0x001A;
@@ -35,7 +37,7 @@ internal static class TaskbarWin32
                     ?? ChildRect(notify?.Hwnd ?? IntPtr.Zero, "ClockButton");
         var taskList = ChildRect(taskbarHwnd, "MSTaskListWClass")
                        ?? ChildRect(taskbarHwnd, "MSTaskSwWClass");
-        var fullscreen = ExclusiveFullscreen(monitor.Monitor, work, pos.Bounds);
+        var fullscreen = ExclusiveFullscreen(monitor.Monitor, work, stripHwnd, taskbarHwnd);
         return new TaskbarLayoutInput(
             monitor.Monitor,
             work,
@@ -149,16 +151,32 @@ internal static class TaskbarWin32
         return (child, ToRect(rect));
     }
 
-    private static bool ExclusiveFullscreen(ScreenRect monitor, ScreenRect work, ScreenRect taskbar)
+    private static bool ExclusiveFullscreen(ScreenRect monitor, ScreenRect work, IntPtr stripHwnd, IntPtr taskbarHwnd)
     {
         var foreground = GetForegroundWindow();
-        if (foreground == IntPtr.Zero || !GetWindowRect(foreground, out var rect))
+        if (foreground == IntPtr.Zero || foreground == stripHwnd || foreground == taskbarHwnd)
         {
             return false;
         }
 
-        var taskbarVisible = IsWindowVisible(FindWindow("Shell_TrayWnd", null));
-        return TaskbarStatusPositioner.IsExclusiveFullscreen(ToRect(rect), monitor, work, taskbarVisible);
+        if (TaskbarStatusPositioner.IsIgnoredFullscreenForeground(WindowClassName(foreground)))
+        {
+            return false;
+        }
+
+        if (!GetWindowRect(foreground, out var rect))
+        {
+            return false;
+        }
+
+        var maximized = (GetWindowLong(foreground, GwlStyle) & WsMaximize) == WsMaximize;
+        return TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(ToRect(rect), monitor, work, maximized);
+    }
+
+    private static string WindowClassName(IntPtr hwnd)
+    {
+        var buffer = new System.Text.StringBuilder(256);
+        return GetClassName(hwnd, buffer, buffer.Capacity) > 0 ? buffer.ToString() : "";
     }
 
     private static double DpiScale(IntPtr hwnd)
@@ -216,6 +234,9 @@ internal static class TaskbarWin32
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
 
     [DllImport("user32.dll")]
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
