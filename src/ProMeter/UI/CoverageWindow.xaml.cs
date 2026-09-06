@@ -5,31 +5,31 @@ namespace ProMeter.UI;
 
 public partial class CoverageWindow : Window
 {
-    public CoverageWindow(CoverageInfo coverage, CodexQuotaSnapshot? codex = null, bool executableFound = false)
+    public CoverageWindow(QuotaSnapshot snapshot, CodexQuotaSnapshot? codex = null, bool executableFound = false)
+        : this(DataStatusPresentation.From(snapshot, codex, executableFound))
+    {
+    }
+
+    public CoverageWindow(DataStatusPresentation presentation)
     {
         InitializeComponent();
+        Apply(presentation);
+    }
+
+    public void Apply(DataStatusPresentation presentation)
+    {
         Title = UiText.DataStatus;
-        Headline.Text = $"{UiText.DataStatus}: {DisplayFormatting.CoverageCompactLabel(coverage)}";
-        DisclaimerText.Text = UiText.CoverageDisclaimer;
-        NormalText.Text = $"{UiText.NormalChats}    {DisplayFormatting.CollectionStateLabel(coverage.NormalIndexState)}";
-        ArchivedText.Text = $"{UiText.ArchivedChats}    {DisplayFormatting.CollectionStateLabel(coverage.ArchivedIndexState)}";
-        ProjectsText.Text = $"{UiText.Projects}    {DisplayFormatting.CollectionStateLabel(coverage.ProjectsIndexState)}";
-        BodiesText.Text = $"{UiText.ConversationBodies}    {coverage.LoadedConversations} {UiText.Successful}, {coverage.FailedConversations} {UiText.UniqueFailed}";
-        TemporaryText.Text = $"{UiText.TemporaryChats}    {UiText.CannotReconstruct}";
-        DeletedText.Text = $"{UiText.DeletedChats}    {UiText.CannotReconstruct}";
-        CountBasisText.Text = $"{UiText.CountBasis}    {(coverage.QuotaMetadataAuthoritative ? UiText.CountBasisServer : UiText.CountBasisReconstructed)}";
-        CountConfidenceText.Text = $"{UiText.CountConfidence}    {DisplayFormatting.CountConfidenceLabel(coverage.CountConfidence)}";
-        ResetBasisText.Text = $"{UiText.ResetBasis}    {coverage.ResetAnchorSource switch { ResetAnchorSource.Server => UiText.ResetBasisServer, ResetAnchorSource.UserConfigured => UiText.ResetBasisUser, _ => UiText.ResetBasisEstimated }}";
-        BranchesText.Text = $"{UiText.BranchCoverage}    {(coverage.BranchesIncluded ? UiText.BranchIncluded : UiText.BranchUnknown)}";
-        NotesText.Text = coverage.Notes == SyncEngine.MissingAssistantUsageDiagnostic
-            ? UiText.HistoryLoadedWithoutUsage
-            : coverage.FailureSummary.HasConversationFailures
-                ? UiText.TemporaryDeletedNote
-                : coverage.Notes ?? UiText.TemporaryDeletedNote;
-        FailurePanel.Children.Clear();
-        foreach (var line in DisplayFormatting.CoverageFailureDetailLines(coverage))
+        Headline.Text = presentation.Headline;
+        ChatGptServerText.Text = presentation.DefaultLines.Count > 0 ? presentation.DefaultLines[0] : "";
+        CodexStatusRowText.Text = presentation.DefaultLines.Count > 1 ? presentation.DefaultLines[1] : "";
+        HistoryStatsText.Text = presentation.DefaultLines.Count > 2 ? presentation.DefaultLines[2] : "";
+        DisclaimerText.Text = presentation.Disclaimer;
+        AdvancedHeader.Text = UiText.AdvancedDiagnostics;
+        AdvancedExpander.IsExpanded = false;
+        AdvancedPanel.Children.Clear();
+        foreach (var line in presentation.AdvancedLines)
         {
-            FailurePanel.Children.Add(new TextBlock
+            AdvancedPanel.Children.Add(new TextBlock
             {
                 Text = line,
                 TextWrapping = TextWrapping.Wrap,
@@ -38,13 +38,6 @@ public partial class CoverageWindow : Window
             });
         }
 
-        FailurePanel.Visibility = FailurePanel.Children.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-        CodexTitle.Text = CodexDisplayFormatting.SectionTitle;
-        CodexText.Text = string.Join(
-            Environment.NewLine,
-            CodexDisplayFormatting.DiagnosticLines(
-                codex ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable),
-                executableFound));
         CloseButton.Content = UiText.Close;
     }
 

@@ -9,22 +9,23 @@
         ResizeMode="NoResize">
     <StackPanel Margin="20">
         <TextBlock x:Name="Headline" FontSize="16" FontWeight="SemiBold"/>
+        <TextBlock x:Name="ChatGptServerText" Margin="0,12,0,0"/>
+        <TextBlock x:Name="CodexStatusRowText" Margin="0,4,0,0"/>
+        <TextBlock x:Name="HistoryStatsText" Margin="0,4,0,0"/>
         <TextBlock x:Name="DisclaimerText"
-                   Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,12"/>
-        <TextBlock x:Name="NormalText"/>
-        <TextBlock x:Name="ArchivedText" Margin="0,4,0,0"/>
-        <TextBlock x:Name="ProjectsText" Margin="0,4,0,0"/>
-        <TextBlock x:Name="BodiesText" Margin="0,4,0,0"/>
-        <TextBlock x:Name="TemporaryText" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0"/>
-        <TextBlock x:Name="DeletedText" Foreground="{DynamicResource MutedBrush}" Margin="0,4,0,0"/>
-        <TextBlock x:Name="CountBasisText" Margin="0,4,0,0"/>
-        <TextBlock x:Name="CountConfidenceText" Margin="0,4,0,0"/>
-        <TextBlock x:Name="ResetBasisText" Margin="0,4,0,0"/>
-        <TextBlock x:Name="BranchesText" Margin="0,4,0,0"/>
-        <TextBlock x:Name="NotesText" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}"/>
-        <StackPanel x:Name="FailurePanel" Margin="0,12,0,0"/>
-        <TextBlock x:Name="CodexTitle" Style="{StaticResource SectionTitle}" Text="CODEX"/>
-        <TextBlock x:Name="CodexText" TextWrapping="Wrap" Margin="0,0,0,0"/>
+                   Foreground="{DynamicResource MutedBrush}"
+                   TextWrapping="Wrap"
+                   Margin="0,12,0,0"/>
+        <Expander x:Name="AdvancedExpander"
+                  Margin="0,16,0,0"
+                  IsExpanded="False">
+            <Expander.Header>
+                <TextBlock x:Name="AdvancedHeader" Foreground="{DynamicResource TextBrush}"/>
+            </Expander.Header>
+            <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                <StackPanel x:Name="AdvancedPanel"/>
+            </ScrollViewer>
+        </Expander>
         <Button x:Name="CloseButton" Style="{StaticResource GhostButton}" Content="Close" Margin="0,16,0,0" HorizontalAlignment="Right" Click="OnClose"/>
     </StackPanel>
 </Window>

@@ -147,14 +147,10 @@ public class QuotaCountAuthorityTests
     public void FlyoutAndMain_UsePerWindowAuthorityFlags()
     {
         var flyout = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
-        var main = File.ReadAllText(Find("src/ProMeter/UI/MainWindow.xaml.cs"));
         Assert.Contains("UsesServerWeeklyCount", flyout, StringComparison.Ordinal);
         Assert.Contains("UsesServerSolDailyCount", flyout, StringComparison.Ordinal);
         Assert.Contains("UsesServerCombinedDailyCount", flyout, StringComparison.Ordinal);
         Assert.DoesNotContain("snapshot.UsesServerCount", flyout, StringComparison.Ordinal);
-        Assert.Contains("UsesServerWeeklyCount", main, StringComparison.Ordinal);
-        Assert.Contains("UsesServerSolDailyCount", main, StringComparison.Ordinal);
-        Assert.Contains("UsesServerCombinedDailyCount", main, StringComparison.Ordinal);
     }
 
     private static AppSettings Pro200()

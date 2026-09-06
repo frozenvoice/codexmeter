@@ -104,11 +104,11 @@ public class ConversationFetchBackoffTests
             LastAttemptedUpdateTime = 1_000,
             ConsecutiveFetchFailures = 1,
             NextEligibleFetchAt = now.AddMinutes(15),
-            FetchFailureParserVersion = 1,
+            FetchFailureParserVersion = 2,
             Status = ConversationScanStatus.SchemaMismatch,
             LastFetchFailureCategory = ConversationFetchBackoff.SchemaMismatch
         };
-        Assert.Equal(2, ConversationFetchBackoff.ParserCompatibilityVersion);
+        Assert.Equal(3, ConversationFetchBackoff.ParserCompatibilityVersion);
         Assert.True(ConversationFetchBackoff.ParserCompatibilityChanged(failed));
         Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now, forceBodyRescan: false));
     }

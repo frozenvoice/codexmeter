@@ -2,7 +2,7 @@ namespace ProMeter.Services;
 
 public static class ConversationFetchBackoff
 {
-    public const int ParserCompatibilityVersion = 2;
+    public const int ParserCompatibilityVersion = 3;
     public const string BodyTimeout = "BodyTimeout";
     public const string SchemaMismatch = "SchemaMismatch";
     public const string PayloadTooLarge = "PayloadTooLarge";

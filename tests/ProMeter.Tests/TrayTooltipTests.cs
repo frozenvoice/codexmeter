@@ -15,7 +15,8 @@ public class TrayTooltipTests
 
             Assert.True(text.Length < 128);
             Assert.True(text.Length <= NotifyIconText.MaximumLength);
-            Assert.Contains("29+", text, StringComparison.Ordinal);
+            Assert.Contains(UiText.ExactRemainingUnavailable, text, StringComparison.Ordinal);
+            Assert.DoesNotContain("29+", text, StringComparison.Ordinal);
             Assert.DoesNotContain("29 / 50", text, StringComparison.Ordinal);
             Assert.DoesNotContain("Remaining: 21", text, StringComparison.Ordinal);
         });
@@ -59,8 +60,9 @@ public class TrayTooltipTests
                 Status = AppSyncStatus.PartialData
             });
 
-            Assert.Contains("?", text, StringComparison.Ordinal);
+            Assert.Contains(UiText.ExactRemainingUnavailable, text, StringComparison.Ordinal);
             Assert.DoesNotContain("? / 50", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("0 / 50", text, StringComparison.Ordinal);
             Assert.DoesNotContain("Remaining: ?", text, StringComparison.Ordinal);
             Assert.True(text.Length < 128);
         });
@@ -127,15 +129,11 @@ public class TrayTooltipTests
 
             var detailed = DisplayFormatting.Tooltip(snapshot);
             Assert.Contains(UiText.ServerReset, detailed, StringComparison.Ordinal);
-            Assert.Contains(UiText.ConfirmedRequests, detailed, StringComparison.Ordinal);
             Assert.Contains(UiText.ExactRemaining, detailed, StringComparison.Ordinal);
             Assert.Contains(UiText.LastSync, detailed, StringComparison.Ordinal);
             Assert.Contains(UiText.DataStatus, detailed, StringComparison.Ordinal);
             Assert.True(detailed.Length > nativeText.Length);
-            if (language == UiLanguage.English)
-            {
-                Assert.True(detailed.Length >= 128);
-            }
+            Assert.DoesNotContain("29 / 50", detailed, StringComparison.Ordinal);
         });
     }
 

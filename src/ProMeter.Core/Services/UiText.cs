@@ -39,6 +39,7 @@ public static class UiText
     public static string DataStatus => T("Data status", "데이터 상태");
     public static string Remaining => T("Remaining", "남은 횟수");
     public static string ExactRemaining => T("Exact remaining", "정확한 잔여 횟수");
+    public static string RemainingCount => T("Remaining", "잔여 횟수");
     public static string ExactRemainingUnavailable => T("Unavailable", "확인 불가");
     public static string ConfirmedRequests => T("Confirmed requests", "확인된 요청");
     public static string ConfirmedProRequests => T("Confirmed Pro requests", "확인된 Pro 요청");
@@ -91,6 +92,25 @@ public static class UiText
     public static string DetectingAccount => T("Detecting account...", "계정 확인 중...");
     public static string LoadingCatalog => T("Loading model catalog...", "모델 목록 불러오는 중...");
     public static string UpToDate => T("Up to date", "최신 상태");
+    public static string Updated => T("Updated", "업데이트됨");
+    public static string DataUsable => T("Usable", "사용 가능");
+    public static string ConnectionRequired => T("Connection required", "연결 필요");
+    public static string SignInRequired => T("Sign-in required", "로그인 필요");
+    public static string SyncFailedShort => T("Sync failed", "동기화 실패");
+    public static string DataStale => T("Stale data", "오래된 데이터");
+    public static string NeedsAttention => T("Needs attention", "확인 필요");
+    public static string ChatGptServerStatus => T("ChatGPT server status", "ChatGPT 서버 상태");
+    public static string CodexStatusLabel => T("Codex status", "Codex 상태");
+    public static string HistoryBasedStats => T("History-based statistics", "기록 기반 통계");
+    public static string Confirmed => T("Confirmed", "확인됨");
+    public static string HistoryNotOfficialNote => T(
+        "Some history-based statistics are not official OpenAI usage totals.",
+        "일부 기록 기반 통계는 OpenAI 공식 사용량 집계가 아닙니다.");
+    public static string AdvancedDiagnostics => T("Advanced diagnostics", "고급 진단");
+    public static string NoDiagnosticIssues => T("No issues to report.", "특이사항 없음");
+    public static string HistoryConfirmedMinPro(string count) => T(
+        $"Minimum Pro requests confirmed from history: {count}",
+        $"기록에서 확인된 최소 Pro 요청: {count}");
     public static string RateLimited => T("Rate limited", "요청이 제한됨");
     public static string ApiChanged => T("API changed", "API가 변경됨");
     public static string ProviderSchemaMismatch => T("Provider schema mismatch", "응답 형식이 맞지 않음");

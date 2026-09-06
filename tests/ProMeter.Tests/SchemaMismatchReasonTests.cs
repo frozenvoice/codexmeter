@@ -144,17 +144,59 @@ public class SchemaMismatchReasonTests
             SchemaMismatchReason.ExceptionMessage("{\"accessToken\":\"do-not-store\"}"));
     }
 
-    [Fact]
-    public void OversizedConversationCollection_KeepsExactValidatorReason()
+    [Theory]
+    [InlineData(2000, true)]
+    [InlineData(2001, true)]
+    [InlineData(3000, true)]
+    [InlineData(8000, true)]
+    [InlineData(8001, false)]
+    public void ConversationCollectionCap_UsesMaxConversationNodes(int count, bool valid)
     {
         var messages = new JsonArray();
-        for (var i = 0; i < 2001; i++)
+        for (var i = 0; i < count; i++)
         {
-            messages.Add(new JsonObject());
+            messages.Add(new JsonObject { ["id"] = i.ToString(CultureInfo.InvariantCulture) });
         }
 
         var body = new JsonObject { ["messages"] = messages };
-        Assert.False(BridgeProjection.TryValidateProjected(CompanionOperation.GetConversationHead, body, out var error));
-        Assert.Equal("conversation collection too large", error);
+        var ok = BridgeProjection.TryValidateProjected(CompanionOperation.GetConversationHead, body, out var error);
+        Assert.Equal(valid, ok);
+        if (valid)
+        {
+            Assert.True(string.IsNullOrEmpty(error));
+        }
+        else
+        {
+            Assert.Equal("conversation collection too large", error);
+        }
+    }
+
+    [Fact]
+    public void MappingCap_UsesSameMaxConversationNodes()
+    {
+        Assert.Equal(8000, BridgeProjection.MaxConversationNodes);
+        Assert.True(BridgeProjection.TryValidateProjected(
+            CompanionOperation.GetConversationHead,
+            new JsonObject { ["mapping"] = MappingNodes(BridgeProjection.MaxConversationNodes) },
+            out var okError), okError);
+        Assert.False(BridgeProjection.TryValidateProjected(
+            CompanionOperation.GetConversationHead,
+            new JsonObject { ["mapping"] = MappingNodes(BridgeProjection.MaxConversationNodes + 1) },
+            out var error));
+        Assert.Equal("mapping too large", error);
+    }
+
+    private static JsonObject MappingNodes(int count)
+    {
+        var mapping = new JsonObject();
+        for (var i = 0; i < count; i++)
+        {
+            mapping[i.ToString(CultureInfo.InvariantCulture)] = new JsonObject
+            {
+                ["id"] = i.ToString(CultureInfo.InvariantCulture)
+            };
+        }
+
+        return mapping;
     }
 }

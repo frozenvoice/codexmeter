@@ -164,16 +164,11 @@ public static class DisplayFormatting
         _ => UiText.Unavailable
     };
 
-    public static string CoverageFlyoutValue(QuotaSnapshot snapshot)
-    {
-        if (snapshot.IsSyncing && snapshot.LastSync is null)
-        {
-            return UiText.SyncingEllipsis;
-        }
+    public static string CoverageFlyoutValue(QuotaSnapshot snapshot) =>
+        UserFacingHealth.From(snapshot).DataStatusText;
 
-        var label = CoverageCompactLabel(snapshot.Coverage);
-        return snapshot.IsSyncing ? $"{label} · {UiText.PreviousData}" : label;
-    }
+    public static string FlyoutHeader(QuotaSnapshot snapshot) =>
+        UserFacingHealth.From(snapshot).HeaderText;
 
     public static string CoverageCompactLabel(CoverageInfo coverage)
     {

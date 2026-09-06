@@ -82,7 +82,7 @@ public sealed class ProStatusPresentation
 
         var headline = exact
             ? UiText.GptProUsageServer($"{snapshot.Used} / {snapshot.Limit}", snapshot.ReconstructedUsed)
-            : UiText.GptProConfirmedHeadline(reconstructed);
+            : $"{UiText.GptPro}  {stateText}";
 
         return new ProStatusPresentation
         {
@@ -103,7 +103,7 @@ public sealed class ProStatusPresentation
             ServerResetAt = hasServerReset ? status.ResetAt : null,
             RestrictionDetail = restricted ? UiText.ProRestrictionMatchesReset : "",
             HistoryLabel = UiText.HistoryStatistics,
-            DataStatusText = DisplayFormatting.CoverageFlyoutValue(snapshot),
+            DataStatusText = UserFacingHealth.From(snapshot).DataStatusText,
             TrayIconGlyph = glyph,
             CountSourceText = countSource,
             Headline = headline
@@ -118,12 +118,11 @@ public sealed class ProStatusPresentation
             $"{UiText.GptPro}: {ProStateText}",
             HasServerReset ? $"{UiText.ServerReset}: {ResetText}" : null,
             $"{UiText.ExactRemaining}: {ExactRemainingText}",
-            $"{UiText.ConfirmedRequests}: {ReconstructedText}",
             snapshot.IsSyncing
-                ? DisplayFormatting.StatusLabel(snapshot)
+                ? DisplayFormatting.FlyoutHeader(snapshot)
                 : snapshot.LastSync is DateTimeOffset
                     ? $"{UiText.LastSync}: {DisplayFormatting.LastSyncLabel(snapshot.LastSync)}"
-                    : DisplayFormatting.StatusLabel(snapshot)
+                    : DisplayFormatting.FlyoutHeader(snapshot)
         };
         return NotifyIconText.Safe(string.Join("\n", lines.Where(line => !string.IsNullOrWhiteSpace(line))));
     }
@@ -147,7 +146,6 @@ public sealed class ProStatusPresentation
                 RestrictionDetail,
                 resetLine,
                 $"{UiText.ExactRemaining}: {ExactRemainingText}",
-                $"{UiText.ConfirmedRequests}: {ReconstructedText}",
                 $"{UiText.DataStatus}: {DataStatusText}",
                 block,
                 $"{UiText.LastSync}: {DisplayFormatting.LastSyncLabel(snapshot.LastSync)}"

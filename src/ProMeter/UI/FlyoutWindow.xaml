@@ -211,16 +211,10 @@
                 <TextBlock x:Name="ServerResetText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
             </DockPanel>
             <DockPanel Margin="0,4,0,0">
-                <TextBlock x:Name="ExactRemainingLabel" Text="Exact remaining" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBlock x:Name="ExactRemainingLabel" Text="Remaining" Foreground="{DynamicResource MutedBrush}"/>
                 <TextBlock x:Name="ExactRemainingText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
             </DockPanel>
             <TextBlock x:Name="RestrictionDetailText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
-            <TextBlock x:Name="HistoryStatsLabel" Style="{StaticResource SectionTitle}" Text="HISTORY"/>
-            <DockPanel>
-                <TextBlock x:Name="ConfirmedRequestsLabel" Text="Confirmed Pro requests" Foreground="{DynamicResource MutedBrush}"/>
-                <TextBlock x:Name="ConfirmedRequestsText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
-            </DockPanel>
-            <TextBlock x:Name="CountSourceText" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,4,0,0"/>
             <DockPanel x:Name="AuthoritativeCountPanel" Visibility="Collapsed" Margin="0,8,0,0">
                 <TextBlock x:Name="ProCountText" DockPanel.Dock="Right" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"/>
                 <Border Height="8" CornerRadius="4" Background="{DynamicResource LineBrush}" Margin="0,4,12,0">
@@ -241,7 +235,15 @@
                     <TextBlock x:Name="CombinedDailyText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
                 </DockPanel>
             </StackPanel>
+            <StackPanel x:Name="HistoryStatsPanel" Visibility="Collapsed">
+            <TextBlock x:Name="HistoryStatsLabel" Style="{StaticResource SectionTitle}" Text="HISTORY"/>
+            <DockPanel>
+                <TextBlock x:Name="ConfirmedRequestsLabel" Text="Confirmed Pro requests" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBlock x:Name="ConfirmedRequestsText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
+            </DockPanel>
+            <TextBlock x:Name="CountSourceText" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,4,0,0"/>
             <ItemsControl x:Name="ModelRows" Margin="0,8,0,0"/>
+            </StackPanel>
 
             <TextBlock x:Name="CodexSectionTitle" Style="{StaticResource SectionTitle}" Text="CODEX"/>
             <TextBlock x:Name="CodexStatusText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap"/>

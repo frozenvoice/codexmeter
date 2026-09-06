@@ -445,7 +445,7 @@ public partial class App : Application
 
         _flyout = new FlyoutWindow();
         _flyout.CoverageRequested += () => new CoverageWindow(
-            _snapshot.Coverage,
+            _snapshot,
             _codex.Snapshot,
             _codexLocator.Locate(_settings.CodexExePath) is not null).Show();
         _flyout.SyncRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);

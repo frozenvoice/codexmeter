@@ -94,7 +94,8 @@ public class ZeroEventDiagnosticsTests
         Assert.False(snapshot.DisplayUsageUnavailable);
         Assert.Equal(0, snapshot.Used);
         Assert.Equal("0+", DisplayFormatting.UsageLabel(snapshot));
-        Assert.Contains("0+", DisplayFormatting.Headline(snapshot), StringComparison.Ordinal);
+        Assert.DoesNotContain("0+", DisplayFormatting.FlyoutHeader(snapshot), StringComparison.Ordinal);
+        Assert.DoesNotContain("0 / 50", DisplayFormatting.Headline(snapshot), StringComparison.Ordinal);
         Assert.DoesNotContain("0 / 50", DisplayFormatting.UsageLabel(snapshot), StringComparison.Ordinal);
     }
 

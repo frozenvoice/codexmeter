@@ -57,7 +57,7 @@ public partial class FlyoutWindow : Window
     {
         ApplyLocalizedTexts();
         var presentation = ProStatusPresentation.From(snapshot);
-        StatusText.Text = DisplayFormatting.StatusLabel(snapshot);
+        StatusText.Text = DisplayFormatting.FlyoutHeader(snapshot);
         ProStateText.Text = presentation.ProStateText;
         ServerResetText.Text = presentation.ResetText;
         ExactRemainingText.Text = presentation.ExactRemainingText;
@@ -65,6 +65,7 @@ public partial class FlyoutWindow : Window
         RestrictionDetailText.Visibility = string.IsNullOrWhiteSpace(presentation.RestrictionDetail)
             ? Visibility.Collapsed
             : Visibility.Visible;
+        HistoryStatsPanel.Visibility = Visibility.Collapsed;
         ConfirmedRequestsText.Text = presentation.ConfirmedRequestsText;
         CountSourceText.Text = presentation.CountSourceText;
         AuthoritativeCountPanel.Visibility = presentation.ExactRemainingAvailable ? Visibility.Visible : Visibility.Collapsed;
@@ -73,7 +74,9 @@ public partial class FlyoutWindow : Window
             ProCountText.Text = $"{snapshot.Used} / {snapshot.Limit}";
         }
 
-        var showPro200 = snapshot.SolProDailyLimit is not null || snapshot.CombinedDailyLimit is not null;
+        var showPro200 = snapshot.UsesServerWeeklyCount
+            || snapshot.UsesServerSolDailyCount
+            || snapshot.UsesServerCombinedDailyCount;
         Pro200Panel.Visibility = showPro200 ? Visibility.Visible : Visibility.Collapsed;
         if (showPro200)
         {
@@ -136,20 +139,7 @@ public partial class FlyoutWindow : Window
         });
 
         ModelRows.Items.Clear();
-        foreach (var model in snapshot.ModelBreakdown)
-        {
-            var row = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
-            row.Children.Add(new TextBlock { Text = model.NormalizedModel, Foreground = (Brush)FindResource("MutedBrush") });
-            var count = new TextBlock
-            {
-                Text = model.Count.ToString(CultureInfo.InvariantCulture),
-                HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
-                Style = (Style)FindResource("FlyoutValueText")
-            };
-            DockPanel.SetDock(count, Dock.Right);
-            row.Children.Add(count);
-            ModelRows.Items.Add(row);
-        }
+        ModelRows.Visibility = Visibility.Collapsed;
     }
 
     public void SetRefreshPresentation(FlyoutRefreshPresentation presentation)
@@ -258,7 +248,7 @@ public partial class FlyoutWindow : Window
     {
         ProStateLabel.Text = UiText.T("Status", "상태");
         ServerResetLabel.Text = UiText.ServerReset;
-        ExactRemainingLabel.Text = UiText.ExactRemaining;
+        ExactRemainingLabel.Text = UiText.RemainingCount;
         HistoryStatsLabel.Text = UiText.HistoryStatistics;
         ConfirmedRequestsLabel.Text = UiText.ConfirmedProRequests;
         Gpt6WeekLabel.Text = UiText.Gpt6ProWeek;

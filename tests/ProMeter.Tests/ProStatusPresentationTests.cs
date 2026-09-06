@@ -43,7 +43,7 @@ public class ProStatusPresentationTests
         Assert.Equal("P!", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.UltraCompact));
         var tooltip = TaskbarStatusFormatter.Tooltip(snapshot, Codex());
         Assert.Contains(UiText.ServerReset, tooltip, StringComparison.Ordinal);
-        Assert.Contains("31+", tooltip, StringComparison.Ordinal);
+        Assert.DoesNotContain("31+", tooltip, StringComparison.Ordinal);
         Assert.DoesNotContain("31/50", tooltip, StringComparison.Ordinal);
     }
 
@@ -149,8 +149,8 @@ public class ProStatusPresentationTests
             .ToLocalTime()
             .ToString("M/d HH:mm", CultureInfo.InvariantCulture);
         Assert.Equal(expectedReset, WidgetStatusFormatter.ResetLine(presentation));
-        Assert.Contains("31+", WidgetStatusFormatter.HistoryLine(presentation, snapshot), StringComparison.Ordinal);
         Assert.Contains("268", WidgetStatusFormatter.HistoryLine(presentation, snapshot), StringComparison.Ordinal);
+        Assert.DoesNotContain("31+", WidgetStatusFormatter.HistoryLine(presentation, snapshot), StringComparison.Ordinal);
         Assert.Contains("42%", WidgetStatusFormatter.CodexLine(Codex()), StringComparison.Ordinal);
         Assert.DoesNotContain("31/50", WidgetStatusFormatter.HistoryLine(presentation, snapshot), StringComparison.Ordinal);
     }

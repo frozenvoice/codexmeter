@@ -218,13 +218,15 @@ public class FlyoutUxAndFailureSummaryTests
     }
 
     [Fact]
-    public void CoverageWindow_ShowsStructuredFailureLines()
+    public void CoverageWindow_DefaultViewHidesParserDiagnostics()
     {
         var xaml = File.ReadAllText(Find("src/ProMeter/UI/CoverageWindow.xaml"));
         var code = File.ReadAllText(Find("src/ProMeter/UI/CoverageWindow.xaml.cs"));
-        Assert.Contains("FailurePanel", xaml, StringComparison.Ordinal);
-        Assert.Contains("CoverageFailureDetailLines", code, StringComparison.Ordinal);
-        Assert.Contains("CoverageCompactLabel", code, StringComparison.Ordinal);
+        Assert.Contains("AdvancedExpander", xaml, StringComparison.Ordinal);
+        Assert.Contains("AdvancedPanel", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsExpanded=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("DataStatusPresentation.From", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("CoverageCompactLabel", code, StringComparison.Ordinal);
         Assert.DoesNotContain("conversation_id", code, StringComparison.OrdinalIgnoreCase);
     }
 

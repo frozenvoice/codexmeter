@@ -30,5 +30,5 @@ public static class WidgetStatusFormatter
     }
 
     public static string HistoryLine(ProStatusPresentation presentation, QuotaSnapshot snapshot) =>
-        $"{UiText.T("History", "기록")} {presentation.ReconstructedText} · XH {snapshot.Reasoning.ExtraHigh.ToString(CultureInfo.InvariantCulture)}";
+        $"{UiText.ExtraHigh} {snapshot.Reasoning.ExtraHigh.ToString(CultureInfo.InvariantCulture)}";
 }

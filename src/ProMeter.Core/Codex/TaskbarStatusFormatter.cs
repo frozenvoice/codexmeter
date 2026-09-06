@@ -27,8 +27,7 @@ public static class TaskbarStatusFormatter
             {
                 $"{UiText.GptPro}: {presentation.ProStateText}",
                 presentation.HasServerReset ? $"{UiText.ServerReset}: {presentation.ResetText}" : null,
-                $"{UiText.ExactRemaining}: {presentation.ExactRemainingText}",
-                $"{UiText.ConfirmedRequests}: {presentation.ReconstructedText}"
+                $"{UiText.ExactRemaining}: {presentation.ExactRemainingText}"
             }.Where(line => !string.IsNullOrWhiteSpace(line)));
         var window = codex.CompactWindow;
         string codexLine;

@@ -567,7 +567,8 @@ public class TaskbarStatusLayoutTests
         UiText.SetLanguage(UiLanguage.English);
         var english = TaskbarStatusFormatter.Tooltip(gpt, weekly);
         Assert.Contains("GPT Pro:", english, StringComparison.Ordinal);
-        Assert.Contains("31+", english, StringComparison.Ordinal);
+        Assert.Contains(UiText.ExactRemaining, english, StringComparison.Ordinal);
+        Assert.DoesNotContain("31+", english, StringComparison.Ordinal);
         Assert.DoesNotContain("31/50", english, StringComparison.Ordinal);
         Assert.Contains("weekly", english, StringComparison.OrdinalIgnoreCase);
         UiText.SetLanguage(UiLanguage.Korean);
@@ -575,7 +576,7 @@ public class TaskbarStatusLayoutTests
         {
             var korean = TaskbarStatusFormatter.Tooltip(gpt, weekly);
             Assert.Contains("GPT Pro:", korean, StringComparison.Ordinal);
-            Assert.Contains("31+", korean, StringComparison.Ordinal);
+            Assert.DoesNotContain("31+", korean, StringComparison.Ordinal);
             Assert.Contains("주간", korean, StringComparison.Ordinal);
             Assert.Contains("마지막 확인", korean, StringComparison.Ordinal);
         }

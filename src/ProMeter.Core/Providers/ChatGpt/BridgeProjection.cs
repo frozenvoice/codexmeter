@@ -2,6 +2,8 @@ namespace ProMeter.Providers.ChatGpt;
 
 public static class BridgeProjection
 {
+    public const int MaxConversationNodes = 8000;
+
     public static readonly HashSet<string> ConversationMetadataKeys = new(StringComparer.Ordinal)
     {
         "request_id",
@@ -469,7 +471,7 @@ public static class BridgeProjection
 
         if (obj["mapping"] is JsonObject mapping)
         {
-            if (mapping.Count > 8000)
+            if (mapping.Count > MaxConversationNodes)
             {
                 return Fail("mapping too large", out error);
             }
@@ -494,7 +496,7 @@ public static class BridgeProjection
                 continue;
             }
 
-            if (array.Count > 2000)
+            if (array.Count > MaxConversationNodes)
             {
                 return Fail("conversation collection too large", out error);
             }
