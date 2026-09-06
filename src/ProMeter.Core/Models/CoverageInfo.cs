@@ -30,6 +30,7 @@ public sealed class CoverageInfo
     public int ScanAttempts { get; set; }
     public int UniqueConversations { get; set; }
     public int BodyFetches { get; set; }
+    public bool ConversationSchemaSystemicFailure { get; set; }
 
     public CoverageConfidence Confidence
     {

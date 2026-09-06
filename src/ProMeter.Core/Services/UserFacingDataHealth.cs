@@ -33,6 +33,11 @@ public static class UserFacingHealth
                 false);
         }
 
+        if (snapshot.Coverage.ConversationSchemaSystemicFailure)
+        {
+            return SystemicConversationFailure();
+        }
+
         return snapshot.Status switch
         {
             AppSyncStatus.SignedOut or AppSyncStatus.AuthenticationRequired
@@ -75,13 +80,19 @@ public static class UserFacingHealth
             return false;
         }
 
-        return MeterDataAvailable(snapshot)
+        return !snapshot.Coverage.ConversationSchemaSystemicFailure
+            && MeterDataAvailable(snapshot)
             && snapshot.Coverage.FailureSummary.HasConversationFailures
             && snapshot.Coverage.NormalIndexState is not CollectionState.Failed;
     }
 
     private static UserFacingDataHealth EvaluateCompleted(QuotaSnapshot snapshot)
     {
+        if (snapshot.Coverage.ConversationSchemaSystemicFailure)
+        {
+            return SystemicConversationFailure();
+        }
+
         if (IsPrimaryStale(snapshot))
         {
             return new UserFacingDataHealth(
@@ -155,4 +166,7 @@ public static class UserFacingHealth
 
     private static UserFacingDataHealth Actionable(UserFacingHealthKind kind, string text) =>
         new(kind, text, text, false, true);
+
+    private static UserFacingDataHealth SystemicConversationFailure() =>
+        new(UserFacingHealthKind.SyncFailed, UiText.SyncFailedShort, UiText.NeedsAttention, false, true);
 }

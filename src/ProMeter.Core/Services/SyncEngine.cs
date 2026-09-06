@@ -249,6 +249,7 @@ public sealed class SyncEngine
 
             cancellationToken.ThrowIfCancellationRequested();
             _store.SetState("last_index_sync", periodReference.ToString("O"));
+            ApplyConversationSchemaHealth(coverage, value => worst = Worse(worst, value));
             ApplyZeroEventDiagnostics(coverage, value => worst = Worse(worst, value));
             LastCoverage = coverage;
             LastStatus = coverage.Confidence == CoverageConfidence.Incomplete
@@ -559,7 +560,7 @@ public sealed class SyncEngine
 
             _reconstruction.ScanAttempts++;
             _reconstruction.UniqueConversations++;
-            var entry = new ConversationWorkEntry { First = item, UsageSource = usageSource };
+            var entry = new ConversationWorkEntry { First = item, UsageSource = usageSource, Attempted = true };
             _work[item.Id] = entry;
 
             await PaceBodyFetchAsync(cancellationToken);
@@ -718,6 +719,7 @@ public sealed class SyncEngine
         if (!entry.Failed)
         {
             entry.Failed = true;
+            entry.FailureCategory = category;
             _reconstruction.Failed++;
             coverage.FailedConversations++;
             coverage.FailureSummary.AddThisSync(category, httpStatus, detail);
@@ -831,6 +833,57 @@ public sealed class SyncEngine
         }
 
         return result.Events.Count;
+    }
+
+    private void ApplyConversationSchemaHealth(CoverageInfo coverage, Action<AppSyncStatus> setWorst)
+    {
+        var assessment = ConversationSchemaHealthPolicy.Evaluate(CollectConversationSchemaEvidence());
+        coverage.ConversationSchemaSystemicFailure = assessment.SystemicBreak;
+        if (!assessment.SystemicBreak)
+        {
+            return;
+        }
+
+        setWorst(AppSyncStatus.ProviderSchemaMismatch);
+        coverage.Notes = "Systemic conversation schema mismatch.";
+    }
+
+    private ConversationSchemaHealthEvidence CollectConversationSchemaEvidence()
+    {
+        var attempted = 0;
+        var successful = 0;
+        var schema = 0;
+        var timeout = 0;
+        var other = 0;
+        foreach (var entry in _work.Values)
+        {
+            if (!entry.Attempted)
+            {
+                continue;
+            }
+
+            attempted++;
+            if (entry.Succeeded || entry.DeferredZero)
+            {
+                successful++;
+                continue;
+            }
+
+            switch (ConversationFetchBackoff.NormalizeCategory(entry.FailureCategory))
+            {
+                case ConversationFetchBackoff.SchemaMismatch:
+                    schema++;
+                    break;
+                case ConversationFetchBackoff.BodyTimeout:
+                    timeout++;
+                    break;
+                default:
+                    other++;
+                    break;
+            }
+        }
+
+        return new ConversationSchemaHealthEvidence(attempted, successful, schema, timeout, other);
     }
 
     private void ApplyZeroEventDiagnostics(CoverageInfo coverage, Action<AppSyncStatus> setWorst)
@@ -1048,10 +1101,12 @@ public sealed class SyncEngine
     {
         public required ConversationIndexItem First { get; init; }
         public UsageSource UsageSource { get; set; }
+        public bool Attempted { get; set; }
         public bool BodyFetched { get; set; }
         public bool Failed { get; set; }
         public bool Succeeded { get; set; }
         public bool DeferredZero { get; set; }
+        public string? FailureCategory { get; set; }
     }
 }
 

@@ -220,7 +220,13 @@ public static class DisplayFormatting
             return [];
         }
 
-        var lines = new List<string> { UiText.DataPartiallyNotApplied };
+        var lines = new List<string>();
+        if (coverage.ConversationSchemaSystemicFailure)
+        {
+            lines.Add(UiText.RepeatedConversationSchemaMismatch);
+        }
+
+        lines.Add(UiText.DataPartiallyNotApplied);
         AddCategoryLine(lines, summary.BodyTimeoutCount, UiText.ReadTimeout);
         AddCategoryLine(lines, summary.SchemaMismatchCount, UiText.ResponseFormatMismatch);
         AppendSchemaMismatchReasons(lines, summary);
@@ -232,7 +238,11 @@ public static class DisplayFormatting
         lines.Add($"{UiText.WaitingToRetry}    {summary.DeferredCount}");
         lines.Add(UiText.CoverageLowerBoundNote);
         lines.Add(UiText.CoverageAutoRetryNote);
-        lines.Add(UiText.CoverageNoUserActionNote);
+        if (!coverage.ConversationSchemaSystemicFailure)
+        {
+            lines.Add(UiText.CoverageNoUserActionNote);
+        }
+
         return lines;
     }
 

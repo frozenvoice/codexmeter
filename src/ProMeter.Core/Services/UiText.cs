@@ -197,6 +197,9 @@ public static class UiText
     public static string DataPartiallyNotApplied => T("Data partially not applied", "데이터 일부 미반영");
     public static string ReadTimeout => T("Read timeout", "읽기 시간 초과");
     public static string ResponseFormatMismatch => T("Response format mismatch", "응답 형식 불일치");
+    public static string RepeatedConversationSchemaMismatch => T(
+        "Response format mismatch repeated across multiple conversations.",
+        "여러 대화에서 응답 형식 불일치가 반복됨");
     public static string SchemaMismatchDetail(string reason) => reason switch
     {
         "conversation collection too large" => T(
