@@ -93,6 +93,7 @@ public static class UserFacingHealth
         }
 
         return !snapshot.Coverage.ConversationSchemaSystemicFailure
+            && !snapshot.Coverage.PrimaryIndexSchemaMismatch
             && MeterDataAvailable(snapshot)
             && snapshot.Coverage.FailureSummary.HasConversationFailures
             && snapshot.Coverage.NormalIndexState is not CollectionState.Failed;
@@ -177,7 +178,7 @@ public static class UserFacingHealth
         };
 
     private static bool IsPrimaryProviderSchemaFailure(QuotaSnapshot snapshot) =>
-        snapshot.Coverage.NormalIndexState == CollectionState.Failed
+        snapshot.Coverage.PrimaryIndexSchemaMismatch
         || snapshot.Coverage.HistoryLoadedWithoutUsage;
 
     private static UserFacingDataHealth Actionable(UserFacingHealthKind kind, string text) =>

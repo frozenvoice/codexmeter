@@ -520,6 +520,62 @@ public class ConversationSchemaHealthTests
     }
 
     [Fact]
+    public async Task PausedAutoSync_ReportsCurrentRunCoverage_AndKeepsLatch()
+    {
+        var (engine, store, fixture, provider, settings, items) = CreateHarness(3);
+        fixture.LoadOverride = _ => SchemaLoad();
+        var run1 = await engine.SyncAsync(provider, settings, force: true);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, run1.Status);
+        Assert.True(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+        var completed = engine.LastSyncCompleted;
+        Assert.NotNull(completed);
+
+        engine.RetryAttempts = 1;
+        engine.RetryBaseDelay = TimeSpan.Zero;
+        foreach (var item in items)
+        {
+            item.UpdateTime += 90;
+        }
+
+        var rateLimited = new ConversationIndexItem
+        {
+            Id = "conv-rate-limited",
+            UpdateTime = items[^1].UpdateTime - 10,
+            CreateTime = items[^1].UpdateTime - 40
+        };
+        fixture.AddConversation(rateLimited, UniquePro(rateLimited.Id, rateLimited.UpdateTime));
+        fixture.LoadOverride = id => id == rateLimited.Id
+            ? throw new ChatGptProviderException("Rate limited.", 429, "0")
+            : SchemaLoad();
+
+        var run2 = await engine.SyncAsync(provider, settings, force: true);
+        Assert.Equal(AppSyncStatus.RateLimited, run2.Status);
+        Assert.True(engine.IsPaused);
+        Assert.Equal(3, engine.LastCoverage.FailureSummary.SchemaMismatchCount);
+        Assert.Equal(3, engine.LastCoverage.FailedConversations);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+        var staleCoverage = engine.LastCoverage;
+
+        var run3 = await engine.SyncAsync(provider, settings, new SyncRunOptions { Origin = SyncOrigin.Auto });
+        Assert.Equal(AppSyncStatus.RateLimited, run3.Status);
+        Assert.Equal(UiText.AutoSyncPaused, run3.Detail);
+        Assert.Equal(AppSyncStatus.RateLimited, engine.LastStatus);
+        Assert.Equal(UiText.AutoSyncPaused, engine.LastStatusDetail);
+        Assert.NotSame(staleCoverage, engine.LastCoverage);
+        Assert.Equal(0, engine.LastCoverage.FailedConversations);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.SchemaMismatchCount);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.BodyTimeoutCount);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.FailedThisSyncCount);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.DeferredCount);
+        Assert.False(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.False(engine.LastCoverage.PrimaryIndexSchemaMismatch);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.Equal("true", store.GetState(ConversationSchemaHealthPolicy.LatchStateKey));
+        Assert.Equal(completed, engine.LastSyncCompleted);
+    }
+
+    [Fact]
     public void SystemicFlag_LastSyncDoesNotHideBreak()
     {
         var coverage = new CoverageInfo

@@ -84,6 +84,7 @@ public class UserFacingHealthTests
         var coverage = CompleteCoverage();
         coverage.NormalIndexState = CollectionState.Failed;
         coverage.IndexIncomplete = true;
+        coverage.PrimaryIndexSchemaMismatch = true;
         var snapshot = Restricted(34, AppSyncStatus.ProviderSchemaMismatch, coverage);
         snapshot.LastSync = null;
         snapshot.ProServerStatus = new ProServerStatus
@@ -172,6 +173,7 @@ public class UserFacingHealthTests
         var coverage = SystemicCoverage();
         coverage.NormalIndexState = CollectionState.Failed;
         coverage.IndexIncomplete = true;
+        coverage.PrimaryIndexSchemaMismatch = true;
         var snapshot = Restricted(5, AppSyncStatus.ProviderSchemaMismatch, coverage);
         snapshot.LastSync = null;
         snapshot.ProServerStatus = new ProServerStatus
@@ -186,6 +188,45 @@ public class UserFacingHealthTests
         Assert.Equal(UiText.SyncFailedShort, health.HeaderText);
         Assert.Equal(UiText.SyncFailedShort, health.DataStatusText);
         Assert.NotEqual(UiText.NeedsAttention, health.DataStatusText);
+    }
+
+    [Fact]
+    public void PrimaryIndexSchemaMismatch_IsNotDemotedByConversationFailure()
+    {
+        var coverage = CompleteCoverage();
+        coverage.PrimaryIndexSchemaMismatch = true;
+        coverage.IndexIncomplete = true;
+        coverage.ProjectsIndexState = CollectionState.Failed;
+        coverage.FailedConversations = 1;
+        coverage.ConversationIncomplete = true;
+        coverage.FailureSummary.AddThisSync(ConversationFetchBackoff.SchemaMismatch);
+        var snapshot = Restricted(34, AppSyncStatus.ProviderSchemaMismatch, coverage);
+        Assert.True(UserFacingHealth.MeterDataAvailable(snapshot));
+        Assert.False(UserFacingHealth.HistoryReconstructionOnly(snapshot));
+        var health = UserFacingHealth.From(snapshot);
+        Assert.Equal(UserFacingHealthKind.SyncFailed, health.Kind);
+        Assert.Equal(UiText.SyncFailedShort, health.HeaderText);
+        Assert.Equal(UiText.SyncFailedShort, health.DataStatusText);
+        Assert.True(health.Actionable);
+        Assert.NotEqual(UiText.DataUsable, health.DataStatusText);
+        Assert.NotEqual(UiText.NeedsAttention, health.DataStatusText);
+    }
+
+    [Fact]
+    public void GenericFailedCollectionState_IsNotPrimarySchemaFailure()
+    {
+        var coverage = CompleteCoverage();
+        coverage.IndexIncomplete = true;
+        coverage.ArchivedIndexState = CollectionState.Failed;
+        coverage.ProjectsIndexState = CollectionState.Failed;
+        coverage.ArchivedChats = false;
+        coverage.Projects = false;
+        var snapshot = Restricted(34, AppSyncStatus.PartialData, coverage);
+        Assert.False(coverage.PrimaryIndexSchemaMismatch);
+        var health = UserFacingHealth.From(snapshot);
+        Assert.Equal(UserFacingHealthKind.Usable, health.Kind);
+        Assert.Equal(UiText.DataUsable, health.DataStatusText);
+        Assert.False(health.Actionable);
     }
 
     [Fact]

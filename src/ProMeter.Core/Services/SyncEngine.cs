@@ -86,11 +86,10 @@ public sealed class SyncEngine
         SyncRunOptions options,
         CancellationToken cancellationToken = default)
     {
+        var coverage = new CoverageInfo();
         if (!options.BypassPause && IsPaused && PauseUntil is DateTimeOffset until && until > _clock.UtcNow)
         {
-            LastStatus = AppSyncStatus.RateLimited;
-            LastStatusDetail = UiText.AutoSyncPaused;
-            return new SyncOutcome(LastStatus, LastStatusDetail, 0);
+            return FailCurrentRun(coverage, AppSyncStatus.RateLimited, UiText.AutoSyncPaused, 0, options.Origin, log: false);
         }
 
         if (options.BypassPause)
@@ -103,7 +102,6 @@ public sealed class SyncEngine
         _log.Info(
             $"sync plan origin={options.Origin.ToString().ToLowerInvariant()} bypassPause={options.BypassPause} forceBodyRescan={options.ForceBodyRescan}");
 
-        var coverage = new CoverageInfo();
         var parsed = 0;
         var worst = AppSyncStatus.UpToDate;
         _bodyFetchDelayMs = Math.Clamp(settings.BodyFetchDelayMilliseconds, 0, 5000);
@@ -208,6 +206,7 @@ public sealed class SyncEngine
                     coverage.IndexIncomplete = true;
                     coverage.ProjectsIndexState = CollectionState.Failed;
                     coverage.Projects = false;
+                    coverage.PrimaryIndexSchemaMismatch = true;
                     worst = Worse(worst, AppSyncStatus.ProviderSchemaMismatch);
                 }
                 else if (projects.Incomplete)
@@ -402,6 +401,7 @@ public sealed class SyncEngine
         if (result.SchemaMismatch)
         {
             coverage.IndexIncomplete = true;
+            coverage.PrimaryIndexSchemaMismatch = true;
             setWorst(AppSyncStatus.ProviderSchemaMismatch);
         }
         else if (result.Incomplete || result.TimestampIncomplete)
@@ -452,6 +452,7 @@ public sealed class SyncEngine
         {
             coverage.IndexIncomplete = true;
             coverage.ProjectsIndexState = CollectionState.Failed;
+            coverage.PrimaryIndexSchemaMismatch = true;
             setWorst(AppSyncStatus.ProviderSchemaMismatch);
             return 0;
         }
