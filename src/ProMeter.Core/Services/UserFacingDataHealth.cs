@@ -24,7 +24,7 @@ public static class UserFacingHealth
     {
         if (snapshot.IsSyncing)
         {
-            var previousUsable = snapshot.LastSync is not null && PrimaryLooksUsable(snapshot);
+            var previousUsable = snapshot.LastSync is not null && MeterDataAvailable(snapshot);
             return new UserFacingDataHealth(
                 UserFacingHealthKind.Syncing,
                 UiText.SyncingEllipsis,
@@ -75,7 +75,7 @@ public static class UserFacingHealth
             return false;
         }
 
-        return PrimaryLooksUsable(snapshot)
+        return MeterDataAvailable(snapshot)
             && snapshot.Coverage.FailureSummary.HasConversationFailures
             && snapshot.Coverage.NormalIndexState is not CollectionState.Failed;
     }
@@ -95,12 +95,12 @@ public static class UserFacingHealth
         if (snapshot.Coverage.IndexIncomplete
             && snapshot.Coverage.FailedConversations == 0
             && snapshot.Coverage.NormalIndexState == CollectionState.Failed
-            && !PrimaryLooksUsable(snapshot))
+            && !MeterDataAvailable(snapshot))
         {
             return Actionable(UserFacingHealthKind.SyncFailed, UiText.SyncFailedShort);
         }
 
-        if (PrimaryLooksUsable(snapshot) || snapshot.LastSync is not null)
+        if (MeterDataAvailable(snapshot) || snapshot.LastSync is not null)
         {
             return new UserFacingDataHealth(
                 UserFacingHealthKind.Usable,
@@ -118,10 +118,25 @@ public static class UserFacingHealth
             true);
     }
 
-    private static bool PrimaryLooksUsable(QuotaSnapshot snapshot)
+    public static bool ServerStateAvailable(QuotaSnapshot snapshot)
     {
         var status = snapshot.ProServerStatus;
-        if (status.ServerObserved && status.RestrictionState != ProRestrictionState.Unknown)
+        return status.ServerObserved && status.RestrictionState != ProRestrictionState.Unknown;
+    }
+
+    public static bool MeterDataAvailable(QuotaSnapshot snapshot)
+    {
+        if (snapshot.Coverage.NormalIndexState == CollectionState.Failed)
+        {
+            return false;
+        }
+
+        if (snapshot.CurrentCycleKnown && !snapshot.DisplayUsageUnavailable)
+        {
+            return true;
+        }
+
+        if (ServerStateAvailable(snapshot))
         {
             return true;
         }

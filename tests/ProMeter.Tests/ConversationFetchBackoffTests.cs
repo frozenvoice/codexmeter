@@ -244,7 +244,7 @@ public class ConversationFetchBackoffTests
         settings.BodyFetchDelayMilliseconds = 0;
 
         var first = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, first.Status);
+        Assert.Equal(AppSyncStatus.PartialData, first.Status);
         Assert.Equal(1, provider.BodyFetches);
         Assert.Equal(1, engine.LastCoverage.FailureSummary.FailedThisSyncCount);
         Assert.Equal(0, engine.LastCoverage.FailureSummary.DeferredCount);
@@ -259,7 +259,7 @@ public class ConversationFetchBackoffTests
         item.UpdateTime += 90;
         var changed = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
         Assert.Equal(2, provider.BodyFetches);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, changed.Status);
+        Assert.Equal(AppSyncStatus.PartialData, changed.Status);
 
         var forced = await engine.SyncAsync(provider, settings, new SyncRunOptions
         {
@@ -268,12 +268,12 @@ public class ConversationFetchBackoffTests
             Origin = SyncOrigin.Manual
         });
         Assert.Equal(3, provider.BodyFetches);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, forced.Status);
+        Assert.Equal(AppSyncStatus.PartialData, forced.Status);
 
         clock.UtcNow = clock.UtcNow.AddHours(7);
         var expired = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
         Assert.Equal(4, provider.BodyFetches);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, expired.Status);
+        Assert.Equal(AppSyncStatus.PartialData, expired.Status);
         Assert.Equal(4, store.GetConversation(item.Id)?.ConsecutiveFetchFailures);
         Assert.Equal(clock.UtcNow.AddHours(24), store.GetConversation(item.Id)?.NextEligibleFetchAt);
     }
@@ -301,7 +301,7 @@ public class ConversationFetchBackoffTests
         settings.BodyFetchDelayMilliseconds = 0;
 
         var first = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, first.Status);
+        Assert.Equal(AppSyncStatus.PartialData, first.Status);
         Assert.Equal(1, provider.BodyFetches);
         Assert.Equal(1, store.GetConversation(item.Id)?.ConsecutiveFetchFailures);
         Assert.Equal(clock.UtcNow.AddMinutes(15), store.GetConversation(item.Id)?.NextEligibleFetchAt);
@@ -319,7 +319,7 @@ public class ConversationFetchBackoffTests
         clock.UtcNow = DateTimeOffset.Parse("2026-09-06T00:15:00Z");
         var expired = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
         Assert.Equal(2, provider.BodyFetches);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, expired.Status);
+        Assert.Equal(AppSyncStatus.PartialData, expired.Status);
         Assert.Equal(2, store.GetConversation(item.Id)?.ConsecutiveFetchFailures);
         Assert.Equal(clock.UtcNow.AddHours(1), store.GetConversation(item.Id)?.NextEligibleFetchAt);
 
@@ -334,7 +334,7 @@ public class ConversationFetchBackoffTests
             Origin = SyncOrigin.Manual
         });
         Assert.Equal(3, provider.BodyFetches);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, forced.Status);
+        Assert.Equal(AppSyncStatus.PartialData, forced.Status);
         Assert.Equal(3, store.GetConversation(item.Id)?.ConsecutiveFetchFailures);
         Assert.Equal(clock.UtcNow.AddHours(6), store.GetConversation(item.Id)?.NextEligibleFetchAt);
     }
@@ -362,7 +362,7 @@ public class ConversationFetchBackoffTests
         settings.BodyFetchDelayMilliseconds = 0;
 
         var first = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, first.Status);
+        Assert.Equal(AppSyncStatus.PartialData, first.Status);
         Assert.Equal(3, provider.BodyFetches);
         Assert.Equal(3, engine.LastCoverage.FailedConversations);
         Assert.Equal(3, engine.LastCoverage.FailureSummary.FailedThisSyncCount);

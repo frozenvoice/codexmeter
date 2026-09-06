@@ -61,12 +61,25 @@ public static class TaskbarStatusFormatter
     public static string ChatGptToken(QuotaSnapshot snapshot, TaskbarStripMode mode)
     {
         var presentation = ProStatusPresentation.From(snapshot);
+        var stale = presentation.Stale && presentation.ServerStatusKnown ? "~" : "";
+        var count = CurrentCycleLowerBound(snapshot);
+        if (count is not null && !presentation.ExactRemainingAvailable)
+        {
+            var prefix = !presentation.ServerStatusKnown || presentation.ResetAmbiguous
+                ? "P?"
+                : presentation.Restricted
+                    ? "P!"
+                    : "P";
+            return mode == TaskbarStripMode.Full
+                ? $"{prefix} {count}{stale}"
+                : $"{prefix}{count}{stale}";
+        }
+
         if (!presentation.ServerStatusKnown || presentation.ResetAmbiguous)
         {
             return "P?";
         }
 
-        var stale = presentation.Stale ? "~" : "";
         if (presentation.Restricted)
         {
             if (presentation.HasServerReset && mode != TaskbarStripMode.UltraCompact)
@@ -80,6 +93,21 @@ public static class TaskbarStatusFormatter
         }
 
         return mode == TaskbarStripMode.Full ? $"P OK{stale}" : $"POK{stale}";
+    }
+
+    private static string? CurrentCycleLowerBound(QuotaSnapshot snapshot)
+    {
+        if (!snapshot.CurrentCycleKnown || snapshot.DisplayUsageUnavailable)
+        {
+            return null;
+        }
+
+        if (snapshot.ReconstructedUsed <= 0 && snapshot.LastSync is null && snapshot.Used <= 0)
+        {
+            return null;
+        }
+
+        return snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture) + "+";
     }
 
     private static string CodexToken(CodexQuotaSnapshot snapshot, TaskbarStripMode mode)

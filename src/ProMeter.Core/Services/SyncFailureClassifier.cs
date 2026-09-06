@@ -14,27 +14,32 @@ public static class SyncFailureClassifier
 
     public static string ClassifyLoad(ConversationLoadResult load)
     {
-        if (load.Diagnostics.Any(ContainsPayloadTooLarge))
+        if (load.FailureKind == ConversationLoadFailureKind.PayloadTooLarge
+            || load.Diagnostics.Any(ContainsPayloadTooLarge))
         {
             return "PayloadTooLarge";
         }
 
-        if (load.SchemaMismatch)
-        {
-            return "SchemaMismatch";
-        }
-
-        if (load.Diagnostics.Any(ContainsTimeout))
+        if (load.FailureKind == ConversationLoadFailureKind.Timeout
+            || load.Diagnostics.Any(ContainsTimeout))
         {
             return "BridgeTimeout";
         }
 
-        if (load.Diagnostics.Any(ContainsFallbackExhausted))
+        if (load.FailureKind == ConversationLoadFailureKind.SchemaMismatch
+            || load.SchemaMismatch)
+        {
+            return "SchemaMismatch";
+        }
+
+        if (load.FailureKind == ConversationLoadFailureKind.EndpointUnavailable
+            || load.Diagnostics.Any(ContainsFallbackExhausted)
+            || load.Diagnostics.Any(item => item.Contains("unavailable status=", StringComparison.OrdinalIgnoreCase)))
         {
             return "EndpointFallbackExhausted";
         }
 
-        if (!load.Complete)
+        if (load.FailureKind == ConversationLoadFailureKind.IncompletePagination || !load.Complete)
         {
             return "IncompletePagination";
         }

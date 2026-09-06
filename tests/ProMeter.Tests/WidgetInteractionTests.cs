@@ -68,7 +68,8 @@ public class WidgetInteractionTests
         var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "FlyoutWindow.xaml"));
         var xaml = document.ToString();
         Assert.Contains("ProStateText", xaml, StringComparison.Ordinal);
-        Assert.Contains("ServerResetText", xaml, StringComparison.Ordinal);
+        Assert.Contains("ResetText", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ServerResetText", xaml, StringComparison.Ordinal);
         Assert.Contains("ExactRemainingText", xaml, StringComparison.Ordinal);
         Assert.Contains("ConfirmedRequestsText", xaml, StringComparison.Ordinal);
         Assert.Contains("CODEX", xaml, StringComparison.Ordinal);

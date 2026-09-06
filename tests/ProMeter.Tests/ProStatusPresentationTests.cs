@@ -40,9 +40,9 @@ public class ProStatusPresentationTests
         Assert.True(presentation.HasServerReset);
         Assert.Equal(UiText.ProRestricted, presentation.ProStateText.Replace(" · " + UiText.Stale, "", StringComparison.Ordinal));
         Assert.Contains(DisplayFormatting.FormatStamp(reset), presentation.ResetText, StringComparison.Ordinal);
-        Assert.Equal("P! " + reset.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture), TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
-        Assert.Equal("P!" + reset.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture), TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Compact));
-        Assert.Equal("P!", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.UltraCompact));
+        Assert.Equal("P! 31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
+        Assert.Equal("P!31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Compact));
+        Assert.Equal("P!31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.UltraCompact));
         var tooltip = TaskbarStatusFormatter.Tooltip(snapshot, Codex());
         Assert.Contains(UiText.ServerReset, tooltip, StringComparison.Ordinal);
         Assert.DoesNotContain("31+", tooltip, StringComparison.Ordinal);
@@ -64,9 +64,9 @@ public class ProStatusPresentationTests
         };
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.Equal(UiText.ProNoServerRestriction, presentation.ProStateText);
-        Assert.Equal("P OK", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
-        Assert.Equal("POK", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Compact));
-        Assert.Equal("POK", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.UltraCompact));
+        Assert.Equal("P 31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
+        Assert.Equal("P31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Compact));
+        Assert.Equal("P31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.UltraCompact));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class ProStatusPresentationTests
         var snapshot = Reconstructed(31, 50);
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.Equal(UiText.Unavailable, presentation.ProStateText);
-        Assert.Equal("P?", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
+        Assert.Equal("P? 31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
         Assert.Equal("?", DisplayFormatting.TrayIconText(snapshot));
     }
 
@@ -171,7 +171,7 @@ public class ProStatusPresentationTests
             HasAmbiguousResets = true,
             ResetConfidence = ServerResetConfidence.Ambiguous
         };
-        Assert.Equal("P?", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
+        Assert.Equal("P? 8+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
         Assert.Equal(UiText.MultipleProResets, ProStatusPresentation.From(snapshot).ResetText);
     }
 

@@ -207,12 +207,12 @@
                 <TextBlock x:Name="ProStateText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
             </DockPanel>
             <DockPanel Margin="0,4,0,0">
-                <TextBlock x:Name="ServerResetLabel" Text="Server reset" Foreground="{DynamicResource MutedBrush}"/>
-                <TextBlock x:Name="ServerResetText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
+                <TextBlock x:Name="ResetTimeLabel" Text="Reset time" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBlock x:Name="ResetText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
             </DockPanel>
-            <DockPanel Margin="0,4,0,0">
-                <TextBlock x:Name="ExactRemainingLabel" Text="Remaining" Foreground="{DynamicResource MutedBrush}"/>
-                <TextBlock x:Name="ExactRemainingText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
+            <DockPanel x:Name="ResetEstimatePanel" Margin="0,4,0,0" Visibility="Collapsed">
+                <TextBlock x:Name="ResetEstimateLabel" Text="Estimate" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBlock x:Name="ResetEstimateText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
             </DockPanel>
             <DockPanel x:Name="ConfirmedUsagePanel" Margin="0,8,0,0">
                 <TextBlock x:Name="ConfirmedUsageLabel" Text="Confirmed Pro usage" Foreground="{DynamicResource MutedBrush}"/>
@@ -223,6 +223,10 @@
                        FontSize="11"
                        TextWrapping="Wrap"
                        Margin="0,2,0,0"/>
+            <DockPanel Margin="0,8,0,0">
+                <TextBlock x:Name="ExactRemainingLabel" Text="Remaining" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBlock x:Name="ExactRemainingText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
+            </DockPanel>
             <TextBlock x:Name="RestrictionDetailText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
             <DockPanel x:Name="AuthoritativeCountPanel" Visibility="Collapsed" Margin="0,8,0,0">
                 <TextBlock x:Name="ProCountText" DockPanel.Dock="Right" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"/>
@@ -271,11 +275,6 @@
             <TextBlock x:Name="ReasoningNoteText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
 
             <TextBlock x:Name="StatusSectionTitle" Style="{StaticResource SectionTitle}" Text="STATUS"/>
-            <DockPanel><TextBlock x:Name="ResetTimeLabel" Text="Reset time" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="ResetText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
-            <DockPanel x:Name="ResetEstimatePanel" Margin="0,4,0,0" Visibility="Collapsed">
-                <TextBlock x:Name="ResetEstimateLabel" Text="Estimate" Foreground="{DynamicResource MutedBrush}"/>
-                <TextBlock x:Name="ResetEstimateText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
-            </DockPanel>
             <DockPanel Margin="0,4,0,0"><TextBlock x:Name="LastSyncLabel" Text="Last sync" Foreground="{DynamicResource MutedBrush}"/><TextBlock x:Name="SyncText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/></DockPanel>
             <Button Click="OnCoverageClick" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" Cursor="Hand" Margin="0,4,0,0">
                 <DockPanel>

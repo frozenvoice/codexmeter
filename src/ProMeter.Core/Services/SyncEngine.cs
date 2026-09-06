@@ -624,9 +624,8 @@ public sealed class SyncEngine
                     var category = SyncFailureClassifier.ClassifyLoad(load);
                     var schema = string.Equals(category, ConversationFetchBackoff.SchemaMismatch, StringComparison.Ordinal);
                     var scanStatus = schema ? ConversationScanStatus.SchemaMismatch : ConversationScanStatus.FetchFailed;
-                    var worst = schema ? AppSyncStatus.ProviderSchemaMismatch : AppSyncStatus.PartialData;
                     var detail = string.Join("; ", load.Diagnostics);
-                    MarkUniqueFailure(coverage, entry, setWorst, worst, category, 0, detail);
+                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData, category, 0, detail);
                     coverage.Notes = schema
                         ? "Provider schema mismatch on at least one conversation."
                         : "At least one conversation was incomplete.";
@@ -649,7 +648,7 @@ public sealed class SyncEngine
 
                 if (result.SchemaMismatch)
                 {
-                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.ProviderSchemaMismatch, ConversationFetchBackoff.SchemaMismatch);
+                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData, ConversationFetchBackoff.SchemaMismatch);
                     coverage.Notes = "Provider schema mismatch on at least one conversation.";
                     RecordBodyFailure(item, ConversationScanStatus.SchemaMismatch, string.Join("; ", result.Diagnostics), ConversationFetchBackoff.SchemaMismatch);
                     LogConversationFailure(item.Id, "SchemaMismatch", 0);

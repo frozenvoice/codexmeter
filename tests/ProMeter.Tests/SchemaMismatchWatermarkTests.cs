@@ -26,7 +26,7 @@ public class SchemaMismatchWatermarkTests
         settings.ResetTimeZoneId = "UTC";
 
         var first = await engine.SyncAsync(provider, settings, force: true);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, first.Status);
+        Assert.Equal(AppSyncStatus.PartialData, first.Status);
         Assert.NotEqual(AppSyncStatus.UpToDate, engine.LastStatus);
 
         var record = store.GetConversation(item.Id);
@@ -76,7 +76,7 @@ public class SchemaMismatchWatermarkTests
         };
 
         var failed = await engine.SyncAsync(provider, settings, force: false);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, failed.Status);
+        Assert.Equal(AppSyncStatus.PartialData, failed.Status);
         Assert.NotEqual(AppSyncStatus.UpToDate, engine.LastStatus);
 
         var after = store.GetConversation(item.Id);

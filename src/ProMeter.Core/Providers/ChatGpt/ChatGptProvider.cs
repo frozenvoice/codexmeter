@@ -206,9 +206,11 @@ public sealed class ChatGptProvider : IChatGptProvider
             ? "success"
             : string.Equals(category, "PayloadTooLarge", StringComparison.OrdinalIgnoreCase)
                 ? "payload-too-large"
-                : load.SchemaMismatch
-                    ? "schema-mismatch"
-                    : "incomplete";
+                : string.Equals(category, "BridgeTimeout", StringComparison.OrdinalIgnoreCase)
+                    ? "timeout"
+                    : load.SchemaMismatch
+                        ? "schema-mismatch"
+                        : "incomplete";
         _log?.Invoke($"conversation fetch id={conversationId} result={result}");
         return load;
     }

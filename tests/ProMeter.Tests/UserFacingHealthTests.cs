@@ -99,6 +99,52 @@ public class UserFacingHealthTests
     }
 
     [Fact]
+    public void IsolatedConversationTimeout_UnknownRestriction_KeepsMeterUsable()
+    {
+        var coverage = CompleteCoverage();
+        coverage.FailedConversations = 1;
+        coverage.ConversationIncomplete = true;
+        coverage.FailureSummary.AddThisSync(ConversationFetchBackoff.BodyTimeout);
+        var snapshot = new QuotaSnapshot
+        {
+            Used = 5,
+            Limit = 50,
+            ReconstructedUsed = 5,
+            CurrentCycleKnown = true,
+            LastSync = DateTimeOffset.UtcNow,
+            Status = AppSyncStatus.PartialData,
+            Coverage = coverage,
+            ResetAnchorSource = ResetAnchorSource.RetainedServer,
+            PeriodStart = new DateTimeOffset(2026, 9, 6, 5, 20, 0, TimeSpan.Zero),
+            PeriodEnd = new DateTimeOffset(2026, 9, 13, 5, 20, 0, TimeSpan.Zero),
+            ProServerStatus = new ProServerStatus
+            {
+                ServerObserved = true,
+                RestrictionState = ProRestrictionState.Unknown,
+                LastConfirmedResetAt = new DateTimeOffset(2026, 9, 6, 5, 20, 14, TimeSpan.Zero)
+            }
+        };
+        var health = UserFacingHealth.From(snapshot);
+        Assert.True(UserFacingHealth.MeterDataAvailable(snapshot));
+        Assert.True(UserFacingHealth.HistoryReconstructionOnly(snapshot));
+        Assert.Equal(UserFacingHealthKind.Usable, health.Kind);
+        Assert.Equal(UiText.DataUsable, health.DataStatusText);
+        Assert.False(health.Actionable);
+        Assert.Equal("5+", ProStatusPresentation.From(snapshot).ConfirmedRequestsText);
+        Assert.Equal("P? 5+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
+        Assert.Equal("P?5+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Compact));
+        var view = DataStatusPresentation.From(snapshot, AvailableCodex());
+        Assert.Equal($"{UiText.DataStatus}: {UiText.DataUsable}", view.Headline);
+        Assert.Contains(UiText.Unavailable, string.Join('\n', view.DefaultLines), StringComparison.Ordinal);
+        Assert.DoesNotContain(UiText.SyncFailedShort, view.Headline, StringComparison.Ordinal);
+        Assert.Contains(UiText.ReadTimeout, string.Join('\n', view.AdvancedLines), StringComparison.Ordinal);
+
+        snapshot.Status = AppSyncStatus.ProviderSchemaMismatch;
+        Assert.Equal(UserFacingHealthKind.Usable, UserFacingHealth.From(snapshot).Kind);
+        Assert.Equal(UiText.DataUsable, UserFacingHealth.From(snapshot).DataStatusText);
+    }
+
+    [Fact]
     public void Syncing_NoPreviousSync()
     {
         var snapshot = new QuotaSnapshot
@@ -122,6 +168,7 @@ public class UserFacingHealthTests
             IsSyncing = true,
             LastSync = DateTimeOffset.UtcNow,
             Status = AppSyncStatus.Idle,
+            CurrentCycleKnown = false,
             ProServerStatus = new ProServerStatus
             {
                 ServerObserved = false,
@@ -314,6 +361,14 @@ public class UserFacingHealthTests
         Assert.Contains("RemainingCount", code, StringComparison.Ordinal);
         Assert.DoesNotContain("StatusLabel(snapshot)", code, StringComparison.Ordinal);
         Assert.DoesNotContain("ModelBreakdown", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ServerResetLabel", xaml, StringComparison.Ordinal);
+        Assert.Contains("ResetTimeLabel", xaml, StringComparison.Ordinal);
+        var statusIndex = xaml.IndexOf("StatusSectionTitle", StringComparison.Ordinal);
+        Assert.True(statusIndex > 0);
+        var statusXaml = xaml[statusIndex..];
+        Assert.DoesNotContain("ResetTimeLabel", statusXaml, StringComparison.Ordinal);
+        Assert.Contains("LastSyncLabel", statusXaml, StringComparison.Ordinal);
+        Assert.Contains("CoverageLabel", statusXaml, StringComparison.Ordinal);
     }
 
     private static CoverageInfo CompleteCoverage() => new()

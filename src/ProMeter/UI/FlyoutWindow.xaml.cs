@@ -59,7 +59,6 @@ public partial class FlyoutWindow : Window
         var presentation = ProStatusPresentation.From(snapshot);
         StatusText.Text = DisplayFormatting.FlyoutHeader(snapshot);
         ProStateText.Text = presentation.ProStateText;
-        ServerResetText.Text = presentation.ResetText;
         ExactRemainingText.Text = presentation.ExactRemainingText;
         RestrictionDetailText.Text = presentation.RestrictionDetail;
         RestrictionDetailText.Visibility = string.IsNullOrWhiteSpace(presentation.RestrictionDetail)
@@ -251,7 +250,6 @@ public partial class FlyoutWindow : Window
     public void ApplyLocalizedTexts()
     {
         ProStateLabel.Text = UiText.T("Status", "상태");
-        ServerResetLabel.Text = UiText.ServerReset;
         ExactRemainingLabel.Text = UiText.RemainingCount;
         ConfirmedUsageLabel.Text = UiText.ConfirmedProUsage;
         HistoryLowerBoundCaption.Text = UiText.HistoryBasedLowerBound;

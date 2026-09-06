@@ -55,7 +55,7 @@ public class FatalProviderSyncTests
             return ConversationDetailLoader.FromFixture(ConversationFixtures.NormalPro(id));
         });
         var outcome = await engine.SyncAsync(provider, settings, true);
-        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, outcome.Status);
+        Assert.Equal(AppSyncStatus.PartialData, outcome.Status);
         Assert.Equal(2, provider.BodyFetches);
         Assert.True(engine.LastCoverage.ConversationIncomplete);
         Assert.Equal(1, engine.LastCoverage.FailedConversations);

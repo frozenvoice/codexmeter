@@ -138,14 +138,7 @@ public sealed class ConversationDetailLoader
         if (first is null)
         {
             diagnostics.Add("Paginated conversation head was empty.");
-            var payloadTooLarge = ContainsPayloadTooLarge(diagnostics);
-            return new ConversationLoadResult
-            {
-                Conversation = seed,
-                Complete = false,
-                SchemaMismatch = !payloadTooLarge,
-                Diagnostics = diagnostics
-            };
+            return ConversationLoadResult.Unusable(diagnostics, seed);
         }
 
         var messages = new Dictionary<string, JsonObject>(StringComparer.OrdinalIgnoreCase);
@@ -208,6 +201,7 @@ public sealed class ConversationDetailLoader
                 Conversation = first,
                 Complete = false,
                 SchemaMismatch = true,
+                FailureKind = ConversationLoadFailureKind.SchemaMismatch,
                 PaginatedUsed = true,
                 PagesFetched = pages,
                 Diagnostics = diagnostics
@@ -225,7 +219,10 @@ public sealed class ConversationDetailLoader
         {
             Conversation = reconstructed,
             Complete = complete,
-            SchemaMismatch = !complete && messages.Count == 0,
+            SchemaMismatch = false,
+            FailureKind = complete
+                ? ConversationLoadFailureKind.None
+                : ConversationLoadFailureKind.IncompletePagination,
             PaginatedUsed = true,
             PagesFetched = pages,
             Diagnostics = diagnostics
@@ -356,7 +353,13 @@ public sealed class ConversationDetailLoader
     {
         if (body is null)
         {
-            return new ConversationLoadResult { Complete = false, SchemaMismatch = true, Diagnostics = ["Fixture body was null."] };
+            return new ConversationLoadResult
+            {
+                Complete = false,
+                SchemaMismatch = true,
+                FailureKind = ConversationLoadFailureKind.SchemaMismatch,
+                Diagnostics = ["Fixture body was null."]
+            };
         }
 
         StripBodies(body);
@@ -366,6 +369,11 @@ public sealed class ConversationDetailLoader
             Conversation = body,
             Complete = complete,
             SchemaMismatch = !complete && body["mapping"] is null && !HasMessages(body),
+            FailureKind = complete
+                ? ConversationLoadFailureKind.None
+                : !complete && body["mapping"] is null && !HasMessages(body)
+                    ? ConversationLoadFailureKind.SchemaMismatch
+                    : ConversationLoadFailureKind.IncompletePagination,
             MappingUsed = body["mapping"] is JsonObject,
             Diagnostics = complete ? [] : ["Fixture mapping was incomplete."]
         };
@@ -379,6 +387,7 @@ public sealed class ConversationDetailLoader
             Conversation = node,
             Complete = true,
             MappingUsed = mapping,
+            FailureKind = ConversationLoadFailureKind.None,
             Diagnostics = diagnostics
         };
     }
@@ -443,6 +452,10 @@ public sealed class ConversationDetailLoader
 
     private static bool ContainsPayloadTooLarge(IEnumerable<string> diagnostics) =>
         diagnostics.Any(item => item.Contains("payload too large", StringComparison.OrdinalIgnoreCase));
+
+    internal static bool ContainsTimeoutDiagnostic(IEnumerable<string> diagnostics) =>
+        diagnostics.Any(item => item.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+                                || item.Contains("timeout", StringComparison.OrdinalIgnoreCase));
 
     private static bool HasMessages(JsonNode node) =>
         node["messages"] is JsonArray || node["items"] is JsonArray || node["turns"] is JsonArray;
@@ -520,13 +533,59 @@ public sealed class ConversationDetailLoader
     }
 }
 
+public enum ConversationLoadFailureKind
+{
+    None,
+    Timeout,
+    PayloadTooLarge,
+    SchemaMismatch,
+    IncompletePagination,
+    EndpointUnavailable
+}
+
 public sealed class ConversationLoadResult
 {
     public JsonNode? Conversation { get; init; }
     public bool Complete { get; init; }
     public bool SchemaMismatch { get; init; }
+    public ConversationLoadFailureKind FailureKind { get; init; }
     public bool MappingUsed { get; init; }
     public bool PaginatedUsed { get; init; }
     public int PagesFetched { get; init; }
     public List<string> Diagnostics { get; init; } = [];
+
+    public static ConversationLoadResult Unusable(List<string> diagnostics, JsonNode? received)
+    {
+        var kind = InferEmptyHeadFailure(diagnostics, received);
+        return new ConversationLoadResult
+        {
+            Conversation = received,
+            Complete = false,
+            SchemaMismatch = kind == ConversationLoadFailureKind.SchemaMismatch,
+            FailureKind = kind,
+            Diagnostics = diagnostics
+        };
+    }
+
+    private static ConversationLoadFailureKind InferEmptyHeadFailure(
+        IReadOnlyList<string> diagnostics,
+        JsonNode? received)
+    {
+        if (diagnostics.Any(item => item.Contains("payload too large", StringComparison.OrdinalIgnoreCase)))
+        {
+            return ConversationLoadFailureKind.PayloadTooLarge;
+        }
+
+        if (ConversationDetailLoader.ContainsTimeoutDiagnostic(diagnostics))
+        {
+            return ConversationLoadFailureKind.Timeout;
+        }
+
+        if (received is not null)
+        {
+            return ConversationLoadFailureKind.SchemaMismatch;
+        }
+
+        return ConversationLoadFailureKind.EndpointUnavailable;
+    }
 }
