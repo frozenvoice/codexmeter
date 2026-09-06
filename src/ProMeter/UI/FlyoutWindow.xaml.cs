@@ -12,9 +12,7 @@ public partial class FlyoutWindow : Window
     public event Action? SyncRequested;
     public event Action<bool>? PinChanged;
     public event Action<double, double>? PositionChanged;
-    public bool CloseOnDeactivate { get; set; } = true;
     public bool Pinned { get; private set; }
-    private bool _closeOnDeactivateSetting = true;
     private readonly RefreshIndicatorController _refreshIndicator = new();
     private Storyboard? _refreshStoryboard;
     private Storyboard? _progressStripStoryboard;
@@ -34,10 +32,8 @@ public partial class FlyoutWindow : Window
 
     public void ApplyWindowSettings(AppSettings settings)
     {
-        _closeOnDeactivateSetting = settings.FlyoutCloseOnDeactivate;
         Pinned = settings.FlyoutPinned;
-        CloseOnDeactivate = FlyoutWindowState.ShouldCloseOnDeactivate(Pinned, _closeOnDeactivateSetting);
-        Topmost = true;
+        Topmost = FlyoutWindowState.IsTopmost(Pinned);
         ApplyPinGlyph();
     }
 
@@ -332,14 +328,6 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    private void OnDeactivated(object sender, EventArgs e)
-    {
-        if (CloseOnDeactivate)
-        {
-            Hide();
-        }
-    }
-
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
@@ -353,20 +341,16 @@ public partial class FlyoutWindow : Window
     private void OnPinClick(object sender, RoutedEventArgs e)
     {
         Pinned = !Pinned;
-        CloseOnDeactivate = FlyoutWindowState.ShouldCloseOnDeactivate(Pinned, _closeOnDeactivateSetting);
+        Topmost = FlyoutWindowState.IsTopmost(Pinned);
         ApplyPinGlyph();
         PinChanged?.Invoke(Pinned);
-        if (Pinned)
-        {
-            PersistPosition();
-        }
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Hide();
 
     private void OnHeaderMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (!Pinned || e.ChangedButton != MouseButton.Left)
+        if (!FlyoutWindowState.AllowsHeaderDrag || e.ChangedButton != MouseButton.Left)
         {
             return;
         }

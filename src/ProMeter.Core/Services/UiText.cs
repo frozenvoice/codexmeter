@@ -284,7 +284,6 @@ public static class UiText
     public static string CombinedDailyQuota => T("Combined daily quota", "합산 일일 한도");
     public static string ReasoningQuota => T("Reasoning quota", "추론 한도");
     public static string SyncInterval => T("Sync interval (minutes)", "동기화 간격(분)");
-    public static string CloseFlyoutOnDeactivate => T("Close flyout when it loses focus", "포커스를 잃으면 플라이아웃 닫기");
     public static string Notify20 => T("20% remaining", "20% 남음");
     public static string Notify10 => T("10% remaining", "10% 남음");
     public static string NotifyExhausted => T("Quota exhausted", "한도 소진");

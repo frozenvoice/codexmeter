@@ -50,6 +50,8 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.DoesNotContain("RefreshAllRotate", flyoutCode, StringComparison.Ordinal);
         Assert.DoesNotContain("EasingFunction", flyoutCode, StringComparison.Ordinal);
         Assert.DoesNotContain("_suppressDeactivateClose", flyoutCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnDeactivated", flyoutCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("CloseOnDeactivate", flyoutCode, StringComparison.Ordinal);
     }
 
     [Fact]

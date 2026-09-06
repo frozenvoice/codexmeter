@@ -40,7 +40,6 @@ public partial class SettingsWindow : Window
         ThemeBox.SelectedIndex = (int)settings.Theme;
         LanguageBox.SelectedIndex = settings.UiLanguage == UiLanguage.Korean ? 0 : 1;
         IconBox.SelectedIndex = (int)settings.TrayIconStyle;
-        FlyoutCloseBox.IsChecked = settings.FlyoutCloseOnDeactivate;
         N20.IsChecked = settings.NotifyAt20;
         N10.IsChecked = settings.NotifyAt10;
         NEx.IsChecked = settings.NotifyExhausted;
@@ -102,7 +101,6 @@ public partial class SettingsWindow : Window
             Theme = (AppTheme)ThemeBox.SelectedIndex,
             TrayIconStyle = (TrayIconStyle)IconBox.SelectedIndex,
             UiLanguage = LanguageBox.SelectedIndex == 0 ? UiLanguage.Korean : UiLanguage.English,
-            FlyoutCloseOnDeactivate = FlyoutCloseBox.IsChecked == true,
             NotifyAt20 = N20.IsChecked == true,
             NotifyAt10 = N10.IsChecked == true,
             NotifyExhausted = NEx.IsChecked == true,
@@ -168,7 +166,6 @@ public partial class SettingsWindow : Window
         SetCombo(LanguageBox, UiText.Korean, UiText.English);
         SetCombo(ThemeBox, UiText.ThemeSystem, UiText.ThemeLight, UiText.ThemeDark);
         SetCombo(IconBox, UiText.TrayRemainingNumber, UiText.TrayProgressRing);
-        FlyoutCloseBox.Content = UiText.CloseFlyoutOnDeactivate;
         NotificationsTitle.Text = UiText.Notifications;
         N20.Content = UiText.Notify20;
         N10.Content = UiText.Notify10;

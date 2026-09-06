@@ -24,7 +24,6 @@ public sealed record SettingsEdit
     public AppTheme Theme { get; set; }
     public TrayIconStyle TrayIconStyle { get; set; }
     public UiLanguage UiLanguage { get; set; }
-    public bool FlyoutCloseOnDeactivate { get; set; }
     public bool NotifyAt20 { get; set; }
     public bool NotifyAt10 { get; set; }
     public bool NotifyExhausted { get; set; }
@@ -63,7 +62,6 @@ public static class SettingsApplication
         target.Theme = edit.Theme;
         target.TrayIconStyle = edit.TrayIconStyle;
         target.UiLanguage = edit.UiLanguage;
-        target.FlyoutCloseOnDeactivate = edit.FlyoutCloseOnDeactivate;
         target.NotifyAt20 = edit.NotifyAt20;
         target.NotifyAt10 = edit.NotifyAt10;
         target.NotifyExhausted = edit.NotifyExhausted;

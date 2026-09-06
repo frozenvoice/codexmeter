@@ -36,9 +36,6 @@ public partial class App : Application
     private readonly DispatcherTimer _proStatusTimer = new();
     private readonly DispatcherTimer _proResetRecheckTimer = new() { Interval = TimeSpan.FromSeconds(8) };
     private FlyoutWindow? _flyout;
-    private FlyoutOpenSource _lastFlyoutSource = FlyoutOpenSource.Tray;
-    private Rect? _lastFlyoutAnchor;
-    private TaskbarEdge? _lastFlyoutEdge;
     private MainWindow? _main;
     private FloatingWidget? _widget;
     private TaskbarStatusStripWindow? _taskbarStrip;
@@ -411,9 +408,6 @@ public partial class App : Application
             return;
         }
 
-        _lastFlyoutSource = source;
-        _lastFlyoutAnchor = anchor;
-        _lastFlyoutEdge = edge;
         _flyout!.ApplyWindowSettings(_settings);
         RefreshSnapshot();
         _flyout.Show();
@@ -458,18 +452,7 @@ public partial class App : Application
         _flyout.PinChanged += pinned =>
         {
             _settings.FlyoutPinned = pinned;
-            if (pinned)
-            {
-                _settings.FlyoutLeft = _flyout.Left;
-                _settings.FlyoutTop = _flyout.Top;
-                _settings.FlyoutPositionConfigured = true;
-            }
-
             _settingsStore.Save(_settings);
-            if (!pinned && _flyout.IsVisible && FlyoutWindowState.RepositionNearAnchorOnUnpin)
-            {
-                PlaceFlyout(_flyout, _lastFlyoutSource, _lastFlyoutAnchor, _lastFlyoutEdge);
-            }
         };
         _flyout.PositionChanged += (left, top) =>
         {
@@ -482,7 +465,7 @@ public partial class App : Application
 
     private void PlaceFlyout(FlyoutWindow flyout, FlyoutOpenSource source, Rect? anchor, TaskbarEdge? edge)
     {
-        if (FlyoutWindowState.UseSavedPosition(_settings.FlyoutPinned, _settings.FlyoutPositionConfigured))
+        if (FlyoutWindowState.UseSavedPosition(_settings.FlyoutPositionConfigured))
         {
             flyout.RestorePosition(_settings.FlyoutLeft, _settings.FlyoutTop);
             return;

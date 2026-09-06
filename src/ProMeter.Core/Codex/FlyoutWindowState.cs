@@ -2,14 +2,13 @@ namespace ProMeter.Codex;
 
 public static class FlyoutWindowState
 {
-    public static bool ShouldCloseOnDeactivate(bool pinned, bool closeOnDeactivateSetting) =>
-        ShouldHideOnDeactivate(pinned, closeOnDeactivateSetting);
+    public static bool HidesOnDeactivate => false;
 
-    public static bool ShouldHideOnDeactivate(bool pinned, bool closeOnDeactivateSetting) =>
-        !pinned && closeOnDeactivateSetting;
+    public static bool IsTopmost(bool pinned) => pinned;
 
-    public static bool UseSavedPosition(bool pinned, bool positionConfigured) =>
-        pinned && positionConfigured;
+    public static bool AllowsHeaderDrag => true;
 
-    public static bool RepositionNearAnchorOnUnpin => true;
+    public static bool UseSavedPosition(bool positionConfigured) => positionConfigured;
+
+    public static bool RepositionNearAnchorOnUnpin => false;
 }

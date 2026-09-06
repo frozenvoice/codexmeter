@@ -37,6 +37,7 @@ public sealed class AppSettings
     public bool WidgetClickThrough { get; set; }
     public UiLanguage UiLanguage { get; set; } = UiLanguage.English;
     public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.RemainingNumber;
+    // Deprecated: retained only for settings JSON compatibility. Detail Flyout no longer auto-hides on focus loss.
     public bool FlyoutCloseOnDeactivate { get; set; } = true;
     public bool FlyoutPinned { get; set; }
     public double FlyoutLeft { get; set; }

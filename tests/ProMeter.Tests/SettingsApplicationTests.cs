@@ -82,6 +82,29 @@ public class SettingsApplicationTests
         Assert.False(loaded.ResetAnchorConfigured);
     }
 
+    [Fact]
+    public void Apply_DoesNotChangeDeprecatedFlyoutCloseOnDeactivate()
+    {
+        var settings = AppSettings.CreateDefaults();
+        settings.FlyoutCloseOnDeactivate = false;
+        SettingsApplication.Apply(settings, BaseEdit(settings) with { Theme = AppTheme.Dark });
+        Assert.False(settings.FlyoutCloseOnDeactivate);
+
+        settings.FlyoutCloseOnDeactivate = true;
+        SettingsApplication.Apply(settings, BaseEdit(settings) with { AutoSync = true });
+        Assert.True(settings.FlyoutCloseOnDeactivate);
+    }
+
+    [Fact]
+    public void DeprecatedFlyoutCloseOnDeactivate_StillDeserializes()
+    {
+        var json = """{"version":2,"flyoutCloseOnDeactivate":false,"flyoutPinned":true}""";
+        var loaded = JsonSerializer.Deserialize<AppSettings>(json, ChatGptJson.Options);
+        Assert.NotNull(loaded);
+        Assert.False(loaded.FlyoutCloseOnDeactivate);
+        Assert.True(loaded.FlyoutPinned);
+    }
+
     private static SettingsEdit BaseEdit(AppSettings settings) => new()
     {
         PlanPreset = settings.PlanPreset,
@@ -105,7 +128,6 @@ public class SettingsApplicationTests
         CodexExePath = settings.CodexExePath,
         Theme = settings.Theme,
         TrayIconStyle = settings.TrayIconStyle,
-        FlyoutCloseOnDeactivate = settings.FlyoutCloseOnDeactivate,
         NotifyAt20 = settings.NotifyAt20,
         NotifyAt10 = settings.NotifyAt10,
         NotifyExhausted = settings.NotifyExhausted,

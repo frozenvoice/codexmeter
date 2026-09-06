@@ -8,9 +8,8 @@
         AllowsTransparency="True"
         Background="Transparent"
         ShowInTaskbar="False"
-        Topmost="True"
+        Topmost="False"
         ResizeMode="NoResize"
-        Deactivated="OnDeactivated"
         PreviewKeyDown="OnPreviewKeyDown">
     <Window.Resources>
         <Style x:Key="FlyoutValueText" TargetType="TextBlock">

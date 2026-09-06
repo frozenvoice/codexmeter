@@ -105,7 +105,6 @@
                 <ComboBoxItem Content="Remaining number"/>
                 <ComboBoxItem Content="Progress ring"/>
             </ComboBox>
-            <CheckBox x:Name="FlyoutCloseBox" Content="Close flyout when it loses focus" Foreground="{DynamicResource TextBrush}" Margin="0,8,0,4"/>
 
             <TextBlock x:Name="NotificationsTitle" Style="{StaticResource SectionTitle}" Text="NOTIFICATIONS"/>
             <CheckBox x:Name="N20" Content="20% remaining" Foreground="{DynamicResource TextBrush}" Margin="0,4"/>

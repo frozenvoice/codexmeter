@@ -22,32 +22,60 @@ public class FlyoutUxAndFailureSummaryTests
     }
 
     [Fact]
-    public void FlyoutPinPolicy_DefaultTransientAndPinnedAlwaysOnTopSemantics()
+    public void FlyoutPinPolicy_PinMeansTopmostOnly_AndNeverHidesOnDeactivate()
     {
         Assert.False(AppSettings.CreateDefaults().FlyoutPinned);
         Assert.False(AppSettings.CreateDefaults().FlyoutPositionConfigured);
-        Assert.True(FlyoutWindowState.ShouldCloseOnDeactivate(false, true));
-        Assert.False(FlyoutWindowState.ShouldCloseOnDeactivate(true, true));
-        Assert.False(FlyoutWindowState.ShouldCloseOnDeactivate(false, false));
-        Assert.True(FlyoutWindowState.ShouldHideOnDeactivate(false, true));
-        Assert.False(FlyoutWindowState.ShouldHideOnDeactivate(true, true));
-        Assert.False(FlyoutWindowState.ShouldHideOnDeactivate(false, false));
-        Assert.True(FlyoutWindowState.UseSavedPosition(true, true));
-        Assert.False(FlyoutWindowState.UseSavedPosition(true, false));
-        Assert.False(FlyoutWindowState.UseSavedPosition(false, true));
-        Assert.True(FlyoutWindowState.RepositionNearAnchorOnUnpin);
+        Assert.False(FlyoutWindowState.HidesOnDeactivate);
+        Assert.False(FlyoutWindowState.IsTopmost(false));
+        Assert.True(FlyoutWindowState.IsTopmost(true));
+        Assert.True(FlyoutWindowState.AllowsHeaderDrag);
+        Assert.True(FlyoutWindowState.UseSavedPosition(true));
+        Assert.False(FlyoutWindowState.UseSavedPosition(false));
+        Assert.False(FlyoutWindowState.RepositionNearAnchorOnUnpin);
     }
 
     [Fact]
-    public void HeaderActions_DoNotLatchFutureDeactivation()
+    public void SavedPosition_IsIndependentOfPin_AndUnpinDoesNotReposition()
     {
-        const bool closeOnDeactivateSetting = true;
-        Assert.True(FlyoutWindowState.ShouldHideOnDeactivate(pinned: false, closeOnDeactivateSetting));
-        Assert.False(FlyoutWindowState.ShouldHideOnDeactivate(pinned: true, closeOnDeactivateSetting));
-        Assert.True(FlyoutWindowState.ShouldHideOnDeactivate(pinned: false, closeOnDeactivateSetting));
+        Assert.True(FlyoutWindowState.UseSavedPosition(positionConfigured: true));
+        Assert.False(FlyoutWindowState.UseSavedPosition(positionConfigured: false));
+        Assert.False(FlyoutWindowState.RepositionNearAnchorOnUnpin);
 
+        var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
+        Assert.Contains("UseSavedPosition(_settings.FlyoutPositionConfigured)", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("UseSavedPosition(_settings.FlyoutPinned", app, StringComparison.Ordinal);
+        var pinChanged = Slice(app, "_flyout.PinChanged", "_flyout.PositionChanged");
+        Assert.Contains("FlyoutPinned", pinChanged, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlaceFlyout", pinChanged, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutLeft", pinChanged, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutTop", pinChanged, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutPositionConfigured", pinChanged, StringComparison.Ordinal);
+        Assert.DoesNotContain("RepositionNearAnchorOnUnpin", pinChanged, StringComparison.Ordinal);
+        var positionChanged = Slice(app, "_flyout.PositionChanged", "private void PlaceFlyout");
+        Assert.Contains("FlyoutLeft", positionChanged, StringComparison.Ordinal);
+        Assert.Contains("FlyoutTop", positionChanged, StringComparison.Ordinal);
+        Assert.Contains("FlyoutPositionConfigured = true", positionChanged, StringComparison.Ordinal);
+        var place = Slice(app, "private void PlaceFlyout", "private void ShowMain");
+        Assert.Contains("UseSavedPosition(_settings.FlyoutPositionConfigured)", place, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutPinned", place, StringComparison.Ordinal);
+        Assert.Contains("PlaceNearTaskbar", place, StringComparison.Ordinal);
+        Assert.Contains("RestorePosition", place, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Flyout_DoesNotHideOnDeactivation_AndHeaderActionsStayIndependent()
+    {
         var xaml = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml"));
         var code = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
+        var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
+        Assert.False(FlyoutWindowState.HidesOnDeactivate);
+        Assert.DoesNotContain("Deactivated=", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnDeactivated", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnDeactivated", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("CloseOnDeactivate", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutCloseOnDeactivate", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutCloseOnDeactivate", app, StringComparison.Ordinal);
         Assert.DoesNotContain("_suppressDeactivateClose", code, StringComparison.Ordinal);
         Assert.DoesNotContain("OnHeaderButtonPreviewMouseDown", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("OnHeaderButtonPreviewMouseDown", code, StringComparison.Ordinal);
@@ -55,7 +83,10 @@ public class FlyoutUxAndFailureSummaryTests
         Assert.Contains("OnPinClick", code, StringComparison.Ordinal);
         Assert.Contains("OnCloseClick", code, StringComparison.Ordinal);
         Assert.Contains("DragMove()", code, StringComparison.Ordinal);
-        Assert.Contains("if (CloseOnDeactivate)", code, StringComparison.Ordinal);
+        Assert.Contains("if (e.Key == Key.Escape)", code, StringComparison.Ordinal);
+        var escape = Slice(code, "private void OnPreviewKeyDown", "private void OnRefreshAllClick");
+        Assert.Contains("Hide();", escape, StringComparison.Ordinal);
+        Assert.DoesNotContain("Shutdown", escape, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -113,38 +144,46 @@ public class FlyoutUxAndFailureSummaryTests
         Assert.Equal("OnPinClick", (string?)pin.Attribute("Click"));
         Assert.Contains("OnHeaderMouseLeftButtonDown", xaml, StringComparison.Ordinal);
         Assert.Contains("TextTrimming=\"CharacterEllipsis\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Topmost=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Deactivated=", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void FlyoutCode_CloseHidesWithoutExit_AndDragIgnoresButtons()
+    public void FlyoutCode_CloseHidesWithoutExit_AndDragWorksPinnedOrUnpinned()
     {
         var code = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
         var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
-        Assert.Contains("private void OnCloseClick", code, StringComparison.Ordinal);
-        var close = code[code.IndexOf("private void OnCloseClick", StringComparison.Ordinal)..];
-        close = close[..close.IndexOf("private void OnHeaderMouseLeftButtonDown", StringComparison.Ordinal)];
+        var close = Slice(code, "private void OnCloseClick", "private void OnHeaderMouseLeftButtonDown");
         Assert.Contains("Hide();", close, StringComparison.Ordinal);
         Assert.DoesNotContain("Shutdown", close, StringComparison.Ordinal);
         Assert.DoesNotContain("Close();", close, StringComparison.Ordinal);
         Assert.DoesNotContain("Pinned = false", close, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutPinned", close, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutLeft", close, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutTop", close, StringComparison.Ordinal);
         Assert.Contains("DragMove()", code, StringComparison.Ordinal);
         Assert.Contains("HeaderSourceIsInteractive", code, StringComparison.Ordinal);
-        Assert.Contains("if (!Pinned", code, StringComparison.Ordinal);
+        var drag = Slice(code, "private void OnHeaderMouseLeftButtonDown", "private void PersistPosition");
+        Assert.Contains("FlyoutWindowState.AllowsHeaderDrag", drag, StringComparison.Ordinal);
+        Assert.Contains("DragMove()", drag, StringComparison.Ordinal);
+        Assert.Contains("PersistPosition()", drag, StringComparison.Ordinal);
+        Assert.DoesNotContain("Pinned", drag, StringComparison.Ordinal);
+        var interactive = Slice(code, "private bool HeaderSourceIsInteractive", "private IReadOnlyList<ScreenRect> EnumerateWorkAreas");
+        Assert.Contains("RefreshAllButton", interactive, StringComparison.Ordinal);
+        Assert.Contains("PinButton", interactive, StringComparison.Ordinal);
+        Assert.Contains("CloseFlyoutButton", interactive, StringComparison.Ordinal);
         Assert.DoesNotContain("_suppressDeactivateClose", code, StringComparison.Ordinal);
         Assert.DoesNotContain("OnHeaderButtonPreviewMouseDown", code, StringComparison.Ordinal);
-        var deactivate = code[code.IndexOf("private void OnDeactivated", StringComparison.Ordinal)..];
-        deactivate = deactivate[..deactivate.IndexOf("private void OnPreviewKeyDown", StringComparison.Ordinal)];
-        Assert.Contains("if (CloseOnDeactivate)", deactivate, StringComparison.Ordinal);
-        Assert.Contains("Hide();", deactivate, StringComparison.Ordinal);
-        Assert.DoesNotContain("suppress", deactivate, StringComparison.OrdinalIgnoreCase);
-        var refresh = code[code.IndexOf("private void OnRefreshAllClick", StringComparison.Ordinal)..];
-        refresh = refresh[..refresh.IndexOf("private void OnPinClick", StringComparison.Ordinal)];
+        Assert.DoesNotContain("OnDeactivated", code, StringComparison.Ordinal);
+        var refresh = Slice(code, "private void OnRefreshAllClick", "private void OnPinClick");
         Assert.Contains("SyncRequested", refresh, StringComparison.Ordinal);
-        Assert.DoesNotContain("CloseOnDeactivate", refresh, StringComparison.Ordinal);
-        var pin = code[code.IndexOf("private void OnPinClick", StringComparison.Ordinal)..];
-        pin = pin[..pin.IndexOf("private void OnCloseClick", StringComparison.Ordinal)];
-        Assert.Contains("ShouldCloseOnDeactivate(Pinned, _closeOnDeactivateSetting)", pin, StringComparison.Ordinal);
-        Assert.DoesNotContain("suppress", pin, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Topmost", refresh, StringComparison.Ordinal);
+        var pin = Slice(code, "private void OnPinClick", "private void OnCloseClick");
+        Assert.Contains("Topmost = FlyoutWindowState.IsTopmost(Pinned)", pin, StringComparison.Ordinal);
+        Assert.Contains("PinChanged?.Invoke(Pinned)", pin, StringComparison.Ordinal);
+        Assert.DoesNotContain("PersistPosition", pin, StringComparison.Ordinal);
+        Assert.DoesNotContain("CloseOnDeactivate", pin, StringComparison.Ordinal);
+        Assert.Contains("Topmost = FlyoutWindowState.IsTopmost(Pinned)", Slice(code, "public void ApplyWindowSettings", "public void RestorePosition"), StringComparison.Ordinal);
         Assert.Contains("EnsureProgressStripStoryboard", code, StringComparison.Ordinal);
         Assert.Contains("SyncProgressStrip.Visibility", code, StringComparison.Ordinal);
         Assert.Contains("StripDurationSeconds", code, StringComparison.Ordinal);
@@ -155,9 +194,18 @@ public class FlyoutUxAndFailureSummaryTests
         var settingsUi = File.ReadAllText(Find("src/ProMeter/UI/SettingsWindow.xaml"));
         Assert.DoesNotContain("FlyoutLeft", settingsUi, StringComparison.Ordinal);
         Assert.DoesNotContain("FlyoutPinned", settingsUi, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutCloseBox", settingsUi, StringComparison.Ordinal);
+        Assert.DoesNotContain("Close flyout when it loses focus", settingsUi, StringComparison.Ordinal);
+        var settingsCode = File.ReadAllText(Find("src/ProMeter/UI/SettingsWindow.xaml.cs"));
+        Assert.DoesNotContain("FlyoutCloseOnDeactivate", settingsCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutCloseBox", settingsCode, StringComparison.Ordinal);
         var settingsApp = File.ReadAllText(Find("src/ProMeter.Core/Services/SettingsApplication.cs"));
         Assert.DoesNotContain("FlyoutLeft", settingsApp, StringComparison.Ordinal);
         Assert.DoesNotContain("FlyoutPinned", settingsApp, StringComparison.Ordinal);
+        Assert.DoesNotContain("FlyoutCloseOnDeactivate", settingsApp, StringComparison.Ordinal);
+        var settingsModel = File.ReadAllText(Find("src/ProMeter.Core/Models/AppSettings.cs"));
+        Assert.Contains("FlyoutCloseOnDeactivate", settingsModel, StringComparison.Ordinal);
+        Assert.Contains("Deprecated", settingsModel, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -241,6 +289,15 @@ public class FlyoutUxAndFailureSummaryTests
         var idle = CombinedRefreshCoordinator.Present(false, false);
         Assert.False(idle.Active);
         Assert.True(idle.ShowNormalStatus);
+    }
+
+    private static string Slice(string source, string start, string end)
+    {
+        var from = source.IndexOf(start, StringComparison.Ordinal);
+        Assert.True(from >= 0, start);
+        var to = source.IndexOf(end, from, StringComparison.Ordinal);
+        Assert.True(to > from, end);
+        return source[from..to];
     }
 
     private static string Find(string relative)
