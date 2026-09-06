@@ -39,7 +39,7 @@ public static class BridgeProjection
             CompanionOperation.GetProjects => ProjectProjects(node),
             CompanionOperation.GetConversationHead or CompanionOperation.GetConversationFull
                 or CompanionOperation.GetConversationLegacy or CompanionOperation.GetOlderConversationMessages
-                => ProjectConversationDetail(node),
+                => ProjectConversationDetail(node, operation),
             CompanionOperation.GetQuotaInit => ProjectQuota(node),
             _ => null
         };
@@ -992,7 +992,7 @@ public static class BridgeProjection
         return result;
     }
 
-    private static JsonNode ProjectConversationDetail(JsonNode node)
+    private static JsonNode ProjectConversationDetail(JsonNode node, CompanionOperation operation)
     {
         var result = new JsonObject();
         CopyIfPresent(node as JsonObject, result, "conversation_id", "id", "current_node", "update_time", "updateTime");
@@ -1005,7 +1005,9 @@ public static class BridgeProjection
             result["page_info"] = Pick(pageInfoCamel, "has_previous_page", "hasPreviousPage", "start_cursor", "startCursor");
         }
 
-        if (node["mapping"] is JsonObject mapping)
+        var paginated = operation is CompanionOperation.GetConversationHead or CompanionOperation.GetOlderConversationMessages;
+        var omitMapping = paginated && HasUsablePaginatedCollection(node);
+        if (node["mapping"] is JsonObject mapping && !omitMapping)
         {
             var projectedMapping = new JsonObject();
             foreach (var property in mapping)
@@ -1038,6 +1040,11 @@ public static class BridgeProjection
 
         return result;
     }
+
+    private static bool HasUsablePaginatedCollection(JsonNode node) =>
+        node["messages"] is JsonArray { Count: > 0 }
+        || node["items"] is JsonArray { Count: > 0 }
+        || node["turns"] is JsonArray { Count: > 0 };
 
     private static JsonObject ProjectMappingNode(JsonObject node)
     {

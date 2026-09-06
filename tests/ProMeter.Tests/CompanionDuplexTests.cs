@@ -212,6 +212,8 @@ public class CompanionDuplexTests
         var message = await NativeMessagingFraming.ReadMessageAsync(stream, CompanionBridgeProtocol.MaxNativeMessageBytes, CancellationToken.None);
         Assert.NotNull(message);
         Assert.Contains("PayloadTooLarge", message, StringComparison.Ordinal);
+        Assert.Contains("\"schemaMismatch\":false", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"schemaMismatch\":true", message, StringComparison.Ordinal);
     }
 
     [Fact]

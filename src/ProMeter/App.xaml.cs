@@ -77,7 +77,7 @@ public partial class App : Application
         _sync = new SyncEngine(_store, _parser, _models, _log);
         _sync.ProgressChanged += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
         _importer = new ConversationExportImporter(_parser, _models);
-        _companionHub = new CompanionRequestHub();
+        _companionHub = new CompanionRequestHub { DiagnosticLog = _log.Info };
         _webViewTransport = new WebViewTransport(_log);
         var pairing = CompanionPairingStore.LoadOrCreate();
         _companionServer = new CompanionPipeServer(_companionHub, pairing, _log);
@@ -667,7 +667,7 @@ public partial class App : Application
             AuthTransportKind.DataExport => new DataExportTransport(),
             _ => _webViewTransport
         };
-        _provider = new ChatGptProvider(_transport);
+        _provider = new ChatGptProvider(_transport, _log.Info);
     }
 
     private void ShowAbout()

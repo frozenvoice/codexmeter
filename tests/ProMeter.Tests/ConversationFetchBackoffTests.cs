@@ -94,6 +94,55 @@ public class ConversationFetchBackoffTests
     }
 
     [Fact]
+    public void ParserCompatibilityBump_RetriesFailedConversationImmediately()
+    {
+        var now = DateTimeOffset.Parse("2026-09-06T00:00:00Z");
+        var item = new ConversationIndexItem { Id = "conv-a", UpdateTime = 1_000 };
+        var failed = new ConversationRecord
+        {
+            ConversationId = "conv-a",
+            LastAttemptedUpdateTime = 1_000,
+            ConsecutiveFetchFailures = 1,
+            NextEligibleFetchAt = now.AddMinutes(15),
+            FetchFailureParserVersion = 1,
+            Status = ConversationScanStatus.SchemaMismatch,
+            LastFetchFailureCategory = ConversationFetchBackoff.SchemaMismatch
+        };
+        Assert.Equal(2, ConversationFetchBackoff.ParserCompatibilityVersion);
+        Assert.True(ConversationFetchBackoff.ParserCompatibilityChanged(failed));
+        Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now, forceBodyRescan: false));
+    }
+
+    [Fact]
+    public void SuccessfulZeroUpdateTime_RefetchesUntilTimestampExists()
+    {
+        var now = DateTimeOffset.Parse("2026-09-06T00:00:00Z");
+        var item = new ConversationIndexItem { Id = "conv-z", UpdateTime = 0 };
+        var ok = new ConversationRecord
+        {
+            ConversationId = "conv-z",
+            LastSeenUpdateTime = 0,
+            LastAttemptedUpdateTime = 0,
+            LastSuccessfulScan = now,
+            Status = ConversationScanStatus.Ok
+        };
+        Assert.True(ConversationFetchBackoff.ShouldFetch(item, ok, now, forceBodyRescan: false));
+
+        var failed = new ConversationRecord
+        {
+            ConversationId = "conv-z",
+            ConsecutiveFetchFailures = 1,
+            NextEligibleFetchAt = now.AddMinutes(15),
+            FetchFailureParserVersion = ConversationFetchBackoff.ParserCompatibilityVersion,
+            Status = ConversationScanStatus.FetchFailed,
+            LastFetchFailureCategory = ConversationFetchBackoff.SchemaMismatch
+        };
+        Assert.False(ConversationFetchBackoff.ShouldFetch(item, failed, now.AddMinutes(1), forceBodyRescan: false));
+        Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now.AddMinutes(1), forceBodyRescan: true));
+        Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now.AddMinutes(15), forceBodyRescan: false));
+    }
+
+    [Fact]
     public void RemoteChanged_RequiresPositiveUpdateTime()
     {
         var existing = new ConversationRecord { LastSeenUpdateTime = 1_000, LastAttemptedUpdateTime = 1_000 };

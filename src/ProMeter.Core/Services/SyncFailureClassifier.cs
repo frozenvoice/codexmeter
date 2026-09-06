@@ -14,14 +14,14 @@ public static class SyncFailureClassifier
 
     public static string ClassifyLoad(ConversationLoadResult load)
     {
-        if (load.SchemaMismatch)
-        {
-            return "SchemaMismatch";
-        }
-
         if (load.Diagnostics.Any(ContainsPayloadTooLarge))
         {
             return "PayloadTooLarge";
+        }
+
+        if (load.SchemaMismatch)
+        {
+            return "SchemaMismatch";
         }
 
         if (load.Diagnostics.Any(ContainsTimeout))
@@ -45,14 +45,14 @@ public static class SyncFailureClassifier
     private static string ClassifyProvider(ChatGptProviderException provider)
     {
         var message = provider.Message ?? "";
+        if (provider.IsPayloadTooLarge || ContainsPayloadTooLarge(message))
+        {
+            return "PayloadTooLarge";
+        }
+
         if (provider.SchemaMismatch || Contains(message, "schema mismatch"))
         {
             return "SchemaMismatch";
-        }
-
-        if (ContainsPayloadTooLarge(message))
-        {
-            return "PayloadTooLarge";
         }
 
         if (provider.IsCompanionDisconnected)

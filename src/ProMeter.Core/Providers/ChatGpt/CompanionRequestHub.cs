@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace ProMeter.Providers.ChatGpt;
 
 public interface ICompanionRequestHub
@@ -13,16 +15,19 @@ public interface ICompanionRequestHub
     bool TryComplete(string requestId, ProviderResponse response, int generation);
     bool TryGetPendingOperation(string requestId, int generation, out CompanionOperation operation);
     bool TryCompleteInvokeResult(string requestId, CompanionParseResult parsed, int generation);
+    bool TryHandleChunkedResult(CompanionParseResult parsed, int generation);
     void FailAllPending(ProviderResponse reason);
 }
 
 public sealed class CompanionRequestHub : ICompanionRequestHub
 {
     private readonly Dictionary<string, (TaskCompletionSource<ProviderResponse> Tcs, int Generation, CompanionOperation Operation)> _pending = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CompanionChunkAssembly> _assemblies = new(StringComparer.Ordinal);
     private readonly object _gate = new();
     private int _generation;
 
     public TimeSpan RequestTimeout { get; init; } = CompanionBridgeProtocol.DefaultRequestTimeout;
+    public Action<string>? DiagnosticLog { get; set; }
     public bool IsConnected { get; private set; }
     public int ConnectionGeneration { get; private set; }
 
@@ -134,6 +139,7 @@ public sealed class CompanionRequestHub : ICompanionRequestHub
             lock (_gate)
             {
                 _pending.Remove(id);
+                _assemblies.Remove(id);
             }
 
             tcs.TrySetCanceled(cancellationToken);
@@ -152,6 +158,7 @@ public sealed class CompanionRequestHub : ICompanionRequestHub
             }
 
             _pending.Remove(requestId);
+            _assemblies.Remove(requestId);
             tcs = pending.Tcs;
         }
 
@@ -192,6 +199,171 @@ public sealed class CompanionRequestHub : ICompanionRequestHub
         return TryComplete(requestId, response, generation);
     }
 
+    public bool TryHandleChunkedResult(CompanionParseResult parsed, int generation)
+    {
+        var message = parsed.Message;
+        if (!parsed.Accepted || message is null || string.IsNullOrWhiteSpace(message.RequestId)
+            || !CompanionChunkProtocol.IsChunkFrame(message.Type))
+        {
+            return false;
+        }
+
+        var requestId = message.RequestId!;
+        CompanionChunkAssembly? completed = null;
+        byte[]? assembledBytes = null;
+        ProviderResponse? failure = null;
+        lock (_gate)
+        {
+            if (!_pending.TryGetValue(requestId, out var pending) || pending.Generation != generation)
+            {
+                return false;
+            }
+
+            if (!Enum.TryParse<CompanionOperation>(message.Operation, ignoreCase: true, out var frameOperation)
+                || !Enum.IsDefined(frameOperation)
+                || frameOperation != pending.Operation)
+            {
+                _assemblies.Remove(requestId);
+                failure = CompanionBridgeProtocol.OperationMismatchResponse();
+            }
+            else if (!ApplyChunkFrameLocked(requestId, generation, pending.Operation, message, out completed, out assembledBytes, out failure)
+                     && failure is null)
+            {
+                return true;
+            }
+        }
+
+        if (failure is not null)
+        {
+            return TryComplete(requestId, failure, generation);
+        }
+
+        if (completed is null || assembledBytes is null)
+        {
+            return true;
+        }
+
+        string body;
+        try
+        {
+            body = Encoding.UTF8.GetString(assembledBytes);
+        }
+        catch (ArgumentException)
+        {
+            return TryComplete(requestId, CompanionChunkProtocol.ProtocolErrorResponse(), generation);
+        }
+
+        DiagnosticLog?.Invoke(
+            $"companion chunked response operation={completed.Operation} chunks={completed.ChunkCount} projectedBytes={assembledBytes.Length}");
+
+        var assembled = new CompanionParseResult
+        {
+            Accepted = true,
+            Message = new CompanionBridgeMessage
+            {
+                Type = CompanionBridgeProtocol.InvokeResult,
+                RequestId = completed.RequestId,
+                Operation = completed.Operation.ToString(),
+                Status = completed.Status,
+                RetryAfter = completed.RetryAfter,
+                Error = completed.Error,
+                SchemaMismatch = completed.SchemaMismatch,
+                Body = body
+            }
+        };
+        var response = CompanionBridgeProtocol.ToProviderResponse(assembled, completed.Operation);
+        return TryComplete(requestId, response, generation);
+    }
+
+    private bool ApplyChunkFrameLocked(
+        string requestId,
+        int generation,
+        CompanionOperation pendingOperation,
+        CompanionBridgeMessage message,
+        out CompanionChunkAssembly? completed,
+        out byte[]? assembledBytes,
+        out ProviderResponse? failure)
+    {
+        completed = null;
+        assembledBytes = null;
+        failure = null;
+        var type = message.Type;
+        if (string.Equals(type, CompanionChunkProtocol.InvokeResultStart, StringComparison.OrdinalIgnoreCase))
+        {
+            if (_assemblies.ContainsKey(requestId))
+            {
+                _assemblies.Remove(requestId);
+                failure = CompanionChunkProtocol.ProtocolErrorResponse();
+                return true;
+            }
+
+            var chunkCount = message.ChunkCount ?? 0;
+            var totalBytes = message.TotalProjectedBytes ?? 0;
+            if (chunkCount is < 1 or > CompanionChunkProtocol.MaxChunkCount
+                || totalBytes is < 1 or > CompanionChunkProtocol.MaxAssembledProjectedBytes)
+            {
+                failure = CompanionChunkProtocol.PayloadTooLargeResponse();
+                return true;
+            }
+
+            _assemblies[requestId] = new CompanionChunkAssembly(chunkCount)
+            {
+                Generation = generation,
+                RequestId = requestId,
+                Operation = pendingOperation,
+                ChunkCount = chunkCount,
+                TotalProjectedBytes = totalBytes,
+                Status = message.Status,
+                RetryAfter = message.RetryAfter,
+                Error = message.Error,
+                SchemaMismatch = message.SchemaMismatch
+            };
+            return false;
+        }
+
+        if (!_assemblies.TryGetValue(requestId, out var assembly) || assembly.Generation != generation)
+        {
+            failure = CompanionChunkProtocol.ProtocolErrorResponse();
+            return true;
+        }
+
+        if (string.Equals(type, CompanionChunkProtocol.InvokeResultChunk, StringComparison.OrdinalIgnoreCase))
+        {
+            if (message.ChunkCount is int declared && declared != assembly.ChunkCount)
+            {
+                _assemblies.Remove(requestId);
+                failure = CompanionChunkProtocol.ProtocolErrorResponse();
+                return true;
+            }
+
+            if (!CompanionChunkProtocol.TryDecodeBase64(message.Data, out var bytes)
+                || !assembly.TryAddChunk(message.ChunkIndex ?? -1, bytes, out failure))
+            {
+                _assemblies.Remove(requestId);
+                failure ??= CompanionChunkProtocol.ProtocolErrorResponse();
+                return true;
+            }
+
+            return false;
+        }
+
+        if (string.Equals(type, CompanionChunkProtocol.InvokeResultEnd, StringComparison.OrdinalIgnoreCase))
+        {
+            _assemblies.Remove(requestId);
+            if (!assembly.TryAssemble(out assembledBytes, out failure))
+            {
+                failure ??= CompanionChunkProtocol.ProtocolErrorResponse();
+                return true;
+            }
+
+            completed = assembly;
+            return true;
+        }
+
+        failure = CompanionChunkProtocol.ProtocolErrorResponse();
+        return true;
+    }
+
     public void FailAllPending(ProviderResponse reason)
     {
         lock (_gate)
@@ -208,6 +380,7 @@ public sealed class CompanionRequestHub : ICompanionRequestHub
         }
 
         _pending.Clear();
+        _assemblies.Clear();
     }
 }
 

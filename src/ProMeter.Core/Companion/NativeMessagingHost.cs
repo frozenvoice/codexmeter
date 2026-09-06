@@ -29,7 +29,7 @@ public static class NativeMessagingFraming
                 Type = CompanionBridgeProtocol.ErrorType,
                 Error = "PayloadTooLarge",
                 PayloadTooLarge = true,
-                SchemaMismatch = true
+                SchemaMismatch = false
             });
         }
 
@@ -52,7 +52,7 @@ public static class NativeMessagingFraming
                 Type = CompanionBridgeProtocol.ErrorType,
                 Error = "PayloadTooLarge",
                 PayloadTooLarge = true,
-                SchemaMismatch = true
+                SchemaMismatch = false
             }));
         }
 

@@ -8,6 +8,7 @@ public sealed class SyncFailureSummary
     public int DeferredCount { get; set; }
     public int BodyTimeoutCount { get; set; }
     public int SchemaMismatchCount { get; set; }
+    public int PayloadTooLargeCount { get; set; }
     public int CompanionDisconnectedCount { get; set; }
     public int AuthenticationCount { get; set; }
     public int OtherConversationFailureCount { get; set; }
@@ -36,6 +37,9 @@ public sealed class SyncFailureSummary
                 break;
             case ConversationFetchBackoff.SchemaMismatch:
                 SchemaMismatchCount++;
+                break;
+            case ConversationFetchBackoff.PayloadTooLarge:
+                PayloadTooLargeCount++;
                 break;
             case ConversationFetchBackoff.CompanionDisconnected:
                 CompanionDisconnectedCount++;

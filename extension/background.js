@@ -1,5 +1,5 @@
-/* global importScripts, chrome, ProMeterCanonical, ProMeterOperations, ProMeterPageTab, ProMeterCompanionReconnect */
-importScripts("canonical.js", "operations.js", "page-tab.js", "companion-reconnect.js");
+/* global importScripts, chrome, ProMeterCanonical, ProMeterOperations, ProMeterPageTab, ProMeterCompanionReconnect, ProMeterChunk */
+importScripts("canonical.js", "operations.js", "page-tab.js", "companion-reconnect.js", "chunk.js");
 
 var NATIVE_HOST = "com.prometer.bridge";
 var MAX_BYTES = ProMeterCanonical.MAX_NATIVE_MESSAGE_BYTES;
@@ -138,6 +138,18 @@ function connectNative(fromUser) {
   port.postMessage({ type: "hello" });
 }
 
+function postPayloadTooLarge(requestId, operation) {
+  port.postMessage({
+    type: "invokeResult",
+    requestId: requestId,
+    operation: operation,
+    status: 0,
+    payloadTooLarge: true,
+    error: "PayloadTooLarge",
+    schemaMismatch: false
+  });
+}
+
 function postResult(requestId, operation, payload) {
   if (!port) {
     return;
@@ -150,11 +162,24 @@ function postResult(requestId, operation, payload) {
     port.postMessage({ type: "invokeResult", requestId: requestId, operation: operation, status: 0, schemaMismatch: true, error: "refusing to send access token" });
     return;
   }
-  if (utf8ByteLength(json) > MAX_BYTES) {
-    port.postMessage({ type: "invokeResult", requestId: requestId, operation: operation, payloadTooLarge: true, error: "PayloadTooLarge", schemaMismatch: true });
+  var size = utf8ByteLength(json);
+  if (size <= MAX_BYTES) {
+    port.postMessage(payload);
     return;
   }
-  port.postMessage(payload);
+  if (!ProMeterChunk.isChunkableOperation(operation) || typeof payload.body !== "string") {
+    postPayloadTooLarge(requestId, operation);
+    return;
+  }
+  var frames = ProMeterChunk.buildFrames(requestId, operation, payload);
+  if (!frames.ok) {
+    postPayloadTooLarge(requestId, operation);
+    return;
+  }
+  safeLog("companion chunked response operation=" + operation + " chunks=" + frames.chunkCount + " projectedBytes=" + frames.totalProjectedBytes);
+  for (var i = 0; i < frames.messages.length; i++) {
+    port.postMessage(frames.messages[i]);
+  }
 }
 
 function onHostMessage(message) {

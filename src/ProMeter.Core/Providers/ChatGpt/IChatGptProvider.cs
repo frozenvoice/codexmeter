@@ -37,9 +37,17 @@ public sealed class ChatGptProviderException : Exception
         Status == 0 && BridgeFailureClassification.IsBridgeTimeout(Message);
     public bool IsBridgeWriteFailed =>
         Status == 0 && BridgeFailureClassification.IsBridgeWriteFailed(Message);
+    public bool IsPayloadTooLarge =>
+        Status == 0
+        && (string.Equals(Message, "PayloadTooLarge", StringComparison.OrdinalIgnoreCase)
+            || (Message?.Contains("payload too large", StringComparison.OrdinalIgnoreCase) ?? false));
+    public bool IsChunkProtocolError =>
+        Status == 0 && string.Equals(Message, CompanionChunkProtocol.ProtocolError, StringComparison.Ordinal);
     public bool IsNetworkUnavailable =>
         Status == 0
         && !SchemaMismatch
+        && !IsPayloadTooLarge
+        && !IsChunkProtocolError
         && !IsChatGptTabRequired
         && !IsPageBridgeUnavailable
         && !IsCompanionDisconnected

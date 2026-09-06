@@ -75,6 +75,44 @@ assert.ok(!projected.body.mapping.user.message.metadata.url);
 assert.strictEqual(projected.body.mapping.user.message.metadata.request_id, "req-synthetic");
 assert.strictEqual(project.containsPromptOrResponseText(projected.body), false);
 
+const bothShapes = {
+  conversation_id: "conv-both",
+  current_node: "asst-1",
+  mapping: dirty.mapping,
+  messages: [
+    {
+      id: "user-1",
+      parent: "root",
+      message: {
+        id: "user-1",
+        author: { role: "user" },
+        create_time: 1777500000,
+        content: { content_type: "text", parts: ["SYNTHETIC_PROMPT_TEXT_DO_NOT_STORE"] }
+      }
+    },
+    {
+      id: "asst-1",
+      parent: "user-1",
+      message: {
+        id: "asst-1",
+        author: { role: "assistant" },
+        create_time: 1777500001,
+        metadata: { request_id: "req-synthetic", model_slug: "gpt-6-pro" },
+        content: { content_type: "text" }
+      }
+    }
+  ]
+};
+const headSlim = project.project("GetConversationHead", bothShapes);
+assert.strictEqual(headSlim.ok, true);
+assert.strictEqual(headSlim.body.mapping, undefined);
+assert.strictEqual(headSlim.body.messages.length, 2);
+assert.ok(!headSlim.body.messages[0].message.content.parts);
+assert.strictEqual(project.containsPromptOrResponseText(headSlim.body), false);
+const legacyKeep = project.project("GetConversationLegacy", bothShapes);
+assert.ok(legacyKeep.body.mapping);
+assert.ok(JSON.stringify(legacyKeep.body).length > JSON.stringify(headSlim.body).length);
+
 const projects = project.project("GetProjects", {
   gizmos: [{
     id: "proj-1",
@@ -266,7 +304,7 @@ assert.strictEqual(preserved.json, false);
 const reconnect = require("./companion-reconnect.js");
 assert.deepStrictEqual(reconnect.DELAYS_MS, [1000, 2000, 5000, 10000, 30000]);
 assert.strictEqual(reconnect.formatDelayLog(1000), "companion reconnect scheduled delay=1s");
-assert.strictEqual(canonical.PAGE_BRIDGE_VERSION, 2);
+assert.strictEqual(canonical.PAGE_BRIDGE_VERSION, 3);
 
 const optedIn = reconnect.createState();
 const swStart = reconnect.onServiceWorkerStart(optedIn, true);
@@ -381,6 +419,116 @@ assert.strictEqual(quotaProjected.body.blocked_features[0].description, "server 
 assert.strictEqual(quotaProjected.body.blocked_features[0].conversation_id, undefined);
 
 await require("./test-page-context.js")();
+
+const chunk = require("./chunk.js");
+assert.strictEqual(chunk.isChunkableOperation("GetConversationLegacy"), true);
+assert.strictEqual(chunk.isChunkableOperation("GetModels"), false);
+
+function makeLargeProjected(minBytes) {
+  var mapping = {};
+  var parent = null;
+  var i = 0;
+  var last = "n0";
+  while (true) {
+    var id = "n" + i;
+    mapping[id] = {
+      id: id,
+      parent: parent,
+      children: [],
+      message: {
+        id: id,
+        author: { role: i % 2 ? "assistant" : "user" },
+        create_time: 1777500000 + i,
+        end_turn: true,
+        recipient: "all",
+        content: { content_type: "text" },
+        metadata: i % 2 ? { request_id: "r" + i, model_slug: "gpt-5-6-pro" } : {}
+      }
+    };
+    if (parent) {
+      mapping[parent].children.push(id);
+    }
+    parent = id;
+    last = id;
+    i += 1;
+    if (i % 400 === 0) {
+      var candidate = JSON.stringify({
+        conversation_id: "conv-js-large",
+        current_node: last,
+        update_time: 1777500000,
+        mapping: mapping
+      });
+      if (canonical.utf8ByteLength(candidate) > minBytes) {
+        return candidate;
+      }
+    }
+  }
+}
+
+const smallPayload = {
+  status: 200,
+  body: JSON.stringify({ conversation_id: "c", current_node: "n0", mapping: { n0: { id: "n0" } } })
+};
+const smallJson = JSON.stringify({
+  type: "invokeResult",
+  requestId: "r-small",
+  operation: "GetConversationLegacy",
+  status: 200,
+  body: smallPayload.body
+});
+assert.ok(canonical.utf8ByteLength(smallJson) < canonical.MAX_NATIVE_MESSAGE_BYTES);
+
+const largeBody = makeLargeProjected(canonical.MAX_NATIVE_MESSAGE_BYTES + 2048);
+assert.ok(canonical.utf8ByteLength(largeBody) > canonical.MAX_NATIVE_MESSAGE_BYTES);
+assert.ok(largeBody.indexOf("parts") < 0);
+const frames = chunk.buildFrames("r-large", "GetConversationLegacy", { status: 200, body: largeBody });
+assert.strictEqual(frames.ok, true);
+assert.strictEqual(frames.messages[0].type, "invokeResultStart");
+assert.strictEqual(frames.messages[frames.messages.length - 1].type, "invokeResultEnd");
+assert.ok(frames.chunkCount >= 2);
+frames.messages.forEach(function (frame) {
+  assert.ok(chunk.frameUtf8Length(frame) <= canonical.MAX_CHUNK_FRAME_BYTES);
+  assert.ok(chunk.frameUtf8Length(frame) <= canonical.MAX_NATIVE_MESSAGE_BYTES);
+});
+const assembled = chunk.reassembleBody(frames.messages);
+assert.strictEqual(assembled.ok, true);
+assert.strictEqual(assembled.body, largeBody);
+
+const reversed = [frames.messages[0]].concat(frames.messages.slice(1, -1).reverse()).concat(frames.messages[frames.messages.length - 1]);
+const ooo = chunk.reassembleBody(reversed);
+assert.strictEqual(ooo.ok, true);
+assert.strictEqual(ooo.body, largeBody);
+
+const missing = frames.messages.filter(function (frame, index) {
+  return !(frame.type === "invokeResultChunk" && frame.chunkIndex === 1);
+});
+assert.strictEqual(chunk.reassembleBody(missing).ok, false);
+
+const overCap = chunk.buildFrames("r-cap", "GetConversationLegacy", {
+  status: 200,
+  body: largeBody
+});
+assert.strictEqual(overCap.ok, true);
+const tooBigStart = {
+  type: "invokeResultStart",
+  requestId: "r-cap",
+  operation: "GetConversationLegacy",
+  chunked: true,
+  chunkCount: 1,
+  totalProjectedBytes: canonical.MAX_ASSEMBLED_PROJECTED_BYTES + 1
+};
+assert.strictEqual(chunk.reassembleBody([tooBigStart, {
+  type: "invokeResultChunk",
+  requestId: "r-cap",
+  operation: "GetConversationLegacy",
+  chunkIndex: 0,
+  chunkCount: 1,
+  data: chunk.splitBodyToBase64Chunks("{}", canonical.CHUNK_RAW_BYTES).chunks[0]
+}, {
+  type: "invokeResultEnd",
+  requestId: "r-cap",
+  operation: "GetConversationLegacy"
+}]).error, "PayloadTooLarge");
 
   process.stdout.write("companion node tests ok\n");
 })().catch(function (error) {

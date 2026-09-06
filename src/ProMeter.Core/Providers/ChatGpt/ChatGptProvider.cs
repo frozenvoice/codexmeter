@@ -1,13 +1,18 @@
+using ProMeter.Services;
+
 namespace ProMeter.Providers.ChatGpt;
 
 public sealed class ChatGptProvider : IChatGptProvider
 {
     private readonly IChatGptTransport _transport;
-    private readonly ConversationDetailLoader _loader = new();
+    private readonly ConversationDetailLoader _loader;
+    private readonly Action<string>? _log;
 
-    public ChatGptProvider(IChatGptTransport transport)
+    public ChatGptProvider(IChatGptTransport transport, Action<string>? log = null)
     {
         _transport = transport;
+        _log = log;
+        _loader = new ConversationDetailLoader(log: log);
     }
 
     public async Task<AccountStatus> GetAccountStatusAsync(CancellationToken cancellationToken = default)
@@ -187,8 +192,26 @@ public sealed class ChatGptProvider : IChatGptProvider
         };
     }
 
-    public Task<ConversationLoadResult> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default) =>
-        _loader.LoadAsync(_transport, conversationId, GetJsonAsync, cancellationToken);
+    public TimeSpan ConversationEndpointTimeout
+    {
+        get => _loader.ConversationEndpointTimeout;
+        set => _loader.ConversationEndpointTimeout = value;
+    }
+
+    public async Task<ConversationLoadResult> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default)
+    {
+        var load = await _loader.LoadAsync(_transport, conversationId, GetJsonAsync, cancellationToken);
+        var category = SyncFailureClassifier.ClassifyLoad(load);
+        var result = load.Complete
+            ? "success"
+            : string.Equals(category, "PayloadTooLarge", StringComparison.OrdinalIgnoreCase)
+                ? "payload-too-large"
+                : load.SchemaMismatch
+                    ? "schema-mismatch"
+                    : "incomplete";
+        _log?.Invoke($"conversation fetch id={conversationId} result={result}");
+        return load;
+    }
 
     public async Task<QuotaMetadataSet> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default)
     {
@@ -308,6 +331,16 @@ public sealed class ChatGptProvider : IChatGptProvider
     private async Task<JsonNode?> GetJsonAsync(string method, string path, string? body = null, CancellationToken cancellationToken = default)
     {
         var response = await _transport.SendAsync(method, path, body, cancellationToken);
+        if (response.IsPayloadTooLarge)
+        {
+            throw new ChatGptProviderException("PayloadTooLarge", response.Status, response.RetryAfter);
+        }
+
+        if (response.IsChunkProtocolError)
+        {
+            throw new ChatGptProviderException(CompanionChunkProtocol.ProtocolError, response.Status, response.RetryAfter);
+        }
+
         if (response.SchemaMismatch)
         {
             throw new ChatGptProviderException("Provider schema mismatch", response.Status, response.RetryAfter, schemaMismatch: true);

@@ -202,6 +202,7 @@ public static class DisplayFormatting
         var lines = new List<string> { UiText.DataPartiallyNotApplied };
         AddCategoryLine(lines, summary.BodyTimeoutCount, UiText.ReadTimeout);
         AddCategoryLine(lines, summary.SchemaMismatchCount, UiText.ResponseFormatMismatch);
+        AddCategoryLine(lines, summary.PayloadTooLargeCount, UiText.ResponseTooLarge);
         AddCategoryLine(lines, summary.CompanionDisconnectedCount, UiText.ConversationCompanionFailure);
         AddCategoryLine(lines, summary.AuthenticationCount, UiText.AuthenticationRequired);
         AddCategoryLine(lines, summary.OtherConversationFailureCount, UiText.FailureCategoryOther);
@@ -218,6 +219,7 @@ public static class DisplayFormatting
         {
             ConversationFetchBackoff.BodyTimeout => UiText.ReadTimeout,
             ConversationFetchBackoff.SchemaMismatch => UiText.ResponseFormatMismatch,
+            ConversationFetchBackoff.PayloadTooLarge => UiText.ResponseTooLarge,
             ConversationFetchBackoff.CompanionDisconnected => UiText.ConversationCompanionFailure,
             ConversationFetchBackoff.Authentication => UiText.AuthenticationRequired,
             _ => UiText.FailureCategoryOther

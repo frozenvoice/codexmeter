@@ -23,6 +23,11 @@ public sealed class CompanionBridgeMessage
     public string? Error { get; set; }
     public bool SchemaMismatch { get; set; }
     public bool PayloadTooLarge { get; set; }
+    public bool? Chunked { get; set; }
+    public int? ChunkIndex { get; set; }
+    public int? ChunkCount { get; set; }
+    public int? TotalProjectedBytes { get; set; }
+    public string? Data { get; set; }
     public bool Accepted { get; set; }
     public string? Reason { get; set; }
 }
@@ -105,6 +110,11 @@ public static class CompanionBridgeProtocol
             Error = ChatGptJson.GetString(node, "error"),
             SchemaMismatch = ChatGptJson.GetBool(node, "schemaMismatch", "schema_mismatch") == true,
             PayloadTooLarge = ChatGptJson.GetBool(node, "payloadTooLarge", "payload_too_large") == true,
+            Chunked = ChatGptJson.GetBool(node, "chunked"),
+            ChunkIndex = (int?)ChatGptJson.GetDouble(node, "chunkIndex", "chunk_index"),
+            ChunkCount = (int?)ChatGptJson.GetDouble(node, "chunkCount", "chunk_count"),
+            TotalProjectedBytes = (int?)ChatGptJson.GetDouble(node, "totalProjectedBytes", "total_projected_bytes"),
+            Data = ReadChunkData(node),
             Accepted = ChatGptJson.GetBool(node, "accepted") == true,
             Reason = ChatGptJson.GetString(node, "reason")
         };
@@ -140,11 +150,22 @@ public static class CompanionBridgeProtocol
         return new CompanionParseResult { Accepted = true, Message = message };
     }
 
+    private static string? ReadChunkData(JsonNode node)
+    {
+        var value = node["data"] ?? node["Data"];
+        if (value is null)
+        {
+            return null;
+        }
+
+        return value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : value.ToString();
+    }
+
     public static ProviderResponse ToProviderResponse(CompanionParseResult parsed, CompanionOperation? operation = null)
     {
-        if (parsed.Error == "PayloadTooLarge")
+        if (parsed.Error == "PayloadTooLarge" || parsed.Message?.PayloadTooLarge == true)
         {
-            return new ProviderResponse { Status = 0, Error = "PayloadTooLarge", SchemaMismatch = true };
+            return CompanionChunkProtocol.PayloadTooLargeResponse();
         }
 
         if (!parsed.Accepted || parsed.Message is null)
@@ -158,9 +179,9 @@ public static class CompanionBridgeProtocol
         }
 
         var message = parsed.Message;
-        if (message.PayloadTooLarge)
+        if (message.PayloadTooLarge || string.Equals(message.Error, "PayloadTooLarge", StringComparison.OrdinalIgnoreCase))
         {
-            return new ProviderResponse { Status = 0, Error = "PayloadTooLarge", SchemaMismatch = true };
+            return CompanionChunkProtocol.PayloadTooLargeResponse();
         }
 
         if (message.Status is 401 or 403 or 429 || message.Status is >= 500 and < 600)

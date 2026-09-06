@@ -14,7 +14,7 @@ public sealed class SyncEngine
     private int _consecutiveFailures;
     public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(2);
     public int RetryAttempts { get; set; } = 6;
-    public TimeSpan ConversationBodyTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan ConversationBodyTimeout { get; set; } = TimeSpan.FromSeconds(45);
     public int ConsecutiveBodyTimeoutLimit { get; set; } = 3;
     private int _bodyFetchDelayMs = 250;
     private bool _pacedBodyThisSync;
@@ -610,11 +610,12 @@ public sealed class SyncEngine
 
                 if (!load.Complete || load.SchemaMismatch || load.Conversation is null)
                 {
-                    var scanStatus = load.SchemaMismatch ? ConversationScanStatus.SchemaMismatch : ConversationScanStatus.Incomplete;
-                    var worst = load.SchemaMismatch ? AppSyncStatus.ProviderSchemaMismatch : AppSyncStatus.PartialData;
                     var category = SyncFailureClassifier.ClassifyLoad(load);
+                    var schema = string.Equals(category, ConversationFetchBackoff.SchemaMismatch, StringComparison.Ordinal);
+                    var scanStatus = schema ? ConversationScanStatus.SchemaMismatch : ConversationScanStatus.FetchFailed;
+                    var worst = schema ? AppSyncStatus.ProviderSchemaMismatch : AppSyncStatus.PartialData;
                     MarkUniqueFailure(coverage, entry, setWorst, worst, category);
-                    coverage.Notes = load.SchemaMismatch
+                    coverage.Notes = schema
                         ? "Provider schema mismatch on at least one conversation."
                         : "At least one conversation was incomplete.";
                     RecordBodyFailure(item, scanStatus, string.Join("; ", load.Diagnostics), category);

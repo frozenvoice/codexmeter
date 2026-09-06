@@ -101,7 +101,7 @@ public sealed class CompanionPipeServer : IDisposable
                     {
                         Status = 0,
                         Error = "PayloadTooLarge",
-                        SchemaMismatch = true
+                        SchemaMismatch = false
                     }, generation);
                 }
 
@@ -176,7 +176,7 @@ public sealed class CompanionPipeServer : IDisposable
             });
             if (parsed.Error == "PayloadTooLarge")
             {
-                _hub.FailAllPending(new ProviderResponse { Status = 0, Error = "PayloadTooLarge", SchemaMismatch = true });
+                _hub.FailAllPending(CompanionChunkProtocol.PayloadTooLargeResponse());
             }
 
             return Task.CompletedTask;
@@ -216,6 +216,13 @@ public sealed class CompanionPipeServer : IDisposable
                 Accepted = ok,
                 Error = ok ? null : "pairing required"
             });
+            return Task.CompletedTask;
+        }
+
+        if (CompanionChunkProtocol.IsChunkFrame(message.Type)
+            && !string.IsNullOrWhiteSpace(message.RequestId))
+        {
+            _hub.TryHandleChunkedResult(parsed, generation);
             return Task.CompletedTask;
         }
 

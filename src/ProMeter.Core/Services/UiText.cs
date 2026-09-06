@@ -172,6 +172,7 @@ public static class UiText
     public static string DataPartiallyNotApplied => T("Data partially not applied", "데이터 일부 미반영");
     public static string ReadTimeout => T("Read timeout", "읽기 시간 초과");
     public static string ResponseFormatMismatch => T("Response format mismatch", "응답 형식 불일치");
+    public static string ResponseTooLarge => T("Response too large", "응답 크기 초과");
     public static string ConversationCompanionFailure => T("Companion disconnected", "도우미 연결 끊김");
     public static string FailureCategoryOther => T("Other", "기타");
     public static string FailedThisSync => T("Failed this sync", "이번 동기화 실패");

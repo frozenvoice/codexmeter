@@ -2,9 +2,10 @@ namespace ProMeter.Services;
 
 public static class ConversationFetchBackoff
 {
-    public const int ParserCompatibilityVersion = 1;
+    public const int ParserCompatibilityVersion = 2;
     public const string BodyTimeout = "BodyTimeout";
     public const string SchemaMismatch = "SchemaMismatch";
+    public const string PayloadTooLarge = "PayloadTooLarge";
     public const string CompanionDisconnected = "CompanionDisconnected";
     public const string Authentication = "Authentication";
     public const string Other = "Other";
@@ -66,6 +67,11 @@ public static class ConversationFetchBackoff
             return true;
         }
 
+        if (item.UpdateTime <= 0)
+        {
+            return !IsBackoffActive(existing, now);
+        }
+
         if (existing.Status == ConversationScanStatus.Ok && existing.LastSuccessfulScan is not null)
         {
             return false;
@@ -104,6 +110,12 @@ public static class ConversationFetchBackoff
         if (string.Equals(category, SchemaMismatch, StringComparison.OrdinalIgnoreCase))
         {
             return SchemaMismatch;
+        }
+
+        if (string.Equals(category, PayloadTooLarge, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(category, "ResponseTooLarge", StringComparison.OrdinalIgnoreCase))
+        {
+            return PayloadTooLarge;
         }
 
         if (string.Equals(category, CompanionDisconnected, StringComparison.OrdinalIgnoreCase))

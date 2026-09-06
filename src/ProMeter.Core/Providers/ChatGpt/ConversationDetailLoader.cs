@@ -45,11 +45,15 @@ public sealed class ConversationDetailLoader
     public const int NumTurns = 100;
     public const int MaxPages = 40;
 
+    private readonly Action<string>? _log;
+
+    public TimeSpan ConversationEndpointTimeout { get; set; } = TimeSpan.FromSeconds(18);
     public EndpointCapabilityCache Capabilities { get; }
 
-    public ConversationDetailLoader(EndpointCapabilityCache? capabilities = null)
+    public ConversationDetailLoader(EndpointCapabilityCache? capabilities = null, Action<string>? log = null)
     {
         Capabilities = capabilities ?? new EndpointCapabilityCache();
+        _log = log;
     }
 
     public async Task<ConversationLoadResult> LoadAsync(
@@ -112,7 +116,7 @@ public sealed class ConversationDetailLoader
             }
         }
 
-        return await LoadPaginatedAsync(conversationId, fetch, seed, diagnostics, cancellationToken);
+        return await LoadPaginatedAsync(conversationId, fetch, seed, diagnostics, cancellationToken, headAlreadyAttempted: true);
     }
 
     public async Task<ConversationLoadResult> LoadPaginatedAsync(
@@ -120,12 +124,13 @@ public sealed class ConversationDetailLoader
         Func<string, string, string?, CancellationToken, Task<JsonNode?>> fetch,
         JsonNode? seed,
         List<string> diagnostics,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool headAlreadyAttempted = false)
     {
         JsonNode? first = seed is not null && (HasMessages(seed) || HasPageInfo(seed))
             ? seed
             : null;
-        if (first is null && Capabilities.IsSupported(ConversationEndpointKind.PaginatedTurns))
+        if (first is null && !headAlreadyAttempted && Capabilities.IsSupported(ConversationEndpointKind.PaginatedTurns))
         {
             first = await TryGet(fetch, "GET", ChatGptEndpoints.ConversationTurns(conversationId), conversationId, cancellationToken, diagnostics, "paginated-head", ConversationEndpointKind.PaginatedTurns);
         }
@@ -133,11 +138,12 @@ public sealed class ConversationDetailLoader
         if (first is null)
         {
             diagnostics.Add("Paginated conversation head was empty.");
+            var payloadTooLarge = ContainsPayloadTooLarge(diagnostics);
             return new ConversationLoadResult
             {
                 Conversation = seed,
                 Complete = false,
-                SchemaMismatch = true,
+                SchemaMismatch = !payloadTooLarge,
                 Diagnostics = diagnostics
             };
         }
@@ -387,9 +393,31 @@ public sealed class ConversationDetailLoader
         string label,
         ConversationEndpointKind kind)
     {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        if (ConversationEndpointTimeout > TimeSpan.Zero)
+        {
+            linked.CancelAfter(ConversationEndpointTimeout);
+        }
+
+        var started = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            return await fetch(method, path, null, cancellationToken);
+            var node = await fetch(method, path, null, linked.Token);
+            LogEndpoint(conversationId, kind, started.ElapsedMilliseconds, "ok");
+            return node;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            diagnostics.Add($"{label} timed out");
+            LogEndpoint(conversationId, kind, started.ElapsedMilliseconds, "timeout");
+            return null;
+        }
+        catch (ChatGptProviderException ex) when (kind == ConversationEndpointKind.FullMapping && ex.Status is 400 or 403 or 404)
+        {
+            Capabilities.ObserveNotFound(kind, conversationId);
+            diagnostics.Add($"{label} unavailable status={ex.Status}");
+            LogEndpoint(conversationId, kind, started.ElapsedMilliseconds, $"http{ex.Status}-unsupported");
+            return null;
         }
         catch (ChatGptProviderException ex) when (ex.IsFatalTransportFailure)
         {
@@ -399,9 +427,22 @@ public sealed class ConversationDetailLoader
         {
             Capabilities.ObserveNotFound(kind, conversationId);
             diagnostics.Add($"{label} unavailable status={ex.Status}");
+            LogEndpoint(conversationId, kind, started.ElapsedMilliseconds, $"http{ex.Status}-unsupported");
+            return null;
+        }
+        catch (ChatGptProviderException ex) when (ex.IsPayloadTooLarge || ex.IsChunkProtocolError)
+        {
+            diagnostics.Add($"{label} payload too large");
+            LogEndpoint(conversationId, kind, started.ElapsedMilliseconds, "payload-too-large");
             return null;
         }
     }
+
+    private void LogEndpoint(string conversationId, ConversationEndpointKind kind, long elapsedMs, string result) =>
+        _log?.Invoke($"conversation endpoint id={conversationId} kind={kind} elapsedMs={elapsedMs} result={result}");
+
+    private static bool ContainsPayloadTooLarge(IEnumerable<string> diagnostics) =>
+        diagnostics.Any(item => item.Contains("payload too large", StringComparison.OrdinalIgnoreCase));
 
     private static bool HasMessages(JsonNode node) =>
         node["messages"] is JsonArray || node["items"] is JsonArray || node["turns"] is JsonArray;

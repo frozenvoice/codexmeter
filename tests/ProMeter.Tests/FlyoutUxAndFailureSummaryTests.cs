@@ -257,6 +257,38 @@ public class FlyoutUxAndFailureSummaryTests
     }
 
     [Fact]
+    public void PayloadTooLarge_UsesSizeLabelNotSchemaMismatch()
+    {
+        var coverage = new CoverageInfo
+        {
+            FailedConversations = 1,
+            ConversationIncomplete = true,
+            FailureSummary =
+            {
+                FailedThisSyncCount = 1,
+                PayloadTooLargeCount = 1
+            }
+        };
+        UiText.SetLanguage(UiLanguage.Korean);
+        try
+        {
+            var details = string.Join('\n', DisplayFormatting.CoverageFailureDetailLines(coverage));
+            Assert.Contains("응답 크기 초과    1", details, StringComparison.Ordinal);
+            Assert.DoesNotContain("응답 형식 불일치", details, StringComparison.Ordinal);
+            Assert.DoesNotContain("SchemaMismatch", details, StringComparison.Ordinal);
+            Assert.Equal("응답 크기 초과", DisplayFormatting.FailureCategoryLabel("PayloadTooLarge"));
+            Assert.Equal("응답 크기 초과", DisplayFormatting.FailureCategoryLabel("ResponseTooLarge"));
+        }
+        finally
+        {
+            UiText.SetLanguage(UiLanguage.English);
+        }
+
+        Assert.Equal("Response too large", DisplayFormatting.FailureCategoryLabel(ConversationFetchBackoff.PayloadTooLarge));
+        Assert.Equal(ConversationFetchBackoff.PayloadTooLarge, ConversationFetchBackoff.NormalizeCategory("ResponseTooLarge"));
+    }
+
+    [Fact]
     public void GlobalIndexFailure_DoesNotInventConversationCounts()
     {
         var coverage = new CoverageInfo

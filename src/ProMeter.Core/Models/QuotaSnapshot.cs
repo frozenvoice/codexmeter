@@ -99,9 +99,17 @@ public sealed class ProviderResponse
         Status == 0 && BridgeFailureClassification.IsBridgeTimeout(Error);
     public bool IsBridgeWriteFailed =>
         Status == 0 && BridgeFailureClassification.IsBridgeWriteFailed(Error);
+    public bool IsPayloadTooLarge =>
+        Status == 0
+        && (string.Equals(Error, "PayloadTooLarge", StringComparison.OrdinalIgnoreCase)
+            || (Error is not null && Error.Contains("payload too large", StringComparison.OrdinalIgnoreCase)));
+    public bool IsChunkProtocolError =>
+        Status == 0 && string.Equals(Error, CompanionChunkProtocol.ProtocolError, StringComparison.Ordinal);
     public bool IsNetworkUnavailable =>
         Status == 0
         && !SchemaMismatch
+        && !IsPayloadTooLarge
+        && !IsChunkProtocolError
         && !IsChatGptTabRequired
         && !IsPageBridgeUnavailable
         && !IsCompanionDisconnected

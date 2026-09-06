@@ -211,13 +211,21 @@
     return result;
   }
 
-  function projectConversationDetail(node) {
+  function hasUsablePaginatedCollection(node) {
+    return ["messages", "items", "turns"].some(function (key) {
+      return Array.isArray(node[key]) && node[key].length > 0;
+    });
+  }
+
+  function projectConversationDetail(node, operation) {
     var result = pick(node, ["conversation_id", "id", "current_node", "update_time", "updateTime"]);
     var page = node.page_info || node.pageInfo;
     if (page) {
       result.page_info = pick(page, ["has_previous_page", "hasPreviousPage", "start_cursor", "startCursor"]);
     }
-    if (node.mapping && typeof node.mapping === "object") {
+    var paginated = operation === "GetConversationHead" || operation === "GetOlderConversationMessages";
+    var omitMapping = paginated && hasUsablePaginatedCollection(node);
+    if (node.mapping && typeof node.mapping === "object" && !omitMapping) {
       result.mapping = {};
       Object.keys(node.mapping).forEach(function (key) {
         result.mapping[key] = projectMappingNode(node.mapping[key] || {});
@@ -322,7 +330,7 @@
       case "GetConversationFull":
       case "GetConversationLegacy":
       case "GetOlderConversationMessages":
-        return { ok: true, body: projectConversationDetail(node) };
+        return { ok: true, body: projectConversationDetail(node, operation) };
       case "GetQuotaInit":
         return { ok: true, body: projectQuota(node) };
       default:

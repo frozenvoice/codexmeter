@@ -102,6 +102,14 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - Native-side projected-shape validation must be an endpoint-specific structural allowlist, not only a search for known forbidden keys.
 - User-created project names and titles are not required for usage counting and must not cross the browser bridge.
 - Payload limits must be calculated in UTF-8 bytes on both JavaScript and .NET.
+- Native Messaging per-message size limits must not be bypassed by simply raising a constant.
+- Large SAFE projected conversation metadata must use bounded chunked transport.
+- Chunking applies only AFTER privacy projection.
+- Raw ChatGPT conversation responses must never be chunked or forwarded.
+- PayloadTooLarge is a transport-size condition, not SchemaMismatch.
+- Conversation endpoint timeout and whole-conversation timeout are separate concepts.
+- Alternate endpoint failure must not automatically imply global auth failure when live evidence proves that alternate endpoint is unsupported while the authenticated account/index path works.
+- Page bridge schema/behavior changes require PAGE_BRIDGE_VERSION increment.
 - Do not claim companion connectivity from pump tests that bypass the production native-host entrypoint.
 
 ## Diagnostic safety
