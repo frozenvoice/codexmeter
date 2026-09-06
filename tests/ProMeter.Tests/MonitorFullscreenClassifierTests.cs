@@ -236,6 +236,25 @@ public class MonitorFullscreenClassifierTests
         Assert.Equal(0, gate.FullscreenExitConfirmationStreak);
     }
 
+    // D: fullscreen suppression is active and enumeration keeps failing (Unknown) on every
+    // poll. A repeated Unknown must never accumulate toward the exit-confirmation streak, no
+    // matter how many times it repeats — the strip must stay hidden indefinitely.
+    [Fact]
+    public void D_RepeatedEnumerationFailureWhileSuppressed_NeverAccumulatesExitStreak()
+    {
+        var observation = MonitorFullscreenClassifier.Observe([], TargetMonitor4K, TargetWorkArea4K, enumerationSucceeded: false);
+        Assert.Equal(FullscreenObservationKind.Unknown, observation.Kind);
+
+        var gate = SuppressedGate();
+        for (var i = 0; i < 25; i++)
+        {
+            var decision = gate.Observe(Hidden(), TaskbarStripMode.Hidden, observation);
+            Assert.False(decision.OverlayVisible);
+            Assert.True(gate.FullscreenSuppressed);
+            Assert.Equal(0, gate.FullscreenExitConfirmationStreak);
+        }
+    }
+
     [Fact]
     public void NoWindowsAtAllOnMonitor_IsConfirmedNotFullscreen()
     {
@@ -273,6 +292,70 @@ public class MonitorFullscreenClassifierTests
         Assert.Equal(
             ForegroundWindowRole.Desktop,
             TaskbarStatusPositioner.ClassifyForegroundRole("Windows.UI.Core.CoreWindow", ownOverlay: false, taskbarWindow: false));
+    }
+
+    // A: EnumWindows itself reported failure and nothing was collected -> failed.
+    [Fact]
+    public void A_EnumWindowsFailed_NoCandidates_EnumerationFails()
+    {
+        Assert.False(WindowEnumerationOutcome.Succeeded(enumerationApiReturnedTrue: false, candidateCount: 0));
+    }
+
+    // B: this is the actual bug. EnumWindows reported failure, but some candidates were
+    // collected before it failed (a partial scan). That must NOT be treated as a successful,
+    // exhaustive enumeration — the real fullscreen window on the target monitor could be
+    // exactly the one that was never reached.
+    [Fact]
+    public void B_EnumWindowsFailed_WithPartialCandidates_StillFails()
+    {
+        Assert.False(WindowEnumerationOutcome.Succeeded(enumerationApiReturnedTrue: false, candidateCount: 37));
+    }
+
+    // C: EnumWindows reported success with zero candidates (a legitimately empty desktop) ->
+    // the classifier is free to conclude ConfirmedNotFullscreen from that.
+    [Fact]
+    public void C_EnumWindowsSucceeded_NoCandidates_EnumerationSucceeds()
+    {
+        Assert.True(WindowEnumerationOutcome.Succeeded(enumerationApiReturnedTrue: true, candidateCount: 0));
+    }
+
+    [Fact]
+    public void EnumWindowsSucceeded_WithCandidates_EnumerationSucceeds()
+    {
+        Assert.True(WindowEnumerationOutcome.Succeeded(enumerationApiReturnedTrue: true, candidateCount: 12));
+    }
+
+    // Win32 adapter regression: TaskbarWin32.ObserveFullscreen must route EnumWindows' own
+    // result through WindowEnumerationOutcome instead of re-deriving success from how many
+    // candidates happened to be collected. This is a source check because TaskbarWin32 is a
+    // Windows-only internal class in the WPF project that this Core test project cannot
+    // reference or instantiate directly.
+    [Fact]
+    public void Win32Adapter_NeverPromotesFailedEnumerationUsingCandidateCount()
+    {
+        var source = File.ReadAllText(Find("src/ProMeter/UI/TaskbarWin32.cs"));
+        var method = source[source.IndexOf("private static FullscreenObservation ObserveFullscreen", StringComparison.Ordinal)..];
+        method = method[..method.IndexOf("private static IntPtr ForegroundRoot", StringComparison.Ordinal)];
+
+        Assert.Contains("WindowEnumerationOutcome.Succeeded(", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("candidates.Count > 0", method, StringComparison.Ordinal);
+    }
+
+    private static string Find(string relative)
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            var candidate = Path.Combine(current.FullName, relative.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            current = current.Parent;
+        }
+
+        throw new FileNotFoundException(relative);
     }
 
     private static TaskbarStripVisibilityGate SuppressedGate()

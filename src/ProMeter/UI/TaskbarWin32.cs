@@ -177,25 +177,25 @@ internal static class TaskbarWin32
         var foregroundRoot = ForegroundRoot();
         var currentProcessId = GetCurrentProcessId();
         var candidates = new List<WindowCandidateFacts>();
-        var enumerationSucceeded = true;
+        bool enumWindowsReturnedTrue;
         try
         {
-            if (!EnumWindows(
-                    (hwnd, _) =>
-                    {
-                        candidates.Add(BuildCandidate(hwnd, foregroundRoot, stripHwnd, taskbarHwnd, currentProcessId));
-                        return true;
-                    },
-                    IntPtr.Zero))
-            {
-                enumerationSucceeded = candidates.Count > 0;
-            }
+            enumWindowsReturnedTrue = EnumWindows(
+                (hwnd, _) =>
+                {
+                    candidates.Add(BuildCandidate(hwnd, foregroundRoot, stripHwnd, taskbarHwnd, currentProcessId));
+                    return true;
+                },
+                IntPtr.Zero);
         }
         catch
         {
-            enumerationSucceeded = false;
+            enumWindowsReturnedTrue = false;
         }
 
+        // A failed enumeration is never promoted to "succeeded" just because some candidates
+        // were collected before the failure — see WindowEnumerationOutcome for why.
+        var enumerationSucceeded = WindowEnumerationOutcome.Succeeded(enumWindowsReturnedTrue, candidates.Count);
         return MonitorFullscreenClassifier.Observe(candidates, monitor, work, enumerationSucceeded);
     }
 

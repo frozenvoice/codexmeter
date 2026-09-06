@@ -29,6 +29,19 @@ public readonly record struct WindowCandidateFacts(
 }
 
 /// <summary>
+/// Whether a Win32 top-level window enumeration (EnumWindows) can be trusted as a complete,
+/// exhaustive scan. A failed enumeration must never be promoted back to "succeeded" just
+/// because some candidates were collected before the failure — a partial candidate set could
+/// be missing exactly the window that matters (the real fullscreen window on the target
+/// monitor), which would let a stale/partial scan masquerade as proof that fullscreen exited.
+/// </summary>
+public static class WindowEnumerationOutcome
+{
+    public static bool Succeeded(bool enumerationApiReturnedTrue, int candidateCount) =>
+        enumerationApiReturnedTrue;
+}
+
+/// <summary>
 /// Determines whether a single monitor is covered by a real fullscreen application window,
 /// independent of the OS-global foreground window. The previous implementation trusted
 /// GetForegroundWindow() alone, which is wrong on multi-monitor systems: a normal window on
