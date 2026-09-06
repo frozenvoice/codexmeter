@@ -14,7 +14,6 @@ public partial class FlyoutWindow : Window
     public event Action<double, double>? PositionChanged;
     public bool CloseOnDeactivate { get; set; } = true;
     public bool Pinned { get; private set; }
-    private bool _suppressDeactivateClose;
     private bool _closeOnDeactivateSetting = true;
     private readonly RefreshIndicatorController _refreshIndicator = new();
     private Storyboard? _refreshStoryboard;
@@ -335,12 +334,6 @@ public partial class FlyoutWindow : Window
 
     private void OnDeactivated(object sender, EventArgs e)
     {
-        if (_suppressDeactivateClose)
-        {
-            _suppressDeactivateClose = false;
-            return;
-        }
-
         if (CloseOnDeactivate)
         {
             Hide();
@@ -355,20 +348,10 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    private void OnHeaderButtonPreviewMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        _suppressDeactivateClose = true;
-    }
-
-    private void OnRefreshAllClick(object sender, RoutedEventArgs e)
-    {
-        _suppressDeactivateClose = true;
-        SyncRequested?.Invoke();
-    }
+    private void OnRefreshAllClick(object sender, RoutedEventArgs e) => SyncRequested?.Invoke();
 
     private void OnPinClick(object sender, RoutedEventArgs e)
     {
-        _suppressDeactivateClose = true;
         Pinned = !Pinned;
         CloseOnDeactivate = FlyoutWindowState.ShouldCloseOnDeactivate(Pinned, _closeOnDeactivateSetting);
         ApplyPinGlyph();
@@ -379,11 +362,7 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    private void OnCloseClick(object sender, RoutedEventArgs e)
-    {
-        _suppressDeactivateClose = true;
-        Hide();
-    }
+    private void OnCloseClick(object sender, RoutedEventArgs e) => Hide();
 
     private void OnHeaderMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -397,7 +376,6 @@ public partial class FlyoutWindow : Window
             return;
         }
 
-        _suppressDeactivateClose = true;
         try
         {
             DragMove();

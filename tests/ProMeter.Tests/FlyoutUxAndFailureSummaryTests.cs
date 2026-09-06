@@ -29,10 +29,33 @@ public class FlyoutUxAndFailureSummaryTests
         Assert.True(FlyoutWindowState.ShouldCloseOnDeactivate(false, true));
         Assert.False(FlyoutWindowState.ShouldCloseOnDeactivate(true, true));
         Assert.False(FlyoutWindowState.ShouldCloseOnDeactivate(false, false));
+        Assert.True(FlyoutWindowState.ShouldHideOnDeactivate(false, true));
+        Assert.False(FlyoutWindowState.ShouldHideOnDeactivate(true, true));
+        Assert.False(FlyoutWindowState.ShouldHideOnDeactivate(false, false));
         Assert.True(FlyoutWindowState.UseSavedPosition(true, true));
         Assert.False(FlyoutWindowState.UseSavedPosition(true, false));
         Assert.False(FlyoutWindowState.UseSavedPosition(false, true));
         Assert.True(FlyoutWindowState.RepositionNearAnchorOnUnpin);
+    }
+
+    [Fact]
+    public void HeaderActions_DoNotLatchFutureDeactivation()
+    {
+        const bool closeOnDeactivateSetting = true;
+        Assert.True(FlyoutWindowState.ShouldHideOnDeactivate(pinned: false, closeOnDeactivateSetting));
+        Assert.False(FlyoutWindowState.ShouldHideOnDeactivate(pinned: true, closeOnDeactivateSetting));
+        Assert.True(FlyoutWindowState.ShouldHideOnDeactivate(pinned: false, closeOnDeactivateSetting));
+
+        var xaml = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml"));
+        var code = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
+        Assert.DoesNotContain("_suppressDeactivateClose", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnHeaderButtonPreviewMouseDown", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnHeaderButtonPreviewMouseDown", code, StringComparison.Ordinal);
+        Assert.Contains("OnRefreshAllClick", code, StringComparison.Ordinal);
+        Assert.Contains("OnPinClick", code, StringComparison.Ordinal);
+        Assert.Contains("OnCloseClick", code, StringComparison.Ordinal);
+        Assert.Contains("DragMove()", code, StringComparison.Ordinal);
+        Assert.Contains("if (CloseOnDeactivate)", code, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -107,6 +130,21 @@ public class FlyoutUxAndFailureSummaryTests
         Assert.Contains("DragMove()", code, StringComparison.Ordinal);
         Assert.Contains("HeaderSourceIsInteractive", code, StringComparison.Ordinal);
         Assert.Contains("if (!Pinned", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("_suppressDeactivateClose", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("OnHeaderButtonPreviewMouseDown", code, StringComparison.Ordinal);
+        var deactivate = code[code.IndexOf("private void OnDeactivated", StringComparison.Ordinal)..];
+        deactivate = deactivate[..deactivate.IndexOf("private void OnPreviewKeyDown", StringComparison.Ordinal)];
+        Assert.Contains("if (CloseOnDeactivate)", deactivate, StringComparison.Ordinal);
+        Assert.Contains("Hide();", deactivate, StringComparison.Ordinal);
+        Assert.DoesNotContain("suppress", deactivate, StringComparison.OrdinalIgnoreCase);
+        var refresh = code[code.IndexOf("private void OnRefreshAllClick", StringComparison.Ordinal)..];
+        refresh = refresh[..refresh.IndexOf("private void OnPinClick", StringComparison.Ordinal)];
+        Assert.Contains("SyncRequested", refresh, StringComparison.Ordinal);
+        Assert.DoesNotContain("CloseOnDeactivate", refresh, StringComparison.Ordinal);
+        var pin = code[code.IndexOf("private void OnPinClick", StringComparison.Ordinal)..];
+        pin = pin[..pin.IndexOf("private void OnCloseClick", StringComparison.Ordinal)];
+        Assert.Contains("ShouldCloseOnDeactivate(Pinned, _closeOnDeactivateSetting)", pin, StringComparison.Ordinal);
+        Assert.DoesNotContain("suppress", pin, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("EnsureProgressStripStoryboard", code, StringComparison.Ordinal);
         Assert.Contains("SyncProgressStrip.Visibility", code, StringComparison.Ordinal);
         Assert.Contains("StripDurationSeconds", code, StringComparison.Ordinal);

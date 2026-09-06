@@ -62,18 +62,44 @@ public class ConversationFetchBackoffTests
     }
 
     [Fact]
-    public void MissingUpdateTime_AlwaysFetches()
+    public void MissingUpdateTime_RespectsActiveFailureBackoff()
     {
         var now = DateTimeOffset.Parse("2026-09-06T00:00:00Z");
-        var item = new ConversationIndexItem { Id = "conv-a", UpdateTime = 0 };
+        var item = new ConversationIndexItem { Id = "conv-bad", UpdateTime = 0 };
+        Assert.True(ConversationFetchBackoff.ShouldFetch(item, existing: null, now, forceBodyRescan: false));
+        Assert.False(ConversationFetchBackoff.RemoteChanged(item, new ConversationRecord { LastAttemptedUpdateTime = 0, LastSeenUpdateTime = 0 }));
+
         var failed = new ConversationRecord
         {
-            ConsecutiveFetchFailures = 4,
-            NextEligibleFetchAt = now.AddHours(24),
+            ConversationId = "conv-bad",
+            ConsecutiveFetchFailures = 1,
+            NextEligibleFetchAt = now.AddMinutes(15),
             FetchFailureParserVersion = ConversationFetchBackoff.ParserCompatibilityVersion,
-            Status = ConversationScanStatus.Incomplete
+            Status = ConversationScanStatus.SchemaMismatch,
+            LastFetchFailureCategory = ConversationFetchBackoff.SchemaMismatch
         };
-        Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now, false));
+        Assert.False(ConversationFetchBackoff.ShouldFetch(item, failed, now.AddMinutes(1), false));
+        Assert.True(ConversationFetchBackoff.IsDeferredFailure(item, failed, now.AddMinutes(1), false));
+        Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now.AddMinutes(15), false));
+        Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now.AddMinutes(1), forceBodyRescan: true));
+
+        failed.FetchFailureParserVersion = 0;
+        Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now.AddMinutes(1), false));
+        failed.FetchFailureParserVersion = ConversationFetchBackoff.ParserCompatibilityVersion;
+
+        failed.ConsecutiveFetchFailures = 2;
+        failed.NextEligibleFetchAt = now.AddMinutes(15) + TimeSpan.FromHours(1);
+        Assert.False(ConversationFetchBackoff.ShouldFetch(item, failed, now.AddMinutes(16), false));
+        Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now.AddMinutes(15) + TimeSpan.FromHours(1), false));
+    }
+
+    [Fact]
+    public void RemoteChanged_RequiresPositiveUpdateTime()
+    {
+        var existing = new ConversationRecord { LastSeenUpdateTime = 1_000, LastAttemptedUpdateTime = 1_000 };
+        Assert.False(ConversationFetchBackoff.RemoteChanged(new ConversationIndexItem { UpdateTime = 0 }, existing));
+        Assert.False(ConversationFetchBackoff.RemoteChanged(new ConversationIndexItem { UpdateTime = 1_000 }, existing));
+        Assert.True(ConversationFetchBackoff.RemoteChanged(new ConversationIndexItem { UpdateTime = 1_200 }, existing));
     }
 
     [Fact]
@@ -201,6 +227,67 @@ public class ConversationFetchBackoffTests
         Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, expired.Status);
         Assert.Equal(4, store.GetConversation(item.Id)?.ConsecutiveFetchFailures);
         Assert.Equal(clock.UtcNow.AddHours(24), store.GetConversation(item.Id)?.NextEligibleFetchAt);
+    }
+
+    [Fact]
+    public async Task MissingUpdateTime_FailedConversation_IsDeferredUntilBackoffExpires()
+    {
+        var clock = new MutableClock(DateTimeOffset.Parse("2026-09-06T00:00:00Z"));
+        var dir = Path.Combine(Path.GetTempPath(), "prometer-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        using var store = new SqliteStore(Path.Combine(dir, "zero-update.db"));
+        var models = new ModelNormalizer();
+        var engine = new SyncEngine(store, new ConversationParser(models), models, new AppLog(Path.Combine(dir, "logs")), clock);
+        var fixture = new FixtureChatGptProvider();
+        var item = new ConversationIndexItem { Id = "conv-bad", UpdateTime = 0, CreateTime = 0 };
+        fixture.AddConversation(item, new ConversationLoadResult
+        {
+            Complete = false,
+            SchemaMismatch = true,
+            Diagnostics = ["mapping incomplete"]
+        });
+        var provider = new IncrementalSyncTests.CountingProvider(fixture);
+        var settings = AppSettings.CreateDefaults();
+        settings.ResetTimeZoneId = "UTC";
+        settings.BodyFetchDelayMilliseconds = 0;
+
+        var first = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, first.Status);
+        Assert.Equal(1, provider.BodyFetches);
+        Assert.Equal(1, store.GetConversation(item.Id)?.ConsecutiveFetchFailures);
+        Assert.Equal(clock.UtcNow.AddMinutes(15), store.GetConversation(item.Id)?.NextEligibleFetchAt);
+
+        clock.UtcNow = clock.UtcNow.AddMinutes(1);
+        var deferred = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
+        Assert.Equal(1, provider.BodyFetches);
+        Assert.Equal(AppSyncStatus.PartialData, deferred.Status);
+        Assert.Equal(1, engine.LastCoverage.FailedConversations);
+        Assert.Equal(1, engine.LastCoverage.FailureSummary.DeferredCount);
+        Assert.True(engine.LastCoverage.ConversationIncomplete);
+        Assert.Equal(CollectionState.Partial, engine.LastCoverage.OverallState);
+        Assert.NotEqual(AppSyncStatus.UpToDate, engine.LastStatus);
+
+        clock.UtcNow = DateTimeOffset.Parse("2026-09-06T00:15:00Z");
+        var expired = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
+        Assert.Equal(2, provider.BodyFetches);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, expired.Status);
+        Assert.Equal(2, store.GetConversation(item.Id)?.ConsecutiveFetchFailures);
+        Assert.Equal(clock.UtcNow.AddHours(1), store.GetConversation(item.Id)?.NextEligibleFetchAt);
+
+        var skippedDuringHour = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
+        Assert.Equal(2, provider.BodyFetches);
+        Assert.Equal(1, engine.LastCoverage.FailureSummary.DeferredCount);
+
+        var forced = await engine.SyncAsync(provider, settings, new SyncRunOptions
+        {
+            BypassPause = true,
+            ForceBodyRescan = true,
+            Origin = SyncOrigin.Manual
+        });
+        Assert.Equal(3, provider.BodyFetches);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, forced.Status);
+        Assert.Equal(3, store.GetConversation(item.Id)?.ConsecutiveFetchFailures);
+        Assert.Equal(clock.UtcNow.AddHours(6), store.GetConversation(item.Id)?.NextEligibleFetchAt);
     }
 
     [Fact]

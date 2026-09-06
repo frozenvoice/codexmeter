@@ -21,8 +21,15 @@ public static class ConversationFetchBackoff
     public static DateTimeOffset? NextEligibleAt(DateTimeOffset now, int consecutiveFailures) =>
         consecutiveFailures <= 0 ? null : now + DelayAfterFailures(consecutiveFailures);
 
-    public static bool RemoteChanged(ConversationIndexItem item, ConversationRecord existing) =>
-        item.UpdateTime > Math.Max(existing.LastSeenUpdateTime, existing.LastAttemptedUpdateTime) + 0.001;
+    public static bool RemoteChanged(ConversationIndexItem item, ConversationRecord existing)
+    {
+        if (item.UpdateTime <= 0)
+        {
+            return false;
+        }
+
+        return item.UpdateTime > Math.Max(existing.LastSeenUpdateTime, existing.LastAttemptedUpdateTime) + 0.001;
+    }
 
     public static bool ParserCompatibilityChanged(ConversationRecord existing) =>
         existing.ConsecutiveFetchFailures > 0
@@ -44,12 +51,12 @@ public static class ConversationFetchBackoff
             return true;
         }
 
-        if (item.UpdateTime <= 0)
+        if (existing is null)
         {
             return true;
         }
 
-        if (existing is null)
+        if (ParserCompatibilityChanged(existing))
         {
             return true;
         }
@@ -62,11 +69,6 @@ public static class ConversationFetchBackoff
         if (existing.Status == ConversationScanStatus.Ok && existing.LastSuccessfulScan is not null)
         {
             return false;
-        }
-
-        if (ParserCompatibilityChanged(existing))
-        {
-            return true;
         }
 
         if (IsBackoffActive(existing, now))
