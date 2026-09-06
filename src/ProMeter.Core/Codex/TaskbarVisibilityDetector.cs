@@ -104,7 +104,8 @@ public readonly record struct FullscreenObservation(
     string Reason,
     ForegroundWindowFacts Foreground,
     ScreenRect Monitor,
-    ScreenRect WorkArea)
+    ScreenRect WorkArea,
+    bool CandidateWasForeground = false)
 {
     public static FullscreenObservation FromFlag(bool exclusiveFullscreen) =>
         new(
@@ -419,6 +420,7 @@ public sealed class TaskbarStripVisibilityGate
                + $" maximized={Flag(foreground.Maximized)}"
                + $" framed={Flag(foreground.NormallyFramed)}"
                + $" popup={Flag(foreground.Popup)}"
+               + $" candidateWasForeground={Flag(observation.CandidateWasForeground)}"
                + " suppression=true";
     }
 

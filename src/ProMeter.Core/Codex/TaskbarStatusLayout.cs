@@ -123,6 +123,21 @@ public static class TaskbarStatusPositioner
     public static bool IsDesktopShellForeground(string? className) =>
         className is "Progman" or "WorkerW";
 
+    /// <summary>
+    /// Shell surfaces (Start, Search, Action Center, Alt-Tab, the hidden-icons flyout, ...)
+    /// that can enumerate as large or oddly-bounded top-level windows but never represent
+    /// fullscreen application content. Excluded from monitor fullscreen enumeration.
+    /// </summary>
+    public static bool IsNonApplicationShellClass(string? className) =>
+        IsShellTaskbarForeground(className)
+        || IsDesktopShellForeground(className)
+        || className is "Windows.UI.Core.CoreWindow"
+            or "TaskSwitcherWnd"
+            or "MultitaskingViewFrame"
+            or "NotifyIconOverflowWindow"
+            or "Shell_InputSwitchTopLevelWindow"
+            or "XamlExplorerHostIslandWindow";
+
     public static ForegroundWindowRole ClassifyForegroundRole(string? className, bool ownOverlay, bool taskbarWindow)
     {
         if (ownOverlay)
@@ -135,7 +150,7 @@ public static class TaskbarStatusPositioner
             return ForegroundWindowRole.ShellTaskbar;
         }
 
-        return IsDesktopShellForeground(className)
+        return IsNonApplicationShellClass(className)
             ? ForegroundWindowRole.Desktop
             : ForegroundWindowRole.Application;
     }

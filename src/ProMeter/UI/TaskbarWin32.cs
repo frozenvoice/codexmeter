@@ -17,6 +17,7 @@ internal static class TaskbarWin32
     private const int WsPopup = unchecked((int)0x80000000);
     private const uint GaRoot = 2;
     private const int DwmwaExtendedFrameBounds = 9;
+    private const int DwmwaCloaked = 14;
     public const int WmDisplayChange = 0x007E;
     public const int WmDpiChanged = 0x02E0;
     public const int WmSettingChange = 0x001A;
@@ -159,42 +160,100 @@ internal static class TaskbarWin32
         return (child, ToRect(rect));
     }
 
+    /// <summary>
+    /// Monitor-scoped fullscreen detection. Enumerates every eligible top-level window
+    /// (via EnumWindows) instead of trusting GetForegroundWindow() alone, so a normal window
+    /// becoming foreground on a DIFFERENT monitor can never be misread as fullscreen exiting
+    /// on the monitor the taskbar strip actually lives on. GetForegroundWindow is consulted
+    /// only to tag which enumerated candidate happens to be foreground, for diagnostics —
+    /// it never gates the classification itself.
+    /// </summary>
     private static FullscreenObservation ObserveFullscreen(
         ScreenRect monitor,
         ScreenRect work,
         IntPtr stripHwnd,
         IntPtr taskbarHwnd)
     {
+        var foregroundRoot = ForegroundRoot();
+        var currentProcessId = GetCurrentProcessId();
+        var candidates = new List<WindowCandidateFacts>();
+        var enumerationSucceeded = true;
+        try
+        {
+            if (!EnumWindows(
+                    (hwnd, _) =>
+                    {
+                        candidates.Add(BuildCandidate(hwnd, foregroundRoot, stripHwnd, taskbarHwnd, currentProcessId));
+                        return true;
+                    },
+                    IntPtr.Zero))
+            {
+                enumerationSucceeded = candidates.Count > 0;
+            }
+        }
+        catch
+        {
+            enumerationSucceeded = false;
+        }
+
+        return MonitorFullscreenClassifier.Observe(candidates, monitor, work, enumerationSucceeded);
+    }
+
+    private static IntPtr ForegroundRoot()
+    {
         var foreground = GetForegroundWindow();
         if (foreground == IntPtr.Zero)
         {
-            return FullscreenClassifier.Observe(
-                ForegroundWindowFacts.Missing(ForegroundWindowRole.None),
-                monitor,
-                work);
+            return IntPtr.Zero;
         }
 
         var root = GetAncestor(foreground, GaRoot);
-        if (root != IntPtr.Zero)
-        {
-            foreground = root;
-        }
+        return root != IntPtr.Zero ? root : foreground;
+    }
 
-        var className = WindowClassName(foreground);
-        var role = TaskbarStatusPositioner.ClassifyForegroundRole(
+    private static WindowCandidateFacts BuildCandidate(
+        IntPtr hwnd,
+        IntPtr foregroundRoot,
+        IntPtr stripHwnd,
+        IntPtr taskbarHwnd,
+        uint currentProcessId)
+    {
+        var className = WindowClassName(hwnd);
+        GetWindowThreadProcessId(hwnd, out var ownerProcessId);
+        var isOwnProcess = ownerProcessId != 0 && ownerProcessId == currentProcessId;
+        var isOwnOverlay = isOwnProcess || (stripHwnd != IntPtr.Zero && hwnd == stripHwnd);
+        var isTaskbarWindow = taskbarHwnd != IntPtr.Zero && hwnd == taskbarHwnd;
+        var role = TaskbarStatusPositioner.ClassifyForegroundRole(className, isOwnOverlay, isTaskbarWindow);
+        var style = GetWindowLong(hwnd, GwlStyle);
+        var bounds = FrameBounds(hwnd, out var boundsValid);
+        return new WindowCandidateFacts(
             className,
-            stripHwnd != IntPtr.Zero && foreground == stripHwnd,
-            taskbarHwnd != IntPtr.Zero && foreground == taskbarHwnd);
-        var style = GetWindowLong(foreground, GwlStyle);
-        var facts = new ForegroundWindowFacts(
-            className,
-            FrameBounds(foreground, out var boundsValid),
+            bounds,
             boundsValid,
+            IsWindowVisible(hwnd),
+            IsIconic(hwnd),
+            IsCloaked(hwnd),
             (style & WsMaximize) == WsMaximize,
             (style & (WsCaption | WsThickFrame)) != 0,
             (style & WsPopup) != 0,
+            hwnd == foregroundRoot,
             role);
-        return FullscreenClassifier.Observe(facts, monitor, work);
+    }
+
+    private static bool IsCloaked(IntPtr hwnd)
+    {
+        try
+        {
+            return DwmGetWindowAttributeInt(hwnd, DwmwaCloaked, out var cloaked, sizeof(int)) == 0 && cloaked != 0;
+        }
+        catch (DllNotFoundException)
+        {
+            return false;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return false;
+        }
     }
 
     private static ScreenRect FrameBounds(IntPtr hwnd, out bool valid)
@@ -287,6 +346,23 @@ internal static class TaskbarWin32
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
+
+    [DllImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
+    private static extern int DwmGetWindowAttributeInt(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
+    private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentProcessId();
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);

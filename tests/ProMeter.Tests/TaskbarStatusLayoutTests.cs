@@ -124,11 +124,15 @@ public class TaskbarStatusLayoutTests
         Assert.DoesNotContain("taskbarVisible", method[..method.IndexOf("public static bool CoversMonitor", StringComparison.Ordinal)], StringComparison.Ordinal);
         var win32 = File.ReadAllText(Find("src/ProMeter/UI/TaskbarWin32.cs"));
         var exclusive = win32[win32.IndexOf("private static FullscreenObservation ObserveFullscreen", StringComparison.Ordinal)..];
-        exclusive = exclusive[..exclusive.IndexOf("private static ScreenRect FrameBounds", StringComparison.Ordinal)];
-        Assert.DoesNotContain("IsWindowVisible", exclusive, StringComparison.Ordinal);
-        Assert.Contains("ClassifyForegroundRole", exclusive, StringComparison.Ordinal);
-        Assert.Contains("GetAncestor", exclusive, StringComparison.Ordinal);
-        Assert.Contains("stripHwnd", exclusive, StringComparison.Ordinal);
+        exclusive = exclusive[..exclusive.IndexOf("private static IntPtr ForegroundRoot", StringComparison.Ordinal)];
+        // Monitor fullscreen detection enumerates every eligible top-level window instead of
+        // trusting a single foreground window; the taskbar's own IsWindowVisible flag
+        // (TaskbarLayoutInput.TaskbarVisible) is a separate, already-covered concern.
+        Assert.Contains("MonitorFullscreenClassifier", exclusive, StringComparison.Ordinal);
+        Assert.Contains("EnumWindows", exclusive, StringComparison.Ordinal);
+        Assert.Contains("ClassifyForegroundRole", win32, StringComparison.Ordinal);
+        Assert.Contains("GetAncestor", win32, StringComparison.Ordinal);
+        Assert.Contains("stripHwnd", win32, StringComparison.Ordinal);
         Assert.Contains("DwmGetWindowAttribute", win32, StringComparison.Ordinal);
         Assert.DoesNotContain("GetWindowText", win32, StringComparison.Ordinal);
     }
