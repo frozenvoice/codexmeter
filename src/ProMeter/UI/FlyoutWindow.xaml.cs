@@ -14,19 +14,19 @@ public partial class FlyoutWindow : Window
     public event Action<double, double>? PositionChanged;
     public bool Pinned { get; private set; }
     private readonly RefreshIndicatorController _refreshIndicator = new();
-    private Storyboard? _refreshStoryboard;
-    private Storyboard? _progressStripStoryboard;
     private bool _refreshActive;
 
     public FlyoutWindow()
     {
         InitializeComponent();
         ApplyLocalizedTexts();
-        IsVisibleChanged += (_, _) => ApplyRefreshIndicator(IsVisible && _refreshActive);
+        IsVisibleChanged += (_, _) => ApplyRefreshVisuals();
+        Activated += (_, _) => ApplyRefreshVisuals();
+        ContentRendered += (_, _) => ApplyRefreshVisuals();
         Closed += (_, _) =>
         {
             _refreshActive = false;
-            ApplyRefreshIndicator(false);
+            ApplyRefreshVisuals();
         };
     }
 
@@ -161,75 +161,97 @@ public partial class FlyoutWindow : Window
         RefreshProgressText.Text = presentation.ProgressText;
         StatusText.Visibility = presentation.ShowNormalStatus ? Visibility.Visible : Visibility.Collapsed;
         RefreshProgressText.Visibility = presentation.ShowRefreshProgress ? Visibility.Visible : Visibility.Collapsed;
-        _refreshActive = presentation.Active;
-        ApplyRefreshIndicator(presentation.Active);
+        SetRefreshing(presentation.Active);
     }
 
     public RefreshIndicatorController RefreshIndicator => _refreshIndicator;
 
-    private void ApplyRefreshIndicator(bool active)
+    private void SetRefreshing(bool refreshing)
     {
-        var visibleActive = active && IsVisible;
-        RefreshAllIcon.Visibility = visibleActive ? Visibility.Collapsed : Visibility.Visible;
-        RefreshSpinner.Visibility = visibleActive ? Visibility.Visible : Visibility.Collapsed;
-        SyncProgressStrip.Visibility = visibleActive ? Visibility.Visible : Visibility.Collapsed;
-        var transition = visibleActive
-            ? _refreshIndicator.Apply(true)
-            : _refreshIndicator.Reset();
-        if (transition == RefreshIndicatorTransition.Started)
+        _refreshActive = refreshing;
+        ApplyRefreshVisuals();
+    }
+
+    private void ApplyRefreshVisuals()
+    {
+        var state = FlyoutRefreshVisualState.Create(_refreshActive, IsVisible);
+        RefreshAllIcon.Visibility = state.IdleIconVisible ? Visibility.Visible : Visibility.Collapsed;
+        RefreshSpinner.Visibility = state.SpinnerVisible ? Visibility.Visible : Visibility.Collapsed;
+        SyncProgressStrip.Visibility = state.ProgressStripVisible ? Visibility.Visible : Visibility.Collapsed;
+        if (state.RunAnimation)
         {
-            EnsureRefreshStoryboard().Begin(this, true);
-            EnsureProgressStripStoryboard().Begin(this, true);
+            if (_refreshIndicator.Apply(true) == RefreshIndicatorTransition.Started)
+            {
+                StartRefreshAnimations();
+            }
         }
-        else if (transition == RefreshIndicatorTransition.Stopped)
+        else if (_refreshIndicator.Reset() == RefreshIndicatorTransition.Stopped)
         {
-            _refreshStoryboard?.Stop(this);
-            _progressStripStoryboard?.Stop(this);
-            RefreshSpinnerRotate.Angle = 0;
-            SyncProgressTranslate.X = -80;
+            StopRefreshAnimations();
         }
     }
 
-    private Storyboard EnsureRefreshStoryboard()
+    private void StartRefreshAnimations()
     {
-        if (_refreshStoryboard is not null)
-        {
-            return _refreshStoryboard;
-        }
-
-        var animation = new DoubleAnimation
+        var spinner = LiveSpinnerRotate();
+        var spin = new DoubleAnimation
         {
             From = 0,
             To = 360,
             Duration = TimeSpan.FromSeconds(RefreshIndicatorController.DurationSeconds),
             RepeatBehavior = RepeatBehavior.Forever
         };
-        Storyboard.SetTarget(animation, RefreshSpinnerRotate);
-        Storyboard.SetTargetProperty(animation, new PropertyPath(RotateTransform.AngleProperty));
-        _refreshStoryboard = new Storyboard();
-        _refreshStoryboard.Children.Add(animation);
-        return _refreshStoryboard;
-    }
+        spinner.BeginAnimation(RotateTransform.AngleProperty, spin, HandoffBehavior.SnapshotAndReplace);
 
-    private Storyboard EnsureProgressStripStoryboard()
-    {
-        if (_progressStripStoryboard is not null)
-        {
-            return _progressStripStoryboard;
-        }
-
-        var animation = new DoubleAnimation
+        var strip = LiveProgressTranslate();
+        var slide = new DoubleAnimation
         {
             From = -80,
             To = 328,
             Duration = TimeSpan.FromSeconds(RefreshIndicatorController.StripDurationSeconds),
             RepeatBehavior = RepeatBehavior.Forever
         };
-        Storyboard.SetTarget(animation, SyncProgressTranslate);
-        Storyboard.SetTargetProperty(animation, new PropertyPath(TranslateTransform.XProperty));
-        _progressStripStoryboard = new Storyboard();
-        _progressStripStoryboard.Children.Add(animation);
-        return _progressStripStoryboard;
+        strip.BeginAnimation(TranslateTransform.XProperty, slide, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private void StopRefreshAnimations()
+    {
+        var spinner = LiveSpinnerRotate();
+        spinner.BeginAnimation(RotateTransform.AngleProperty, null);
+        spinner.Angle = 0;
+
+        var strip = LiveProgressTranslate();
+        strip.BeginAnimation(TranslateTransform.XProperty, null);
+        strip.X = -80;
+    }
+
+    private RotateTransform LiveSpinnerRotate()
+    {
+        if (RefreshSpinner.RenderTransform is RotateTransform current && !current.IsFrozen)
+        {
+            return current;
+        }
+
+        var live = RefreshSpinnerRotate.IsFrozen
+            ? (RotateTransform)RefreshSpinnerRotate.Clone()
+            : RefreshSpinnerRotate;
+        RefreshSpinner.RenderTransform = live;
+        RefreshSpinner.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
+        return live;
+    }
+
+    private TranslateTransform LiveProgressTranslate()
+    {
+        if (SyncProgressSegment.RenderTransform is TranslateTransform current && !current.IsFrozen)
+        {
+            return current;
+        }
+
+        var live = SyncProgressTranslate.IsFrozen
+            ? (TranslateTransform)SyncProgressTranslate.Clone()
+            : SyncProgressTranslate;
+        SyncProgressSegment.RenderTransform = live;
+        return live;
     }
 
     public void ApplyLocalizedTexts()

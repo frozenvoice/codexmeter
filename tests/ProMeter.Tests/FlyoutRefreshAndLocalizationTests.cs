@@ -47,6 +47,10 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.Contains("RefreshIndicatorController", flyoutCode, StringComparison.Ordinal);
         Assert.Contains("RepeatBehavior.Forever", flyoutCode, StringComparison.Ordinal);
         Assert.Contains("RefreshSpinnerRotate", flyoutCode, StringComparison.Ordinal);
+        Assert.Contains("BeginAnimation", flyoutCode, StringComparison.Ordinal);
+        Assert.Contains("HandoffBehavior.SnapshotAndReplace", flyoutCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("Storyboard.SetTarget", flyoutCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnsureRefreshStoryboard", flyoutCode, StringComparison.Ordinal);
         Assert.DoesNotContain("RefreshAllRotate", flyoutCode, StringComparison.Ordinal);
         Assert.DoesNotContain("EasingFunction", flyoutCode, StringComparison.Ordinal);
         Assert.DoesNotContain("_suppressDeactivateClose", flyoutCode, StringComparison.Ordinal);
@@ -112,7 +116,7 @@ public class FlyoutRefreshAndLocalizationTests
         var flyoutCode = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
         Assert.Contains("StatusText.Visibility = presentation.ShowNormalStatus", flyoutCode, StringComparison.Ordinal);
         Assert.Contains("RefreshProgressText.Visibility = presentation.ShowRefreshProgress", flyoutCode, StringComparison.Ordinal);
-        Assert.Contains("ApplyRefreshIndicator(presentation.Active)", flyoutCode, StringComparison.Ordinal);
+        Assert.Contains("SetRefreshing(presentation.Active)", flyoutCode, StringComparison.Ordinal);
         Assert.Contains("RefreshAllIcon.Visibility", flyoutCode, StringComparison.Ordinal);
         Assert.Contains("RefreshSpinner.Visibility", flyoutCode, StringComparison.Ordinal);
         var xaml = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml"));

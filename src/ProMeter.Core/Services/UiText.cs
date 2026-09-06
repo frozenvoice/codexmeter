@@ -172,6 +172,34 @@ public static class UiText
     public static string DataPartiallyNotApplied => T("Data partially not applied", "데이터 일부 미반영");
     public static string ReadTimeout => T("Read timeout", "읽기 시간 초과");
     public static string ResponseFormatMismatch => T("Response format mismatch", "응답 형식 불일치");
+    public static string SchemaMismatchDetail(string reason) => reason switch
+    {
+        "conversation collection too large" => T(
+            "conversation collection too large",
+            "대화 노드 수가 안전 검증 한도를 초과함"),
+        "mapping too large" => T(
+            "mapping too large",
+            "mapping 노드 수가 안전 검증 한도를 초과함"),
+        "children rejected" or "children must be an array" => T(
+            "children rejected",
+            "children 필드가 안전 검증을 통과하지 못함"),
+        "metadata field rejected" or "metadata value rejected" => T(
+            "metadata field rejected",
+            "metadata 필드가 안전 검증을 통과하지 못함"),
+        "timestamp rejected" => T(
+            "timestamp rejected",
+            "타임스탬프가 안전 검증을 통과하지 못함"),
+        "unknown projected field" => T(
+            "unknown projected field",
+            "알 수 없는 투영 필드"),
+        "too many fields" => T(
+            "too many fields",
+            "필드 수가 안전 검증 한도를 초과함"),
+        "mapping must be an object" => T(
+            "mapping must be an object",
+            "mapping 형식이 안전 검증을 통과하지 못함"),
+        _ => reason
+    };
     public static string ResponseTooLarge => T("Response too large", "응답 크기 초과");
     public static string ConversationCompanionFailure => T("Companion disconnected", "도우미 연결 끊김");
     public static string FailureCategoryOther => T("Other", "기타");

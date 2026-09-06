@@ -12,31 +12,34 @@ public sealed class SyncFailureSummary
     public int CompanionDisconnectedCount { get; set; }
     public int AuthenticationCount { get; set; }
     public int OtherConversationFailureCount { get; set; }
+    public Dictionary<string, int> SchemaMismatchReasons { get; } = new(StringComparer.Ordinal);
 
     public int UnresolvedConversationCount => FailedThisSyncCount + DeferredCount;
     public bool HasConversationFailures => UnresolvedConversationCount > 0;
 
-    public void AddThisSync(string? category, int status = 0)
+    public void AddThisSync(string? category, int status = 0, string? detail = null)
     {
         FailedThisSyncCount++;
-        AddCategory(category, status);
+        AddCategory(category, status, detail);
     }
 
-    public void AddDeferred(string? category)
+    public void AddDeferred(string? category, string? detail = null)
     {
         DeferredCount++;
-        AddCategory(category, 0);
+        AddCategory(category, 0, detail);
     }
 
-    private void AddCategory(string? category, int status)
+    private void AddCategory(string? category, int status, string? detail)
     {
-        switch (ConversationFetchBackoff.NormalizeCategory(category, status))
+        var normalized = ConversationFetchBackoff.NormalizeCategory(category, status);
+        switch (normalized)
         {
             case ConversationFetchBackoff.BodyTimeout:
                 BodyTimeoutCount++;
                 break;
             case ConversationFetchBackoff.SchemaMismatch:
                 SchemaMismatchCount++;
+                AddSchemaMismatchReason(detail);
                 break;
             case ConversationFetchBackoff.PayloadTooLarge:
                 PayloadTooLargeCount++;
@@ -51,5 +54,16 @@ public sealed class SyncFailureSummary
                 OtherConversationFailureCount++;
                 break;
         }
+    }
+
+    private void AddSchemaMismatchReason(string? detail)
+    {
+        var key = SchemaMismatchReason.Normalize(detail);
+        if (string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+
+        SchemaMismatchReasons[key] = SchemaMismatchReasons.TryGetValue(key, out var count) ? count + 1 : 1;
     }
 }

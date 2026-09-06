@@ -22,7 +22,7 @@ function safeLog(message) {
 
 function setConnected(value, error) {
   connected = value === true;
-  lastError = error || "";
+  lastError = connected ? "" : (error || "");
   chrome.storage.local.set({ companionConnected: connected, companionLastError: lastError });
 }
 
@@ -190,15 +190,17 @@ function onHostMessage(message) {
     var accepted = message.accepted === true;
     var ack = ProMeterCompanionReconnect.onHelloAck(reconnect, accepted);
     applyDecision(ack);
-    setConnected(accepted, message.error);
+    setConnected(accepted, accepted ? "" : (message.error || "pairing required"));
     if (accepted) {
       safeLog("companion reconnected");
     }
     return;
   }
   if (message.type === "error") {
-    lastError = message.error || "native host error";
-    chrome.storage.local.set({ companionLastError: lastError });
+    if (!connected) {
+      lastError = message.error || "native host error";
+      chrome.storage.local.set({ companionLastError: lastError });
+    }
     return;
   }
   if (message.type === "invoke") {

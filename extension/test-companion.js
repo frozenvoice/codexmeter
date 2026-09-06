@@ -374,6 +374,14 @@ const failDecision = reconnect.onConnectFailed(failed, true);
 assert.strictEqual(failDecision.schedule, true);
 assert.strictEqual(failDecision.delayMs, 1000);
 
+const popup = require("./popup.js");
+assert.strictEqual(popup.companionPopupView({ connected: true, error: "pairing required" }).error, "");
+assert.strictEqual(popup.companionPopupView({ connected: true, error: "pairing required" }).button, "Reconnect to ProMeter");
+assert.strictEqual(popup.companionPopupView({ connected: true, error: "pairing required" }).status, "Connected to ProMeter");
+assert.strictEqual(popup.companionPopupView({ connected: false, error: "pairing required" }).error, "pairing required");
+assert.strictEqual(popup.companionPopupView({ connected: false, error: "native host unavailable" }).button, "Connect to ProMeter");
+assert.strictEqual(popup.companionPopupView({ connected: false }).status, "Disconnected");
+
 const fs = require("fs");
 const path = require("path");
 const backgroundSource = fs.readFileSync(path.join(__dirname, "background.js"), "utf8");
@@ -381,6 +389,9 @@ assert.ok(backgroundSource.indexOf("chrome.alarms") >= 0);
 assert.ok(backgroundSource.indexOf("connectNative(false)") >= 0);
 assert.ok(backgroundSource.indexOf("onManualConnect") >= 0);
 assert.ok(backgroundSource.indexOf("replacePort") >= 0);
+assert.ok(backgroundSource.indexOf("lastError = connected ? \"\"") >= 0);
+assert.ok(backgroundSource.indexOf("accepted ? \"\"") >= 0);
+assert.ok(backgroundSource.indexOf("if (!connected)") >= 0);
 assert.ok(!/pairingToken/.test(backgroundSource));
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "manifest.json"), "utf8"));
 assert.ok(manifest.permissions.indexOf("alarms") >= 0);

@@ -343,7 +343,11 @@ public sealed class ChatGptProvider : IChatGptProvider
 
         if (response.SchemaMismatch)
         {
-            throw new ChatGptProviderException("Provider schema mismatch", response.Status, response.RetryAfter, schemaMismatch: true);
+            throw new ChatGptProviderException(
+                SchemaMismatchReason.ExceptionMessage(response.Error),
+                response.Status,
+                response.RetryAfter,
+                schemaMismatch: true);
         }
 
         if (response.IsChatGptTabRequired)

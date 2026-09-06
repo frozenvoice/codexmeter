@@ -602,9 +602,10 @@ public sealed class SyncEngine
                 catch (Exception ex)
                 {
                     var (category, status) = SyncFailureClassifier.Classify(ex);
-                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData, category, status);
-                    RecordBodyFailure(item, ConversationScanStatus.FetchFailed, AppLog.Sanitize(ex.Message), category, status);
-                    LogConversationFailure(item.Id, category, status);
+                    var detail = AppLog.Sanitize(ex.Message);
+                    MarkUniqueFailure(coverage, entry, setWorst, AppSyncStatus.PartialData, category, status, detail);
+                    RecordBodyFailure(item, ConversationScanStatus.FetchFailed, detail, category, status);
+                    LogConversationFailure(item.Id, category, status, detail);
                     continue;
                 }
 
@@ -614,12 +615,13 @@ public sealed class SyncEngine
                     var schema = string.Equals(category, ConversationFetchBackoff.SchemaMismatch, StringComparison.Ordinal);
                     var scanStatus = schema ? ConversationScanStatus.SchemaMismatch : ConversationScanStatus.FetchFailed;
                     var worst = schema ? AppSyncStatus.ProviderSchemaMismatch : AppSyncStatus.PartialData;
-                    MarkUniqueFailure(coverage, entry, setWorst, worst, category);
+                    var detail = string.Join("; ", load.Diagnostics);
+                    MarkUniqueFailure(coverage, entry, setWorst, worst, category, 0, detail);
                     coverage.Notes = schema
                         ? "Provider schema mismatch on at least one conversation."
                         : "At least one conversation was incomplete.";
-                    RecordBodyFailure(item, scanStatus, string.Join("; ", load.Diagnostics), category);
-                    LogConversationFailure(item.Id, category, 0);
+                    RecordBodyFailure(item, scanStatus, detail, category);
+                    LogConversationFailure(item.Id, category, 0, detail);
                     continue;
                 }
 
@@ -701,14 +703,15 @@ public sealed class SyncEngine
         Action<AppSyncStatus> setWorst,
         AppSyncStatus status,
         string? category = null,
-        int httpStatus = 0)
+        int httpStatus = 0,
+        string? detail = null)
     {
         if (!entry.Failed)
         {
             entry.Failed = true;
             _reconstruction.Failed++;
             coverage.FailedConversations++;
-            coverage.FailureSummary.AddThisSync(category, httpStatus);
+            coverage.FailureSummary.AddThisSync(category, httpStatus, detail);
         }
 
         coverage.ConversationIncomplete = true;
@@ -728,7 +731,7 @@ public sealed class SyncEngine
 
         coverage.FailedConversations++;
         coverage.ConversationIncomplete = true;
-        coverage.FailureSummary.AddDeferred(existing?.LastFetchFailureCategory);
+        coverage.FailureSummary.AddDeferred(existing?.LastFetchFailureCategory, existing?.LastError);
         setWorst(AppSyncStatus.PartialData);
     }
 
@@ -749,9 +752,10 @@ public sealed class SyncEngine
             httpStatus);
     }
 
-    private void LogConversationFailure(string conversationId, string category, int status)
+    private void LogConversationFailure(string conversationId, string category, int status, string? reason = null)
     {
-        _log.Warn($"conversation fetch failed id={conversationId} category={category} status={status}");
+        var suffix = string.IsNullOrWhiteSpace(reason) ? "" : $" reason={AppLog.Sanitize(reason)}";
+        _log.Warn($"conversation fetch failed id={conversationId} category={category} status={status}{suffix}");
     }
 
     private void ObserveParse(ParseResult result)

@@ -184,7 +184,16 @@ public class FlyoutUxAndFailureSummaryTests
         Assert.DoesNotContain("PersistPosition", pin, StringComparison.Ordinal);
         Assert.DoesNotContain("CloseOnDeactivate", pin, StringComparison.Ordinal);
         Assert.Contains("Topmost = FlyoutWindowState.IsTopmost(Pinned)", Slice(code, "public void ApplyWindowSettings", "public void RestorePosition"), StringComparison.Ordinal);
-        Assert.Contains("EnsureProgressStripStoryboard", code, StringComparison.Ordinal);
+        Assert.Contains("BeginAnimation", code, StringComparison.Ordinal);
+        Assert.Contains("RotateTransform.AngleProperty", code, StringComparison.Ordinal);
+        Assert.Contains("TranslateTransform.XProperty", code, StringComparison.Ordinal);
+        Assert.Contains("HandoffBehavior.SnapshotAndReplace", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnsureRefreshStoryboard", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnsureProgressStripStoryboard", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("Storyboard.SetTarget", code, StringComparison.Ordinal);
+        Assert.Contains("SetRefreshing", code, StringComparison.Ordinal);
+        Assert.Contains("ContentRendered", code, StringComparison.Ordinal);
+        Assert.Contains("IsVisibleChanged", code, StringComparison.Ordinal);
         Assert.Contains("SyncProgressStrip.Visibility", code, StringComparison.Ordinal);
         Assert.Contains("StripDurationSeconds", code, StringComparison.Ordinal);
         Assert.Contains("RepeatBehavior.Forever", code, StringComparison.Ordinal);
@@ -321,6 +330,13 @@ public class FlyoutUxAndFailureSummaryTests
         var idle = CombinedRefreshCoordinator.Present(false, false);
         Assert.False(idle.Active);
         Assert.True(idle.ShowNormalStatus);
+        var hiddenRefreshing = FlyoutRefreshVisualState.Create(true, false);
+        Assert.False(hiddenRefreshing.RunAnimation);
+        Assert.False(hiddenRefreshing.SpinnerVisible);
+        var shownRefreshing = FlyoutRefreshVisualState.Create(true, true);
+        Assert.True(shownRefreshing.RunAnimation);
+        Assert.True(shownRefreshing.SpinnerVisible);
+        Assert.False(shownRefreshing.IdleIconVisible);
     }
 
     private static string Slice(string source, string start, string end)

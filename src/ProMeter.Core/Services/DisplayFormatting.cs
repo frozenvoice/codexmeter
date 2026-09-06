@@ -202,6 +202,7 @@ public static class DisplayFormatting
         var lines = new List<string> { UiText.DataPartiallyNotApplied };
         AddCategoryLine(lines, summary.BodyTimeoutCount, UiText.ReadTimeout);
         AddCategoryLine(lines, summary.SchemaMismatchCount, UiText.ResponseFormatMismatch);
+        AppendSchemaMismatchReasons(lines, summary);
         AddCategoryLine(lines, summary.PayloadTooLargeCount, UiText.ResponseTooLarge);
         AddCategoryLine(lines, summary.CompanionDisconnectedCount, UiText.ConversationCompanionFailure);
         AddCategoryLine(lines, summary.AuthenticationCount, UiText.AuthenticationRequired);
@@ -230,6 +231,16 @@ public static class DisplayFormatting
         if (count > 0)
         {
             lines.Add($"{label}    {count}");
+        }
+    }
+
+    private static void AppendSchemaMismatchReasons(List<string> lines, SyncFailureSummary summary)
+    {
+        foreach (var pair in summary.SchemaMismatchReasons
+            .OrderByDescending(entry => entry.Value)
+            .ThenBy(entry => entry.Key, StringComparer.Ordinal))
+        {
+            lines.Add($"  · {UiText.SchemaMismatchDetail(pair.Key)}    {pair.Value}");
         }
     }
 
