@@ -33,40 +33,52 @@ public static class UserFacingHealth
                 false);
         }
 
+        switch (snapshot.Status)
+        {
+            case AppSyncStatus.SignedOut:
+            case AppSyncStatus.AuthenticationRequired:
+                return Actionable(UserFacingHealthKind.NeedsSignIn, UiText.SignInRequired);
+            case AppSyncStatus.CompanionDisconnected:
+            case AppSyncStatus.ChatGptTabRequired:
+            case AppSyncStatus.PageBridgeUnavailable:
+            case AppSyncStatus.BridgeTimeout:
+            case AppSyncStatus.BridgeWriteFailed:
+            case AppSyncStatus.Offline:
+                return Actionable(UserFacingHealthKind.NeedsConnection, UiText.ConnectionRequired);
+            case AppSyncStatus.Error:
+            case AppSyncStatus.Forbidden:
+            case AppSyncStatus.RateLimited:
+            case AppSyncStatus.ApiChanged:
+                return Actionable(UserFacingHealthKind.SyncFailed, UiText.SyncFailedShort);
+            case AppSyncStatus.DetectingAccount:
+            case AppSyncStatus.LoadingCatalog:
+            case AppSyncStatus.Syncing:
+                return new UserFacingDataHealth(
+                    UserFacingHealthKind.Syncing,
+                    UiText.SyncingEllipsis,
+                    UiText.SyncingEllipsis,
+                    false,
+                    false);
+        }
+
+        if (snapshot.Status == AppSyncStatus.ProviderSchemaMismatch && IsPrimaryProviderSchemaFailure(snapshot))
+        {
+            return Actionable(UserFacingHealthKind.SyncFailed, UiText.SyncFailedShort);
+        }
+
         if (snapshot.Coverage.ConversationSchemaSystemicFailure)
         {
             return SystemicConversationFailure();
         }
 
-        return snapshot.Status switch
+        if (snapshot.Status == AppSyncStatus.ProviderSchemaMismatch)
         {
-            AppSyncStatus.SignedOut or AppSyncStatus.AuthenticationRequired
-                => Actionable(UserFacingHealthKind.NeedsSignIn, UiText.SignInRequired),
-            AppSyncStatus.CompanionDisconnected
-                or AppSyncStatus.ChatGptTabRequired
-                or AppSyncStatus.PageBridgeUnavailable
-                or AppSyncStatus.BridgeTimeout
-                or AppSyncStatus.BridgeWriteFailed
-                or AppSyncStatus.Offline
-                => Actionable(UserFacingHealthKind.NeedsConnection, UiText.ConnectionRequired),
-            AppSyncStatus.Error
-                or AppSyncStatus.Forbidden
-                or AppSyncStatus.RateLimited
-                or AppSyncStatus.ApiChanged
-                => Actionable(UserFacingHealthKind.SyncFailed, UiText.SyncFailedShort),
-            AppSyncStatus.ProviderSchemaMismatch
-                => HistoryReconstructionOnly(snapshot)
-                    ? EvaluateCompleted(snapshot)
-                    : Actionable(UserFacingHealthKind.SyncFailed, UiText.SyncFailedShort),
-            AppSyncStatus.DetectingAccount or AppSyncStatus.LoadingCatalog or AppSyncStatus.Syncing
-                => new UserFacingDataHealth(
-                    UserFacingHealthKind.Syncing,
-                    UiText.SyncingEllipsis,
-                    UiText.SyncingEllipsis,
-                    false,
-                    false),
-            _ => EvaluateCompleted(snapshot)
-        };
+            return HistoryReconstructionOnly(snapshot)
+                ? EvaluateCompleted(snapshot)
+                : Actionable(UserFacingHealthKind.SyncFailed, UiText.SyncFailedShort);
+        }
+
+        return EvaluateCompleted(snapshot);
     }
 
     public static bool HistoryReconstructionOnly(QuotaSnapshot snapshot)
@@ -163,6 +175,10 @@ public static class UserFacingHealth
             ServerObserved: true,
             RestrictionState: not ProRestrictionState.Unknown
         };
+
+    private static bool IsPrimaryProviderSchemaFailure(QuotaSnapshot snapshot) =>
+        snapshot.Coverage.NormalIndexState == CollectionState.Failed
+        || snapshot.Coverage.HistoryLoadedWithoutUsage;
 
     private static UserFacingDataHealth Actionable(UserFacingHealthKind kind, string text) =>
         new(kind, text, text, false, true);

@@ -33,7 +33,10 @@ public sealed class SyncEngine
         _log = log;
         _clock = clock ?? SystemClock.Instance;
         LastSyncCompleted = RestoreLastSyncCompleted();
+        ConversationSchemaSystemicFailureLatched = RestoreConversationSchemaLatch();
     }
+
+    public bool ConversationSchemaSystemicFailureLatched { get; private set; }
 
     public bool IsPaused { get; private set; }
     public DateTimeOffset? PauseUntil { get; private set; }
@@ -118,11 +121,7 @@ public sealed class SyncEngine
             LastAccount = account;
             if (!account.IsSignedIn)
             {
-                LastStatus = AppSyncStatus.SignedOut;
-                LastStatusDetail = UiText.ChatGptSignedOut;
-                LastCoverage = coverage;
-                LogSyncFailure(options.Origin, LastStatus);
-                return new SyncOutcome(LastStatus, LastStatusDetail, 0);
+                return FailCurrentRun(coverage, AppSyncStatus.SignedOut, UiText.ChatGptSignedOut, parsed, options.Origin);
             }
 
             Report(UiText.LoadingCatalog);
@@ -296,93 +295,58 @@ public sealed class SyncEngine
         }
         catch (ChatGptProviderException ex) when (ex.IsUnauthorized)
         {
-            LastStatus = AppSyncStatus.AuthenticationRequired;
-            LastStatusDetail = UiText.ChatGptSessionExpired;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.AuthenticationRequired, UiText.ChatGptSessionExpired, parsed, options.Origin);
         }
         catch (ChatGptProviderException ex) when (ex.IsForbidden)
         {
-            LastStatus = AppSyncStatus.Forbidden;
-            LastStatusDetail = CompanionDiagnostics.Forbidden403;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.Forbidden, CompanionDiagnostics.Forbidden403, parsed, options.Origin);
         }
         catch (ChatGptProviderException ex) when (ex.IsChatGptTabRequired)
         {
-            LastStatus = AppSyncStatus.ChatGptTabRequired;
-            LastStatusDetail = CompanionDiagnostics.NoChatGptTab;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.ChatGptTabRequired, CompanionDiagnostics.NoChatGptTab, parsed, options.Origin);
         }
         catch (ChatGptProviderException ex) when (ex.IsPageBridgeUnavailable)
         {
-            LastStatus = AppSyncStatus.PageBridgeUnavailable;
-            LastStatusDetail = CompanionDiagnostics.PageBridgeUnavailable;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.PageBridgeUnavailable, CompanionDiagnostics.PageBridgeUnavailable, parsed, options.Origin);
         }
         catch (ChatGptProviderException ex) when (ex.SchemaMismatch)
         {
-            LastStatus = AppSyncStatus.ProviderSchemaMismatch;
-            LastStatusDetail = UiText.SchemaMismatchStatus;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.ProviderSchemaMismatch, UiText.SchemaMismatchStatus, parsed, options.Origin);
         }
         catch (ChatGptProviderException ex) when (ex.IsRateLimited)
         {
             Pause(TimeSpan.FromMinutes(20));
-            LastStatus = AppSyncStatus.RateLimited;
-            LastStatusDetail = UiText.RateLimitedPaused;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.RateLimited, UiText.RateLimitedPaused, parsed, options.Origin);
         }
         catch (ChatGptProviderException ex) when (ex.IsCompanionDisconnected)
         {
-            LastStatus = AppSyncStatus.CompanionDisconnected;
-            LastStatusDetail = UiText.CompanionDisconnectedStatus;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.CompanionDisconnected, UiText.CompanionDisconnectedStatus, parsed, options.Origin);
         }
         catch (ChatGptProviderException ex) when (ex.IsBridgeTimeout)
         {
-            LastStatus = AppSyncStatus.BridgeTimeout;
-            LastStatusDetail = UiText.BridgeTimeoutStatus;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.BridgeTimeout, UiText.BridgeTimeoutStatus, parsed, options.Origin);
         }
         catch (ChatGptProviderException ex) when (ex.IsBridgeWriteFailed)
         {
-            LastStatus = AppSyncStatus.BridgeWriteFailed;
-            LastStatusDetail = UiText.BridgeWriteFailedStatus;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.BridgeWriteFailed, UiText.BridgeWriteFailedStatus, parsed, options.Origin);
         }
         catch (ChatGptProviderException ex) when (ex.IsOffline)
         {
-            LastStatus = AppSyncStatus.Offline;
-            LastStatusDetail = UiText.ChatGptUnreachable;
-            LogSyncFailure(options.Origin, LastStatus);
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.Offline, UiText.ChatGptUnreachable, parsed, options.Origin);
         }
         catch (OperationCanceledException)
         {
-            LastStatus = AppSyncStatus.Error;
-            LastStatusDetail = "cancelled";
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.Error, "cancelled", parsed, options.Origin, log: false);
         }
         catch (Exception ex)
         {
             _consecutiveFailures++;
-            LastStatus = AppSyncStatus.Error;
-            LastStatusDetail = AppLog.Sanitize(ex.Message);
-            LogSyncFailure(options.Origin, LastStatus);
             if (_consecutiveFailures >= 3)
             {
                 Pause(TimeSpan.FromMinutes(30));
             }
 
-            return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
+            return FailCurrentRun(coverage, AppSyncStatus.Error, AppLog.Sanitize(ex.Message), parsed, options.Origin);
         }
     }
 
@@ -835,11 +799,47 @@ public sealed class SyncEngine
         return result.Events.Count;
     }
 
+    private SyncOutcome FailCurrentRun(
+        CoverageInfo coverage,
+        AppSyncStatus status,
+        string? detail,
+        int parsed,
+        SyncOrigin origin,
+        bool log = true)
+    {
+        LastCoverage = coverage;
+        LastStatus = status;
+        LastStatusDetail = detail;
+        if (log)
+        {
+            LogSyncFailure(origin, status);
+        }
+
+        return new SyncOutcome(status, detail, parsed);
+    }
+
+    private bool RestoreConversationSchemaLatch() =>
+        ConversationSchemaHealthPolicy.RestoreLatch(
+            _store.GetState(ConversationSchemaHealthPolicy.LatchStateKey),
+            _store.GetState(ConversationSchemaHealthPolicy.LatchParserVersionStateKey),
+            ConversationFetchBackoff.ParserCompatibilityVersion);
+
+    private void PersistConversationSchemaLatch(bool latched)
+    {
+        _store.SetState(ConversationSchemaHealthPolicy.LatchStateKey, latched ? "true" : "false");
+        _store.SetState(
+            ConversationSchemaHealthPolicy.LatchParserVersionStateKey,
+            ConversationFetchBackoff.ParserCompatibilityVersion.ToString(CultureInfo.InvariantCulture));
+    }
+
     private void ApplyConversationSchemaHealth(CoverageInfo coverage, Action<AppSyncStatus> setWorst)
     {
         var assessment = ConversationSchemaHealthPolicy.Evaluate(CollectConversationSchemaEvidence());
-        coverage.ConversationSchemaSystemicFailure = assessment.SystemicBreak;
-        if (!assessment.SystemicBreak)
+        var next = ConversationSchemaHealthPolicy.NextLatch(ConversationSchemaSystemicFailureLatched, assessment);
+        ConversationSchemaSystemicFailureLatched = next;
+        PersistConversationSchemaLatch(next);
+        coverage.ConversationSchemaSystemicFailure = next;
+        if (!next)
         {
             return;
         }

@@ -31,6 +31,46 @@ public class ConversationSchemaHealthTests
         Assert.Equal(systemic, assessment.SystemicBreak);
     }
 
+    [Theory]
+    [InlineData(false, 3, 0, 3, 0, 0, true)]
+    [InlineData(true, 0, 0, 0, 0, 0, true)]
+    [InlineData(true, 1, 0, 0, 1, 0, true)]
+    [InlineData(true, 1, 1, 0, 0, 0, false)]
+    [InlineData(false, 0, 0, 0, 0, 0, false)]
+    [InlineData(false, 1, 0, 0, 1, 0, false)]
+    public void NextLatch_SetsRetainsOrClearsFromCurrentEvidence(
+        bool previous,
+        int attempted,
+        int success,
+        int schema,
+        int timeout,
+        int other,
+        bool expected)
+    {
+        var assessment = ConversationSchemaHealthPolicy.Evaluate(
+            new ConversationSchemaHealthEvidence(attempted, success, schema, timeout, other));
+        Assert.Equal(expected, ConversationSchemaHealthPolicy.NextLatch(previous, assessment));
+    }
+
+    [Theory]
+    [InlineData("true", "3", 3, true)]
+    [InlineData("false", "3", 3, false)]
+    [InlineData("true", "2", 3, false)]
+    [InlineData("true", null, 3, false)]
+    [InlineData(null, "3", 3, false)]
+    [InlineData("true", "3", 4, false)]
+    public void RestoreLatch_RequiresMatchingParserVersion(
+        string? storedValue,
+        string? storedParserVersion,
+        int currentParserVersion,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            ConversationSchemaHealthPolicy.RestoreLatch(storedValue, storedParserVersion, currentParserVersion));
+        Assert.Equal(3, ConversationFetchBackoff.ParserCompatibilityVersion);
+    }
+
     [Fact]
     public async Task A_OneIsolatedSchemaMismatch_StaysPartialAndUsable()
     {
@@ -69,7 +109,12 @@ public class ConversationSchemaHealthTests
         fixture.LoadOverride = _ => SchemaLoad();
         var outcome = await engine.SyncAsync(provider, settings, force: true);
         Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, outcome.Status);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
         Assert.True(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal("true", store.GetState(ConversationSchemaHealthPolicy.LatchStateKey));
+        Assert.Equal(
+            ConversationFetchBackoff.ParserCompatibilityVersion.ToString(CultureInfo.InvariantCulture),
+            store.GetState(ConversationSchemaHealthPolicy.LatchParserVersionStateKey));
         Assert.Equal(3, engine.LastCoverage.FailureSummary.SchemaMismatchCount);
         Assert.Equal(0, engine.LastCoverage.LoadedConversations);
         var snapshot = Snapshot(engine, store, settings);
@@ -218,6 +263,7 @@ public class ConversationSchemaHealthTests
         fixture.LoadOverride = _ => SchemaLoad();
         var run1 = await engine.SyncAsync(provider, settings, force: true);
         Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, run1.Status);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
         Assert.True(engine.LastCoverage.ConversationSchemaSystemicFailure);
         Assert.Equal(UserFacingHealthKind.SyncFailed, UserFacingHealth.From(Snapshot(engine, store, settings)).Kind);
 
@@ -229,7 +275,9 @@ public class ConversationSchemaHealthTests
         fixture.LoadOverride = id => ConversationDetailLoader.FromFixture(UniquePro(id, items[0].UpdateTime));
         var run2 = await engine.SyncAsync(provider, settings, force: false);
         Assert.NotEqual(AppSyncStatus.ProviderSchemaMismatch, run2.Status);
+        Assert.False(engine.ConversationSchemaSystemicFailureLatched);
         Assert.False(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal("false", store.GetState(ConversationSchemaHealthPolicy.LatchStateKey));
         Assert.Equal(0, engine.LastCoverage.FailedConversations);
         Assert.All(items, item =>
         {
@@ -240,6 +288,235 @@ public class ConversationSchemaHealthTests
         var health = UserFacingHealth.From(Snapshot(engine, store, settings));
         Assert.NotEqual(UserFacingHealthKind.SyncFailed, health.Kind);
         Assert.False(health.Actionable);
+    }
+
+    [Fact]
+    public async Task Latch_ZeroAttemptDeferredRun_RetainsProvenBreak()
+    {
+        var (engine, store, fixture, provider, settings, _) = CreateHarness(3);
+        fixture.LoadOverride = _ => SchemaLoad();
+        var run1 = await engine.SyncAsync(provider, settings, force: true);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, run1.Status);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+
+        var run2 = await engine.SyncAsync(provider, settings, force: false);
+        Assert.Equal(3, provider.BodyFetches);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.FailedThisSyncCount);
+        Assert.Equal(3, engine.LastCoverage.FailureSummary.DeferredCount);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.True(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, run2.Status);
+        Assert.Equal("true", store.GetState(ConversationSchemaHealthPolicy.LatchStateKey));
+        var health = UserFacingHealth.From(Snapshot(engine, store, settings));
+        Assert.Equal(UserFacingHealthKind.SyncFailed, health.Kind);
+        Assert.Equal(UiText.NeedsAttention, health.DataStatusText);
+    }
+
+    [Fact]
+    public async Task Latch_TimeoutOnlyRun_RetainsAndKeepsTimeoutClassification()
+    {
+        var (engine, store, fixture, provider, settings, items) = CreateHarness(3);
+        fixture.LoadOverride = _ => SchemaLoad();
+        await engine.SyncAsync(provider, settings, force: true);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+
+        items[0].UpdateTime += 90;
+        fixture.LoadOverride = id => id == items[0].Id ? TimeoutLoad() : SchemaLoad();
+        var run2 = await engine.SyncAsync(provider, settings, force: false);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.True(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, run2.Status);
+        Assert.Equal(1, engine.LastCoverage.FailureSummary.BodyTimeoutCount);
+        Assert.Equal(1, engine.LastCoverage.FailureSummary.FailedThisSyncCount);
+        Assert.Equal(2, engine.LastCoverage.FailureSummary.DeferredCount);
+        Assert.Equal(
+            ConversationFetchBackoff.BodyTimeout,
+            ConversationFetchBackoff.NormalizeCategory(store.GetConversation(items[0].Id)?.LastFetchFailureCategory));
+        Assert.Equal("BridgeTimeout", SyncFailureClassifier.ClassifyLoad(TimeoutLoad()));
+        Assert.NotEqual("SchemaMismatch", SyncFailureClassifier.ClassifyLoad(TimeoutLoad()));
+    }
+
+    [Fact]
+    public async Task Latch_OneSuccessfulBody_ClearsGlobalBreak()
+    {
+        var (engine, store, fixture, provider, settings, items) = CreateHarness(3);
+        fixture.LoadOverride = _ => SchemaLoad();
+        await engine.SyncAsync(provider, settings, force: true);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+
+        items[0].UpdateTime += 90;
+        fixture.LoadOverride = id => id == items[0].Id
+            ? ConversationDetailLoader.FromFixture(UniquePro(id, items[0].UpdateTime))
+            : SchemaLoad();
+        var run2 = await engine.SyncAsync(provider, settings, force: false);
+        Assert.False(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.False(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal("false", store.GetState(ConversationSchemaHealthPolicy.LatchStateKey));
+        Assert.NotEqual(AppSyncStatus.ProviderSchemaMismatch, run2.Status);
+        Assert.Equal(AppSyncStatus.PartialData, run2.Status);
+        Assert.Equal(2, engine.LastCoverage.FailedConversations);
+        Assert.Equal(UserFacingHealthKind.Usable, UserFacingHealth.From(Snapshot(engine, store, settings)).Kind);
+    }
+
+    [Fact]
+    public async Task Latch_RestartPreservesUntilRecovery()
+    {
+        var (engine, store, fixture, provider, settings, _) = CreateHarness(3);
+        fixture.LoadOverride = _ => SchemaLoad();
+        await engine.SyncAsync(provider, settings, force: true);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+
+        var restarted = RestartEngine(store);
+        Assert.True(restarted.ConversationSchemaSystemicFailureLatched);
+        var deferred = await restarted.SyncAsync(provider, settings, force: false);
+        Assert.True(restarted.ConversationSchemaSystemicFailureLatched);
+        Assert.True(restarted.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, deferred.Status);
+        Assert.Equal(0, restarted.LastCoverage.FailureSummary.FailedThisSyncCount);
+    }
+
+    [Fact]
+    public async Task Latch_RestartAfterRecovery_StaysCleared()
+    {
+        var (engine, store, fixture, provider, settings, items) = CreateHarness(3);
+        fixture.LoadOverride = _ => SchemaLoad();
+        await engine.SyncAsync(provider, settings, force: true);
+        foreach (var item in items)
+        {
+            item.UpdateTime += 90;
+        }
+
+        fixture.LoadOverride = id => ConversationDetailLoader.FromFixture(UniquePro(id, items[0].UpdateTime));
+        await engine.SyncAsync(provider, settings, force: false);
+        Assert.False(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.Equal("false", store.GetState(ConversationSchemaHealthPolicy.LatchStateKey));
+
+        var restarted = RestartEngine(store);
+        Assert.False(restarted.ConversationSchemaSystemicFailureLatched);
+        var deferred = await restarted.SyncAsync(provider, settings, force: false);
+        Assert.False(restarted.ConversationSchemaSystemicFailureLatched);
+        Assert.False(restarted.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.NotEqual(AppSyncStatus.ProviderSchemaMismatch, deferred.Status);
+    }
+
+    [Fact]
+    public void Latch_ParserCompatibilityChange_DoesNotRestoreOldBreak()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "prometer-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        using var store = new SqliteStore(Path.Combine(dir, "parser.db"));
+        store.SetState(ConversationSchemaHealthPolicy.LatchStateKey, "true");
+        store.SetState(ConversationSchemaHealthPolicy.LatchParserVersionStateKey, "999");
+        var engine = RestartEngine(store);
+        Assert.False(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.Equal(3, ConversationFetchBackoff.ParserCompatibilityVersion);
+        Assert.False(
+            ConversationSchemaHealthPolicy.RestoreLatch(
+                "true",
+                "999",
+                ConversationFetchBackoff.ParserCompatibilityVersion));
+    }
+
+    [Fact]
+    public async Task FatalAuth_ReplacesStaleCoverage_ButKeepsLatch()
+    {
+        var (engine, store, fixture, provider, settings, _) = CreateHarness(3);
+        fixture.LoadOverride = _ => SchemaLoad();
+        var run1 = await engine.SyncAsync(provider, settings, force: true);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, run1.Status);
+        Assert.Equal(3, engine.LastCoverage.FailureSummary.SchemaMismatchCount);
+        Assert.True(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        var completed = engine.LastSyncCompleted;
+        var events = store.GetUsageEvents().Count;
+
+        var run2 = await engine.SyncAsync(
+            new ThrowingAccountProvider(fixture, new ChatGptProviderException("Authentication required.", 401)),
+            settings,
+            force: true);
+        Assert.Equal(AppSyncStatus.AuthenticationRequired, run2.Status);
+        Assert.Equal(AppSyncStatus.AuthenticationRequired, engine.LastStatus);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.False(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.SchemaMismatchCount);
+        Assert.Equal(0, engine.LastCoverage.FailedConversations);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.FailedThisSyncCount);
+        Assert.Equal(completed, engine.LastSyncCompleted);
+        Assert.Equal(events, store.GetUsageEvents().Count);
+        var snapshot2 = Snapshot(engine, store, settings);
+        var health2 = UserFacingHealth.From(snapshot2);
+        Assert.Equal(UserFacingHealthKind.NeedsSignIn, health2.Kind);
+        Assert.Equal(UiText.SignInRequired, health2.HeaderText);
+        Assert.Equal(UiText.SignInRequired, health2.DataStatusText);
+        var view2 = DataStatusPresentation.From(snapshot2, AvailableCodex());
+        Assert.Equal($"{UiText.DataStatus}: {UiText.SignInRequired}", view2.Headline);
+        Assert.DoesNotContain(UiText.RepeatedConversationSchemaMismatch, view2.AdvancedLines, StringComparer.Ordinal);
+        Assert.DoesNotContain(UiText.ResponseFormatMismatch, string.Join('\n', view2.AdvancedLines), StringComparison.Ordinal);
+
+        var run3 = await engine.SyncAsync(provider, settings, force: false);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.True(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, run3.Status);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.FailedThisSyncCount);
+        var health3 = UserFacingHealth.From(Snapshot(engine, store, settings));
+        Assert.Equal(UserFacingHealthKind.SyncFailed, health3.Kind);
+        Assert.Equal(UiText.NeedsAttention, health3.DataStatusText);
+    }
+
+    [Theory]
+    [InlineData(0, AppSyncStatus.CompanionDisconnected, UserFacingHealthKind.NeedsConnection)]
+    [InlineData(1, AppSyncStatus.Offline, UserFacingHealthKind.NeedsConnection)]
+    [InlineData(2, AppSyncStatus.Forbidden, UserFacingHealthKind.SyncFailed)]
+    [InlineData(3, AppSyncStatus.RateLimited, UserFacingHealthKind.SyncFailed)]
+    public async Task FatalCurrentStatus_ReplacesStaleCoverage_AndWinsInUi(
+        int kind,
+        AppSyncStatus expectedStatus,
+        UserFacingHealthKind expectedHealth)
+    {
+        var (engine, store, fixture, _, settings, _) = CreateHarness(3);
+        fixture.LoadOverride = _ => SchemaLoad();
+        await engine.SyncAsync(new IncrementalSyncTests.CountingProvider(fixture), settings, force: true);
+        engine.RetryAttempts = 1;
+        engine.RetryBaseDelay = TimeSpan.Zero;
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+
+        var error = kind switch
+        {
+            0 => new ChatGptProviderException(CompanionBridgeProtocol.NotConnectedError, 0),
+            1 => new ChatGptProviderException("offline", 0),
+            2 => new ChatGptProviderException(CompanionDiagnostics.Forbidden403, 403),
+            _ => new ChatGptProviderException("Rate limited.", 429)
+        };
+        var outcome = await engine.SyncAsync(new ThrowingAccountProvider(fixture, error), settings, force: true);
+        Assert.Equal(expectedStatus, outcome.Status);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.False(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.SchemaMismatchCount);
+        var health = UserFacingHealth.From(Snapshot(engine, store, settings));
+        Assert.Equal(expectedHealth, health.Kind);
+        Assert.NotEqual(UiText.NeedsAttention, health.DataStatusText);
+    }
+
+    [Fact]
+    public async Task StaleLatch_CurrentIndexSchemaMismatch_RemainsPrimaryActionable()
+    {
+        var (engine, store, fixture, provider, settings, _) = CreateHarness(3);
+        fixture.LoadOverride = _ => SchemaLoad();
+        await engine.SyncAsync(provider, settings, force: true);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+
+        var outcome = await engine.SyncAsync(new IndexMismatchProvider(), settings, force: true);
+        Assert.Equal(AppSyncStatus.ProviderSchemaMismatch, outcome.Status);
+        Assert.True(engine.ConversationSchemaSystemicFailureLatched);
+        Assert.True(engine.LastCoverage.ConversationSchemaSystemicFailure);
+        Assert.Equal(CollectionState.Failed, engine.LastCoverage.NormalIndexState);
+        Assert.False(engine.LastCoverage.NormalChats);
+        Assert.Equal(0, engine.LastCoverage.FailureSummary.SchemaMismatchCount);
+        var snapshot = Snapshot(engine, store, settings);
+        Assert.False(UserFacingHealth.HistoryReconstructionOnly(snapshot));
+        var health = UserFacingHealth.From(snapshot);
+        Assert.Equal(UserFacingHealthKind.SyncFailed, health.Kind);
+        Assert.Equal(UiText.SyncFailedShort, health.DataStatusText);
+        Assert.NotEqual(UiText.NeedsAttention, health.DataStatusText);
     }
 
     [Fact]
@@ -270,6 +547,14 @@ public class ConversationSchemaHealthTests
         Assert.Equal(UiText.SyncFailedShort, health.HeaderText);
         Assert.Equal(UiText.NeedsAttention, health.DataStatusText);
         Assert.True(health.Actionable);
+    }
+
+    private static SyncEngine RestartEngine(SqliteStore store)
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "prometer-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var models = new ModelNormalizer();
+        return new SyncEngine(store, new ConversationParser(models), models, new AppLog(Path.Combine(dir, "logs")));
     }
 
     private static (SyncEngine Engine, SqliteStore Store, FixtureChatGptProvider Fixture, IncrementalSyncTests.CountingProvider Provider, AppSettings Settings, List<ConversationIndexItem> Items) CreateHarness(int count)
@@ -358,6 +643,42 @@ public class ConversationSchemaHealthTests
         null,
         [new CodexQuotaWindow(null, 97, 10080, null, CodexWindowKind.Weekly)],
         null);
+
+    private sealed class ThrowingAccountProvider : IChatGptProvider
+    {
+        private readonly FixtureChatGptProvider _inner;
+        private readonly Exception _error;
+
+        public ThrowingAccountProvider(FixtureChatGptProvider inner, Exception error)
+        {
+            _inner = inner;
+            _error = error;
+        }
+
+        public Task<AccountStatus> GetAccountStatusAsync(CancellationToken cancellationToken = default) =>
+            throw _error;
+
+        public Task<IReadOnlyList<ModelCatalogEntry>> GetModelCatalogAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetModelCatalogAsync(cancellationToken);
+
+        public Task<ConversationIndexResult> GetConversationIndexAsync(bool archived, double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
+            _inner.GetConversationIndexAsync(archived, minUpdateTime, cancellationToken);
+
+        public Task<ConversationIndexResult> GetArchivedConversationIndexAsync(double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
+            _inner.GetArchivedConversationIndexAsync(minUpdateTime, cancellationToken);
+
+        public Task<ProjectListResult> GetProjectsAsync(CancellationToken cancellationToken = default) =>
+            _inner.GetProjectsAsync(cancellationToken);
+
+        public Task<ConversationIndexResult> GetProjectConversationsAsync(string projectId, double? minUpdateTime = null, CancellationToken cancellationToken = default) =>
+            _inner.GetProjectConversationsAsync(projectId, minUpdateTime, cancellationToken);
+
+        public Task<ConversationLoadResult> GetConversationMessagesAsync(string conversationId, CancellationToken cancellationToken = default) =>
+            _inner.GetConversationMessagesAsync(conversationId, cancellationToken);
+
+        public Task<QuotaMetadataSet> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default) =>
+            _inner.TryGetQuotaMetadataAsync(cancellationToken);
+    }
 
     private sealed class IndexMismatchProvider : IChatGptProvider
     {

@@ -99,6 +99,96 @@ public class UserFacingHealthTests
     }
 
     [Fact]
+    public void StaleSystemic_AuthenticationRequired_Wins()
+    {
+        var snapshot = Restricted(5, AppSyncStatus.AuthenticationRequired, SystemicCoverage());
+        var health = UserFacingHealth.From(snapshot);
+        Assert.Equal(UserFacingHealthKind.NeedsSignIn, health.Kind);
+        Assert.Equal(UiText.SignInRequired, health.HeaderText);
+        Assert.Equal(UiText.SignInRequired, health.DataStatusText);
+        Assert.NotEqual(UiText.NeedsAttention, health.DataStatusText);
+        var view = DataStatusPresentation.From(snapshot, AvailableCodex());
+        Assert.Equal($"{UiText.DataStatus}: {UiText.SignInRequired}", view.Headline);
+        Assert.DoesNotContain(UiText.SyncFailedShort, view.Headline, StringComparison.Ordinal);
+        UiText.SetLanguage(UiLanguage.Korean);
+        try
+        {
+            var korean = UserFacingHealth.From(snapshot);
+            Assert.Equal("로그인 필요", korean.HeaderText);
+            Assert.Equal("로그인 필요", korean.DataStatusText);
+            Assert.NotEqual("확인 필요", korean.DataStatusText);
+            Assert.DoesNotContain("동기화 실패", korean.HeaderText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            UiText.SetLanguage(UiLanguage.English);
+        }
+    }
+
+    [Theory]
+    [InlineData(AppSyncStatus.CompanionDisconnected)]
+    [InlineData(AppSyncStatus.ChatGptTabRequired)]
+    [InlineData(AppSyncStatus.PageBridgeUnavailable)]
+    [InlineData(AppSyncStatus.BridgeTimeout)]
+    [InlineData(AppSyncStatus.BridgeWriteFailed)]
+    [InlineData(AppSyncStatus.Offline)]
+    public void StaleSystemic_CurrentConnectionStatus_Wins(AppSyncStatus status)
+    {
+        var snapshot = Restricted(5, status, SystemicCoverage());
+        var health = UserFacingHealth.From(snapshot);
+        Assert.Equal(UserFacingHealthKind.NeedsConnection, health.Kind);
+        Assert.Equal(UiText.ConnectionRequired, health.HeaderText);
+        Assert.Equal(UiText.ConnectionRequired, health.DataStatusText);
+        UiText.SetLanguage(UiLanguage.Korean);
+        try
+        {
+            var korean = UserFacingHealth.From(snapshot);
+            Assert.Equal("연결 필요", korean.HeaderText);
+            Assert.Equal("연결 필요", korean.DataStatusText);
+            Assert.DoesNotContain("동기화 실패", korean.HeaderText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            UiText.SetLanguage(UiLanguage.English);
+        }
+    }
+
+    [Theory]
+    [InlineData(AppSyncStatus.Forbidden)]
+    [InlineData(AppSyncStatus.RateLimited)]
+    public void StaleSystemic_ForbiddenOrRateLimited_KeepsExistingActionableStatus(AppSyncStatus status)
+    {
+        var snapshot = Restricted(5, status, SystemicCoverage());
+        var health = UserFacingHealth.From(snapshot);
+        Assert.Equal(UserFacingHealthKind.SyncFailed, health.Kind);
+        Assert.Equal(UiText.SyncFailedShort, health.HeaderText);
+        Assert.Equal(UiText.SyncFailedShort, health.DataStatusText);
+        Assert.NotEqual(UiText.NeedsAttention, health.DataStatusText);
+    }
+
+    [Fact]
+    public void StaleSystemic_IndexSchemaMismatch_RemainsActionablePrimaryFailure()
+    {
+        var coverage = SystemicCoverage();
+        coverage.NormalIndexState = CollectionState.Failed;
+        coverage.IndexIncomplete = true;
+        var snapshot = Restricted(5, AppSyncStatus.ProviderSchemaMismatch, coverage);
+        snapshot.LastSync = null;
+        snapshot.ProServerStatus = new ProServerStatus
+        {
+            ServerObserved = false,
+            RestrictionState = ProRestrictionState.Unknown
+        };
+        var health = UserFacingHealth.From(snapshot);
+        Assert.False(UserFacingHealth.HistoryReconstructionOnly(snapshot));
+        Assert.Equal(UserFacingHealthKind.SyncFailed, health.Kind);
+        Assert.True(health.Actionable);
+        Assert.Equal(UiText.SyncFailedShort, health.HeaderText);
+        Assert.Equal(UiText.SyncFailedShort, health.DataStatusText);
+        Assert.NotEqual(UiText.NeedsAttention, health.DataStatusText);
+    }
+
+    [Fact]
     public void IsolatedConversationTimeout_UnknownRestriction_KeepsMeterUsable()
     {
         var coverage = CompleteCoverage();
@@ -369,6 +459,18 @@ public class UserFacingHealthTests
         Assert.DoesNotContain("ResetTimeLabel", statusXaml, StringComparison.Ordinal);
         Assert.Contains("LastSyncLabel", statusXaml, StringComparison.Ordinal);
         Assert.Contains("CoverageLabel", statusXaml, StringComparison.Ordinal);
+    }
+
+    private static CoverageInfo SystemicCoverage()
+    {
+        var coverage = CompleteCoverage();
+        coverage.ConversationSchemaSystemicFailure = true;
+        coverage.FailedConversations = 3;
+        coverage.ConversationIncomplete = true;
+        coverage.FailureSummary.AddThisSync(ConversationFetchBackoff.SchemaMismatch);
+        coverage.FailureSummary.AddThisSync(ConversationFetchBackoff.SchemaMismatch);
+        coverage.FailureSummary.AddThisSync(ConversationFetchBackoff.SchemaMismatch);
+        return coverage;
     }
 
     private static CoverageInfo CompleteCoverage() => new()
