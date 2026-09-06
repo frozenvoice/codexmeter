@@ -43,7 +43,10 @@ public static class UiText
     public static string ExactRemainingUnavailable => T("Unavailable", "확인 불가");
     public static string ConfirmedRequests => T("Confirmed requests", "확인된 요청");
     public static string ConfirmedProRequests => T("Confirmed Pro requests", "확인된 Pro 요청");
-    public static string ConfirmedProUsage => T("Confirmed Pro usage", "확인된 Pro 사용");
+    public static string ConfirmedProUsage => T("Confirmed this cycle", "이번 주기 확인 사용");
+    public static string CycleStart => T("Cycle start", "주기 시작");
+    public static string NextReset => T("Next reset", "다음 리셋");
+    public static string EstimatedStamp(string stamp) => T($"{stamp} · estimated", $"{stamp} · 추정");
     public static string HistoryBasedLowerBound => T("History-based minimum", "기록 기반 최소치");
     public static string HistoryStatistics => T("History statistics", "기록 통계");
     public static string ProRestricted => T("Restricted", "제한됨");

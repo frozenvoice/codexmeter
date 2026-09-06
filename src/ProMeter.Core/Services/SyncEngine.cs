@@ -162,10 +162,20 @@ public sealed class SyncEngine
             }
 
             var periodReference = _clock.UtcNow;
-            var proStatus = LastQuotaMetadata?.ProServerStatus;
-            var proReset = proStatus?.ResetConfidence == ServerResetConfidence.Server ? proStatus.ResetAt : null;
-            var serverReset = proReset ?? LastQuotaMetadata?.WeeklyWindow(settings.PlanPreset)?.ResetAt;
-            var (calculatedPeriodStart, _) = QuotaPeriodCalculator.CurrentPeriod(settings, periodReference, serverReset);
+            var fetchedStatus = LastQuotaMetadata?.ProServerStatus ?? ProServerStatus.Unknown();
+            if (options.KnownProServerStatus is not null)
+            {
+                fetchedStatus = fetchedStatus.Clone();
+                ProServerStatus.RetainConfirmedReset(fetchedStatus, options.KnownProServerStatus);
+                if (LastQuotaMetadata is not null)
+                {
+                    LastQuotaMetadata.ProServerStatus = fetchedStatus;
+                }
+            }
+
+            var weeklyReset = LastQuotaMetadata?.WeeklyWindow(settings.PlanPreset)?.ResetAt;
+            var period = ProQuotaPeriodResolver.Resolve(settings, periodReference, fetchedStatus, weeklyReset);
+            var calculatedPeriodStart = period.Start;
             var periodStart = options.PeriodStartOverride ?? calculatedPeriodStart;
             var minUpdate = periodStart.ToUnixTimeSeconds();
 
@@ -1051,6 +1061,7 @@ public sealed record SyncOutcome(AppSyncStatus Status, string? Detail, int Parse
 public sealed record SyncRunOptions
 {
     public DateTimeOffset? PeriodStartOverride { get; init; }
+    public ProServerStatus? KnownProServerStatus { get; init; }
     public SyncOrigin Origin { get; init; } = SyncOrigin.Auto;
     public bool BypassPause { get; init; }
     public bool ForceBodyRescan { get; init; }

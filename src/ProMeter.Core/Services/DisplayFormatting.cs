@@ -29,12 +29,35 @@ public static class DisplayFormatting
         var presentation = ProStatusPresentation.From(snapshot);
         if (presentation.HasServerReset && snapshot.ProServerStatus?.ResetAt is DateTimeOffset serverReset)
         {
+            if (snapshot.PeriodStart != default && snapshot.PeriodStart >= serverReset)
+            {
+                var end = snapshot.PeriodEnd != default ? snapshot.PeriodEnd : serverReset.AddDays(7);
+                return CycleWindow(snapshot.PeriodStart, end);
+            }
+
+            if (snapshot.PeriodEnd != default && snapshot.PeriodEnd != serverReset)
+            {
+                return CycleWindow(snapshot.PeriodStart, snapshot.PeriodEnd);
+            }
+
             return new ResetDisplayInfo(UiText.ServerReset, FormatStamp(serverReset), null, null);
         }
 
         if (presentation.ResetAmbiguous)
         {
             return new ResetDisplayInfo(UiText.ServerReset, UiText.MultipleProResets, null, null);
+        }
+
+        if (snapshot.ResetAnchorSource == ResetAnchorSource.RetainedServer)
+        {
+            var start = snapshot.PeriodStart != default
+                ? snapshot.PeriodStart
+                : snapshot.ProServerStatus?.LastConfirmedResetAt ?? snapshot.ResetAt;
+            if (start is DateTimeOffset cycleStart)
+            {
+                var end = snapshot.PeriodEnd != default ? snapshot.PeriodEnd : cycleStart.AddDays(7);
+                return CycleWindow(cycleStart, end);
+            }
         }
 
         if (snapshot.ResetAt is null)
@@ -50,6 +73,9 @@ public static class DisplayFormatting
             _ => new ResetDisplayInfo(UiText.ResetTime, UiText.NotConfirmed, UiText.Estimate, stamp)
         };
     }
+
+    private static ResetDisplayInfo CycleWindow(DateTimeOffset start, DateTimeOffset end) =>
+        new(UiText.CycleStart, FormatStamp(start), UiText.NextReset, UiText.EstimatedStamp(FormatStamp(end)));
 
     public static string ResetLabel(QuotaSnapshot snapshot)
     {

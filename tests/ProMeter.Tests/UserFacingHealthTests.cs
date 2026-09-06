@@ -221,7 +221,7 @@ public class UserFacingHealthTests
         try
         {
             var korean = ProStatusPresentation.From(snapshot);
-            Assert.Equal("확인된 Pro 사용", UiText.ConfirmedProUsage);
+            Assert.Equal("이번 주기 확인 사용", UiText.ConfirmedProUsage);
             Assert.Equal("기록 기반 최소치", korean.HistoryLowerBoundCaption);
             Assert.Equal("34+", korean.ConfirmedRequestsText);
             Assert.Equal("확인 불가", korean.ExactRemainingText);

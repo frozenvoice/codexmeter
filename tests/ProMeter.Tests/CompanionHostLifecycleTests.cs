@@ -175,6 +175,9 @@ public class CompanionHostLifecycleTests
         Assert.Contains("EnsureCurrent", registration, StringComparison.Ordinal);
         var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
         Assert.Contains("EnsureCompanionHostRegistration", app, StringComparison.Ordinal);
+        var ensure = app.IndexOf("EnsureCompanionHostRegistration();", StringComparison.Ordinal);
+        var start = app.IndexOf("_companionServer.Start();", StringComparison.Ordinal);
+        Assert.True(ensure >= 0 && start > ensure);
         var exitApp = app.IndexOf("private void ExitApp()", StringComparison.Ordinal);
         Assert.True(exitApp >= 0);
         var stop = app.IndexOf("StopAsync(CompanionPipeServer.StopTimeout)", exitApp, StringComparison.Ordinal);

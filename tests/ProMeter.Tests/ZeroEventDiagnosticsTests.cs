@@ -88,7 +88,10 @@ public class ZeroEventDiagnosticsTests
             DateTimeOffset.UtcNow,
             engine.LastSyncCompleted,
             engine.LastCoverage,
-            engine.LastQuotaMetadata,
+            new QuotaMetadataSet
+            {
+                ProServerStatus = new ProServerStatus { LastConfirmedResetAt = DateTimeOffset.UtcNow.AddDays(-1) }
+            },
             engine.LastStatus,
             engine.LastStatusDetail);
         Assert.False(snapshot.DisplayUsageUnavailable);

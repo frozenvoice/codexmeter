@@ -6,19 +6,7 @@ public static class QuotaPeriodCalculator
     {
         if (serverReset is DateTimeOffset reset)
         {
-            var end = reset;
-            var start = end.AddDays(-7);
-            if (now < start)
-            {
-                return (start.AddDays(-7), start);
-            }
-
-            if (now >= end)
-            {
-                return (end, end.AddDays(7));
-            }
-
-            return (start, end);
+            return PeriodContaining(now, reset);
         }
 
         var zone = ResolveZone(settings.ResetTimeZoneId);
@@ -33,6 +21,27 @@ public static class QuotaPeriodCalculator
         var startUtc = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(localStart.DateTime, DateTimeKind.Unspecified), zone);
         var endUtc = TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(localAnchor.DateTime, DateTimeKind.Unspecified), zone);
         return (new DateTimeOffset(startUtc, TimeSpan.Zero), new DateTimeOffset(endUtc, TimeSpan.Zero));
+    }
+
+    public static (DateTimeOffset Start, DateTimeOffset End) PeriodContaining(DateTimeOffset now, DateTimeOffset resetBoundary)
+    {
+        var end = resetBoundary;
+        var start = end.AddDays(-7);
+        var guard = 0;
+        while (now >= end && guard++ < 5200)
+        {
+            start = end;
+            end = end.AddDays(7);
+        }
+
+        guard = 0;
+        while (now < start && guard++ < 5200)
+        {
+            end = start;
+            start = start.AddDays(-7);
+        }
+
+        return (start, end);
     }
 
     public static DateTimeOffset LocalDayStart(DateTimeOffset now, AppSettings settings)

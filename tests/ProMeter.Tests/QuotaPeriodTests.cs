@@ -34,6 +34,17 @@ public class QuotaPeriodTests
     }
 
     [Fact]
+    public void PeriodContaining_AdvancesWholeWeeks()
+    {
+        var reset = new DateTimeOffset(2026, 9, 6, 5, 20, 0, TimeSpan.Zero);
+        var now = new DateTimeOffset(2026, 9, 20, 8, 0, 0, TimeSpan.Zero);
+        var (start, end) = QuotaPeriodCalculator.PeriodContaining(now, reset);
+        Assert.Equal(reset.AddDays(14), start);
+        Assert.Equal(reset.AddDays(21), end);
+        Assert.True(QuotaPeriodCalculator.InRange(now, start, end));
+    }
+
+    [Fact]
     public void Boundary_IsHalfOpen()
     {
         var start = new DateTimeOffset(2026, 8, 31, 0, 0, 0, TimeSpan.Zero);

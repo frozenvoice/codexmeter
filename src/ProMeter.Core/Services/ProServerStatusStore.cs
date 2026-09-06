@@ -2,7 +2,7 @@ namespace ProMeter.Services;
 
 public sealed class ProServerStatusStore
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -71,6 +71,7 @@ public sealed class ProServerStatusStore
         public string RestrictionState { get; set; } = nameof(ProRestrictionState.Unknown);
         public DateTimeOffset? ResetAt { get; set; }
         public string ResetConfidence { get; set; } = nameof(ServerResetConfidence.None);
+        public DateTimeOffset? LastConfirmedResetAt { get; set; }
         public DateTimeOffset? ObservedAt { get; set; }
         public List<PersistedLimit> ModelLimits { get; set; } = [];
         public string? CorrelatedBlockedFeatureName { get; set; }
@@ -88,6 +89,7 @@ public sealed class ProServerStatusStore
             RestrictionState = status.RestrictionState.ToString(),
             ResetAt = status.ResetAt,
             ResetConfidence = status.ResetConfidence.ToString(),
+            LastConfirmedResetAt = status.LastConfirmedResetAt,
             ObservedAt = status.ObservedAt,
             ModelLimits = status.ModelLimits.Select(PersistedLimit.From).ToList(),
             CorrelatedBlockedFeatureName = status.CorrelatedBlockedFeatureName,
@@ -104,12 +106,13 @@ public sealed class ProServerStatusStore
         {
             Enum.TryParse<ProRestrictionState>(RestrictionState, out var restriction);
             Enum.TryParse<ServerResetConfidence>(ResetConfidence, out var reset);
-            return new ProServerStatus
+            var status = new ProServerStatus
             {
                 ServerObserved = ServerObserved,
                 RestrictionState = restriction,
                 ResetAt = ResetAt,
                 ResetConfidence = reset,
+                LastConfirmedResetAt = LastConfirmedResetAt,
                 ObservedAt = ObservedAt,
                 ModelLimits = ModelLimits.Select(limit => limit.ToLimit()).ToList(),
                 CorrelatedBlockedFeatureName = CorrelatedBlockedFeatureName,
@@ -121,6 +124,8 @@ public sealed class ProServerStatusStore
                 LastSuccessfulRefresh = LastSuccessfulRefresh,
                 LastRefreshAttempt = LastRefreshAttempt
             };
+            ProServerStatus.MigrateLoadedConfirmedReset(status);
+            return status;
         }
     }
 

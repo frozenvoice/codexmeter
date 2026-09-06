@@ -102,6 +102,7 @@ public class ProServerStatusRefreshTests
         Assert.True(service.Current.ServerObserved);
         Assert.Equal(ProRestrictionState.Unknown, service.Current.RestrictionState);
         Assert.Null(service.Current.ResetAt);
+        Assert.Equal(new DateTimeOffset(2026, 9, 6, 5, 20, 13, TimeSpan.Zero), service.Current.LastConfirmedResetAt);
         Assert.Equal(ServerResetConfidence.None, service.Current.ResetConfidence);
         Assert.False(service.Current.Stale);
         Assert.Equal(clock.UtcNow, service.Current.LastSuccessfulRefresh);

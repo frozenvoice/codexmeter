@@ -81,8 +81,8 @@ public partial class App : Application
         _webViewTransport = new WebViewTransport(_log);
         var pairing = CompanionPairingStore.LoadOrCreate();
         _companionServer = new CompanionPipeServer(_companionHub, pairing, _log);
-        _companionServer.Start();
         EnsureCompanionHostRegistration();
+        _companionServer.Start();
         ApplyTransport();
         _toasts = new ToastNotificationService(_settingsStore, _log);
         StartupConsent.ApplyIfPermitted(new WindowsStartupService(), _settings);
@@ -108,6 +108,7 @@ public partial class App : Application
             ct => _codex.RefreshAsync(_settings.CodexExePath, ct));
         _refresh.StateChanged += () => Dispatcher.BeginInvoke(RefreshSnapshot);
         _proStatus = new ProServerStatusService();
+        _proStatus.RecoverLastConfirmedFromSettings(_settings);
         _proStatus.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
         _tray.LoginRequested += () => _ = SignInAsync();
         _tray.SettingsRequested += ShowSettings;
@@ -310,7 +311,10 @@ public partial class App : Application
         RefreshSnapshot();
         try
         {
-            var outcome = await _sync.SyncAsync(_provider, _settings, options);
+            var outcome = await _sync.SyncAsync(
+                _provider,
+                _settings,
+                options with { KnownProServerStatus = _proStatus.Current });
             _proStatus.ApplyFromMetadata(_sync.LastQuotaMetadata);
             ScheduleProResetRecheck();
             ApplySyncFailurePresentation(outcome, options.Origin);
@@ -354,10 +358,7 @@ public partial class App : Application
     {
         var events = _store.GetUsageEvents();
         var metadata = _sync.LastQuotaMetadata ?? new QuotaMetadataSet();
-        if (_proStatus.Current.ServerObserved)
-        {
-            metadata.ProServerStatus = _proStatus.Current;
-        }
+        metadata.ProServerStatus = _proStatus.Current;
 
         _snapshot = _quota.Build(
             events,
@@ -560,9 +561,12 @@ public partial class App : Application
         }
 
         var json = File.ReadAllText(dialog.FileName);
-        var importReset = _sync.LastQuotaMetadata?.WeeklyWindow(_settings.PlanPreset)?.ResetAt;
-        var (start, _) = QuotaPeriodCalculator.CurrentPeriod(_settings, DateTimeOffset.Now, importReset);
-        var imported = _importer.Import(json, _settings.ImportHistoricalStatistics, start);
+        var period = ProQuotaPeriodResolver.Resolve(
+            _settings,
+            DateTimeOffset.Now,
+            _proStatus.Current,
+            _sync.LastQuotaMetadata?.WeeklyWindow(_settings.PlanPreset)?.ResetAt);
+        var imported = _importer.Import(json, _settings.ImportHistoricalStatistics, period.Start);
         if (imported.Error is not null)
         {
             System.Windows.MessageBox.Show(imported.Error, UiText.ProductName);

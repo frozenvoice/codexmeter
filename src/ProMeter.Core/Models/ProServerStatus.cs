@@ -15,6 +15,7 @@ public sealed class ProServerStatus
     public ProRestrictionState RestrictionState { get; set; } = ProRestrictionState.Unknown;
     public DateTimeOffset? ResetAt { get; set; }
     public ServerResetConfidence ResetConfidence { get; set; } = ServerResetConfidence.None;
+    public DateTimeOffset? LastConfirmedResetAt { get; set; }
     public DateTimeOffset? ObservedAt { get; set; }
     public IReadOnlyList<ProModelLimit> ModelLimits { get; set; } = [];
     public string? CorrelatedBlockedFeatureName { get; set; }
@@ -41,6 +42,7 @@ public sealed class ProServerStatus
         RestrictionState = RestrictionState,
         ResetAt = ResetAt,
         ResetConfidence = ResetConfidence,
+        LastConfirmedResetAt = LastConfirmedResetAt,
         ObservedAt = ObservedAt,
         ModelLimits = ModelLimits.Select(limit => new ProModelLimit
         {
@@ -57,4 +59,48 @@ public sealed class ProServerStatus
         LastSuccessfulRefresh = LastSuccessfulRefresh,
         LastRefreshAttempt = LastRefreshAttempt
     };
+
+    public static void RetainConfirmedReset(ProServerStatus incoming, ProServerStatus? previous)
+    {
+        if (incoming.ResetConfidence == ServerResetConfidence.Server && incoming.ResetAt is DateTimeOffset live)
+        {
+            incoming.LastConfirmedResetAt = live;
+            return;
+        }
+
+        incoming.LastConfirmedResetAt = previous?.LastConfirmedResetAt ?? incoming.LastConfirmedResetAt;
+    }
+
+    public static void MigrateLoadedConfirmedReset(ProServerStatus status)
+    {
+        if (status.LastConfirmedResetAt is null
+            && status.ResetConfidence == ServerResetConfidence.Server
+            && status.ResetAt is DateTimeOffset live)
+        {
+            status.LastConfirmedResetAt = live;
+        }
+    }
+
+    public static bool TryRecoverLastConfirmedFromRestrictionKey(ProServerStatus status, string? restrictionNotificationKey)
+    {
+        if (status.LastConfirmedResetAt is not null || string.IsNullOrWhiteSpace(restrictionNotificationKey))
+        {
+            return false;
+        }
+
+        var separator = restrictionNotificationKey.IndexOf(':');
+        if (separator < 0 || separator == restrictionNotificationKey.Length - 1)
+        {
+            return false;
+        }
+
+        var stamp = restrictionNotificationKey[(separator + 1)..];
+        if (!DateTimeOffset.TryParse(stamp, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var recovered))
+        {
+            return false;
+        }
+
+        status.LastConfirmedResetAt = recovered;
+        return true;
+    }
 }

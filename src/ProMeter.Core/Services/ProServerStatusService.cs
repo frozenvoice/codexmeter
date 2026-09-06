@@ -31,6 +31,18 @@ public sealed class ProServerStatusService
     public bool IsRefreshing { get; private set; }
     public event Action<ProServerStatus>? Changed;
 
+    public bool RecoverLastConfirmedFromSettings(AppSettings settings)
+    {
+        if (!ProServerStatus.TryRecoverLastConfirmedFromRestrictionKey(_status, settings.LastNotifiedProRestrictionKey))
+        {
+            return false;
+        }
+
+        _store.Save(_status);
+        Changed?.Invoke(_status);
+        return true;
+    }
+
     public static bool ShouldRefreshOnFlyoutOpen(ProServerStatus status, DateTimeOffset now)
     {
         if (status.RestrictionState == ProRestrictionState.Unknown && !status.ServerObserved)
@@ -160,6 +172,7 @@ public sealed class ProServerStatusService
 
     private void Persist(ProServerStatus status)
     {
+        ProServerStatus.RetainConfirmedReset(status, _status);
         _status = status;
         _store.Save(status);
         Changed?.Invoke(status);

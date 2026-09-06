@@ -14,10 +14,10 @@ public sealed class QuotaEngine
     {
         var weekly = serverQuota?.WeeklyWindow(settings.PlanPreset);
         var proStatus = serverQuota?.ProServerStatus ?? ProServerStatus.Unknown();
-        var weeklyReset = weekly?.ResetAt;
-        var proReset = proStatus.ResetConfidence == ServerResetConfidence.Server ? proStatus.ResetAt : null;
-        var serverReset = proReset ?? weeklyReset;
-        var (start, end) = QuotaPeriodCalculator.CurrentPeriod(settings, now, serverReset);
+        var period = ProQuotaPeriodResolver.Resolve(settings, now, proStatus, weekly?.ResetAt);
+        var start = period.Start;
+        var end = period.End;
+        var resetSource = period.Source;
         var todayStart = QuotaPeriodCalculator.LocalDayStart(now, settings);
         var periodEvents = events.Where(e => QuotaPeriodCalculator.InRange(e.CreatedAt, start, end)).ToList();
         var todayEvents = events.Where(e => e.CreatedAt >= todayStart).ToList();
@@ -35,16 +35,11 @@ public sealed class QuotaEngine
         var combinedWindow = allowCombinedDaily ? serverQuota?.CombinedProDaily : null;
         var useServerSol = solWindow is { IsAuthoritative: true };
         var useServerCombined = combinedWindow is { IsAuthoritative: true };
-        var resetSource = serverReset is not null
-            ? ResetAnchorSource.Server
-            : settings.ResetAnchorConfigured
-                ? ResetAnchorSource.UserConfigured
-                : ResetAnchorSource.Default;
         var historyComplete = coverage is { NormalChats: true, IndexIncomplete: false, ConversationIncomplete: false, FailedConversations: 0 };
-        var periodTrusted = resetSource is ResetAnchorSource.Server or ResetAnchorSource.UserConfigured;
+        var periodTrusted = period.CurrentCycleKnown;
 
         coverage.ResetAnchorSource = resetSource;
-        coverage.ResetTimeAuthoritative = resetSource == ResetAnchorSource.Server;
+        coverage.ResetTimeAuthoritative = resetSource == ResetAnchorSource.Server && !period.NextResetEstimated;
         coverage.QuotaMetadataAuthoritative = useServerWeekly;
         coverage.CountConfidence = useServerWeekly
             ? CoverageConfidence.Authoritative
@@ -53,7 +48,9 @@ public sealed class QuotaEngine
                 : CoverageConfidence.Estimated;
         coverage.ResetConfidence = resetSource switch
         {
-            ResetAnchorSource.Server => CoverageConfidence.Authoritative,
+            ResetAnchorSource.Server when !period.NextResetEstimated => CoverageConfidence.Authoritative,
+            ResetAnchorSource.Server => CoverageConfidence.HighConfidence,
+            ResetAnchorSource.RetainedServer => CoverageConfidence.HighConfidence,
             ResetAnchorSource.UserConfigured => CoverageConfidence.HighConfidence,
             _ => CoverageConfidence.Estimated
         };
@@ -89,8 +86,9 @@ public sealed class QuotaEngine
             PeriodStart = start,
             PeriodEnd = end,
             ResetAt = end,
-            ResetEstimated = resetSource != ResetAnchorSource.Server,
+            ResetEstimated = resetSource != ResetAnchorSource.Server || period.NextResetEstimated,
             ResetAnchorSource = resetSource,
+            CurrentCycleKnown = period.CurrentCycleKnown,
             LastSync = lastSync,
             Status = status,
             StatusDetail = statusDetail,

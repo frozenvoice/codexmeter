@@ -30,6 +30,7 @@ public class ProServerStatusStoreTests
         var loaded = store.Load();
         Assert.Equal(ProRestrictionState.CorrelatedRestriction, loaded?.RestrictionState);
         Assert.Equal(50, loaded?.CorrelatedBlockedFeatureLimitHint);
+        Assert.Equal(new DateTimeOffset(2026, 9, 6, 5, 20, 13, TimeSpan.Zero), loaded?.LastConfirmedResetAt);
     }
 
     [Fact]

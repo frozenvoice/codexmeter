@@ -37,7 +37,9 @@ public sealed class ProStatusPresentation
         var exact = snapshot.UsesServerWeeklyCount && !snapshot.DisplayUsageUnavailable;
         var reconstructed = snapshot.DisplayUsageUnavailable
             ? "?"
-            : snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture) + "+";
+            : !snapshot.CurrentCycleKnown
+                ? UiText.Unavailable
+                : snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture) + "+";
         var stateText = status.RestrictionState switch
         {
             ProRestrictionState.CorrelatedRestriction => UiText.ProRestricted,

@@ -92,7 +92,8 @@ public enum ResetAnchorSource
 {
     Default,
     UserConfigured,
-    Server
+    Server,
+    RetainedServer
 }
 
 public enum ProRestrictionState

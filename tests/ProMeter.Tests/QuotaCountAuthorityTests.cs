@@ -131,7 +131,10 @@ public class QuotaCountAuthorityTests
             now,
             now,
             new CoverageInfo { NormalChats = true },
-            new QuotaMetadataSet(),
+            new QuotaMetadataSet
+            {
+                ProServerStatus = new ProServerStatus { LastConfirmedResetAt = now.AddDays(-1) }
+            },
             AppSyncStatus.UpToDate);
 
         Assert.False(snapshot.UsesServerWeeklyCount);
