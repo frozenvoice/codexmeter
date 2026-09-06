@@ -15,8 +15,10 @@ public sealed class ProStatusPresentation
     public required string DataStatusText { get; init; }
     public required string TrayIconGlyph { get; init; }
     public required string CountSourceText { get; init; }
+    public required string HistoryLowerBoundCaption { get; init; }
     public required string Headline { get; init; }
     public bool ExactRemainingAvailable { get; init; }
+    public bool ShowHistoryLowerBound { get; init; }
     public bool Restricted { get; init; }
     public bool ServerStatusKnown { get; init; }
     public bool Stale { get; init; }
@@ -70,11 +72,12 @@ public sealed class ProStatusPresentation
                 : known
                     ? "P"
                     : "?";
+        var lowerBoundCaption = UiText.HistoryBasedLowerBound;
         var countSource = exact
             ? UiText.ServerCount(snapshot.ReconstructedUsed)
             : snapshot.DisplayUsageUnavailable
                 ? UiText.IncompleteReconstruction
-                : UiText.ReconstructedHistory;
+                : UiText.HistoryBasedLowerBound;
         if (snapshot.IsSyncing && snapshot.LastSync is not null)
         {
             countSource = $"{UiText.PreviousData} · {countSource}";
@@ -106,7 +109,9 @@ public sealed class ProStatusPresentation
             DataStatusText = UserFacingHealth.From(snapshot).DataStatusText,
             TrayIconGlyph = glyph,
             CountSourceText = countSource,
-            Headline = headline
+            HistoryLowerBoundCaption = exact ? "" : lowerBoundCaption,
+            Headline = headline,
+            ShowHistoryLowerBound = !exact
         };
     }
 

@@ -131,11 +131,28 @@ public class UserFacingHealthTests
         Assert.False(presentation.ExactRemainingAvailable);
         Assert.Equal(UiText.ExactRemainingUnavailable, presentation.ExactRemainingText);
         Assert.Equal("34+", presentation.ReconstructedText);
+        Assert.True(presentation.ShowHistoryLowerBound);
+        Assert.Equal(UiText.HistoryBasedLowerBound, presentation.HistoryLowerBoundCaption);
+        Assert.Equal(UiText.HistoryBasedLowerBound, presentation.CountSourceText);
+        Assert.EndsWith("+", presentation.ConfirmedRequestsText, StringComparison.Ordinal);
         Assert.DoesNotContain("34 / 50", DisplayFormatting.UsageLabel(snapshot), StringComparison.Ordinal);
         Assert.DoesNotContain("50 / 50", DisplayFormatting.UsageLabel(snapshot), StringComparison.Ordinal);
         Assert.DoesNotContain("16", presentation.ExactRemainingText, StringComparison.Ordinal);
         Assert.DoesNotContain("0", presentation.ExactRemainingText, StringComparison.Ordinal);
         Assert.DoesNotContain("34+", DisplayFormatting.FlyoutHeader(snapshot), StringComparison.Ordinal);
+        UiText.SetLanguage(UiLanguage.Korean);
+        try
+        {
+            var korean = ProStatusPresentation.From(snapshot);
+            Assert.Equal("확인된 Pro 사용", UiText.ConfirmedProUsage);
+            Assert.Equal("기록 기반 최소치", korean.HistoryLowerBoundCaption);
+            Assert.Equal("34+", korean.ConfirmedRequestsText);
+            Assert.Equal("확인 불가", korean.ExactRemainingText);
+        }
+        finally
+        {
+            UiText.SetLanguage(UiLanguage.English);
+        }
     }
 
     [Fact]
@@ -148,8 +165,11 @@ public class UserFacingHealthTests
         snapshot.ReconstructedUsed = 4;
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.True(presentation.ExactRemainingAvailable);
+        Assert.False(presentation.ShowHistoryLowerBound);
+        Assert.Equal("", presentation.HistoryLowerBoundCaption);
         Assert.Equal("7 / 50", DisplayFormatting.UsageLabel(snapshot));
         Assert.Equal("43", presentation.ExactRemainingText);
+        Assert.Equal("4+", presentation.ReconstructedText);
     }
 
     [Fact]
@@ -202,16 +222,21 @@ public class UserFacingHealthTests
     }
 
     [Fact]
-    public void FlyoutSource_HidesHistoryCountsAndUsesUserFacingHeader()
+    public void FlyoutSource_ShowsLowerBoundUsageAndHidesModelBreakdown()
     {
         var xaml = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml"));
         var code = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
-        Assert.Contains("HistoryStatsPanel", xaml, StringComparison.Ordinal);
-        Assert.Contains("Visibility=\"Collapsed\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("FlyoutHeader", code, StringComparison.Ordinal);
+        Assert.Contains("ConfirmedUsagePanel", xaml, StringComparison.Ordinal);
+        Assert.Contains("ConfirmedUsageText", xaml, StringComparison.Ordinal);
+        Assert.Contains("HistoryLowerBoundCaption", xaml, StringComparison.Ordinal);
+        Assert.Contains("ShowHistoryLowerBound", code, StringComparison.Ordinal);
         Assert.Contains("HistoryStatsPanel.Visibility = Visibility.Collapsed", code, StringComparison.Ordinal);
+        Assert.Contains("ModelRows.Visibility = Visibility.Collapsed", code, StringComparison.Ordinal);
+        Assert.Contains("ConfirmedProUsage", code, StringComparison.Ordinal);
+        Assert.Contains("HistoryBasedLowerBound", code, StringComparison.Ordinal);
         Assert.Contains("RemainingCount", code, StringComparison.Ordinal);
         Assert.DoesNotContain("StatusLabel(snapshot)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ModelBreakdown", code, StringComparison.Ordinal);
     }
 
     private static CoverageInfo CompleteCoverage() => new()

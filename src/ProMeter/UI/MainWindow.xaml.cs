@@ -43,9 +43,15 @@ public partial class MainWindow : Window
         ApplyLocalizedTexts();
         var presentation = ProStatusPresentation.From(snapshot);
         Headline.Text = presentation.Headline;
-        ProStatusText.Text = presentation.HasServerReset
+        var proLine = presentation.HasServerReset
             ? $"{UiText.GptPro}  {presentation.ProStateText}   ·   {UiText.ServerReset} {presentation.ResetText}"
             : $"{UiText.GptPro}  {presentation.ProStateText}";
+        if (presentation.ShowHistoryLowerBound)
+        {
+            proLine += $"   ·   {UiText.ConfirmedProUsage} {presentation.ConfirmedRequestsText}   ·   {presentation.HistoryLowerBoundCaption}";
+        }
+
+        ProStatusText.Text = proLine;
         var reset = DisplayFormatting.ResetDisplay(snapshot);
         PeriodText.Text = $"{DisplayFormatting.FormatDay(snapshot.PeriodStart)} – {DisplayFormatting.FormatDay(snapshot.PeriodEnd)}";
         StatusText.Text = $"{DisplayFormatting.FlyoutHeader(snapshot)}   ·   {reset.TimeLabel} {reset.TimeValue}{(reset.EstimateValue is null ? "" : $"   ·   {reset.EstimateLabel} {reset.EstimateValue}")}   ·   {UiText.DataStatus} {presentation.DataStatusText}   ·   {UiText.RemainingCount} {presentation.ExactRemainingText}";

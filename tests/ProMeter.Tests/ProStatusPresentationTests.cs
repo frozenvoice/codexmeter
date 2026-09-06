@@ -11,7 +11,9 @@ public class ProStatusPresentationTests
         var snapshot = Reconstructed(31, 50);
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.False(presentation.ExactRemainingAvailable);
+        Assert.True(presentation.ShowHistoryLowerBound);
         Assert.Equal("31+", presentation.ReconstructedText);
+        Assert.Equal(UiText.HistoryBasedLowerBound, presentation.HistoryLowerBoundCaption);
         Assert.Equal(UiText.ExactRemainingUnavailable, presentation.ExactRemainingText);
         Assert.Equal("31+", DisplayFormatting.UsageLabel(snapshot));
         Assert.DoesNotContain("31 / 50", DisplayFormatting.UsageLabel(snapshot), StringComparison.Ordinal);
@@ -45,6 +47,8 @@ public class ProStatusPresentationTests
         Assert.Contains(UiText.ServerReset, tooltip, StringComparison.Ordinal);
         Assert.DoesNotContain("31+", tooltip, StringComparison.Ordinal);
         Assert.DoesNotContain("31/50", tooltip, StringComparison.Ordinal);
+        Assert.Equal(UiText.HistoryBasedLowerBound, presentation.CountSourceText);
+        Assert.True(presentation.ShowHistoryLowerBound);
     }
 
     [Fact]
@@ -96,6 +100,7 @@ public class ProStatusPresentationTests
         };
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.True(presentation.ExactRemainingAvailable);
+        Assert.False(presentation.ShowHistoryLowerBound);
         Assert.Equal("7 / 50", DisplayFormatting.UsageLabel(snapshot));
         Assert.Equal("4+", presentation.ReconstructedText);
         Assert.Equal("4+", presentation.ConfirmedRequestsText);

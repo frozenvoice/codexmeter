@@ -214,6 +214,15 @@
                 <TextBlock x:Name="ExactRemainingLabel" Text="Remaining" Foreground="{DynamicResource MutedBrush}"/>
                 <TextBlock x:Name="ExactRemainingText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
             </DockPanel>
+            <DockPanel x:Name="ConfirmedUsagePanel" Margin="0,8,0,0">
+                <TextBlock x:Name="ConfirmedUsageLabel" Text="Confirmed Pro usage" Foreground="{DynamicResource MutedBrush}"/>
+                <TextBlock x:Name="ConfirmedUsageText" Style="{StaticResource FlyoutValueText}" FontWeight="SemiBold" DockPanel.Dock="Right"/>
+            </DockPanel>
+            <TextBlock x:Name="HistoryLowerBoundCaption"
+                       Foreground="{DynamicResource MutedBrush}"
+                       FontSize="11"
+                       TextWrapping="Wrap"
+                       Margin="0,2,0,0"/>
             <TextBlock x:Name="RestrictionDetailText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
             <DockPanel x:Name="AuthoritativeCountPanel" Visibility="Collapsed" Margin="0,8,0,0">
                 <TextBlock x:Name="ProCountText" DockPanel.Dock="Right" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"/>

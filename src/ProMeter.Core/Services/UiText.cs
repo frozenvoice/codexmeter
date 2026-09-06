@@ -43,6 +43,8 @@ public static class UiText
     public static string ExactRemainingUnavailable => T("Unavailable", "확인 불가");
     public static string ConfirmedRequests => T("Confirmed requests", "확인된 요청");
     public static string ConfirmedProRequests => T("Confirmed Pro requests", "확인된 Pro 요청");
+    public static string ConfirmedProUsage => T("Confirmed Pro usage", "확인된 Pro 사용");
+    public static string HistoryBasedLowerBound => T("History-based minimum", "기록 기반 최소치");
     public static string HistoryStatistics => T("History statistics", "기록 통계");
     public static string ProRestricted => T("Restricted", "제한됨");
     public static string ProNoServerRestriction => T("No server restriction observed", "서버 제한 없음");
