@@ -27,7 +27,7 @@ public sealed class UsageEvent
     public bool PeriodAmbiguous { get; set; }
     public bool Countable { get; set; } = true;
     public UnresolvedEvidenceKind UnresolvedKind { get; set; } = UnresolvedEvidenceKind.None;
-    public int ReconstructionVersion { get; set; }
+    public int ReconstructionVersion { get; set; } = ReconstructionSemantics.Version;
     public string? CorrectionReason { get; set; }
     public string? IdentityAliases { get; set; }
 

@@ -25,6 +25,7 @@ public sealed class SyncEngine
     private readonly Dictionary<string, ConversationWorkEntry> _work = new(StringComparer.Ordinal);
     private readonly HashSet<string> _deferredIds = new(StringComparer.Ordinal);
     private readonly IClock _clock;
+    private readonly ReconstructionLedger _ledger;
 
     public SyncEngine(SqliteStore store, ConversationParser parser, ModelNormalizer models, AppLog log, IClock? clock = null)
     {
@@ -33,11 +34,21 @@ public sealed class SyncEngine
         _models = models;
         _log = log;
         _clock = clock ?? SystemClock.Instance;
+        _ledger = new ReconstructionLedger(models, _clock);
         LastSyncCompleted = RestoreLastSyncCompleted();
         ConversationSchemaSystemicFailureLatched = RestoreConversationSchemaLatch();
     }
 
     public bool ConversationSchemaSystemicFailureLatched { get; private set; }
+
+    /// <summary>Reconstruction revalidation slots actually claimed by the last sync.</summary>
+    public int LastReconstructionRevalidations => _reconstructionRevalidations;
+
+    /// <summary>Conversations the last sync wanted to revalidate, including those deferred by the budget.</summary>
+    public int LastReconstructionCandidates => _reconstruction.ReconstructionCandidates;
+
+    /// <summary>Conversation body fetches attempted by the last sync.</summary>
+    public int LastBodyFetches => _reconstruction.BodyFetches;
 
     public bool IsPaused { get; private set; }
     public DateTimeOffset? PauseUntil { get; private set; }
@@ -304,6 +315,7 @@ public sealed class SyncEngine
             LastSyncCompleted = completed;
             try
             {
+                var ledger = SummarizeLedger();
                 _store.RecordMeteringSnapshot("sync-complete", new
                 {
                     reconstructionVersion = ConversationFetchBackoff.ReconstructionSemanticsVersion,
@@ -313,8 +325,14 @@ public sealed class SyncEngine
                     fetched = _reconstruction.BodyFetches,
                     parsed = _reconstruction.WithEvents,
                     indexed = _reconstruction.IndexedConversations,
-                    gptProParsed = FamilyCount(QuotaFamily.GptPro),
-                    revalidations = _reconstructionRevalidations
+                    // Parsed-this-run family total. NOT the account's current-cycle count.
+                    gptProParsedThisRun = FamilyCount(QuotaFamily.GptPro),
+                    reconstructionCandidates = _reconstruction.ReconstructionCandidates,
+                    reconstructionRevalidated = _reconstructionRevalidations,
+                    mergedDuplicateCorrections = _reconstruction.MergedDuplicateCorrections,
+                    canonicalCount = ledger.Canonical,
+                    legacyPending = ledger.LegacyPending,
+                    unresolvedCount = ledger.Unresolved
                 }, completed);
             }
             catch (Exception ex)
@@ -524,7 +542,7 @@ public sealed class SyncEngine
         Action<AppSyncStatus> setWorst,
         CancellationToken cancellationToken)
     {
-        var changed = items.Count(item => options.ForceBodyRescan || NeedsBody(item));
+        var changed = items.Count(item => DecideBodyFetch(item, options) != BodyFetchReason.None);
         _log.Info($"{source} changed={changed} forceBodyRescan={options.ForceBodyRescan} bypassPause={options.BypassPause}");
         _reconstruction.IndexedConversations += items.Count;
         var parsed = 0;
@@ -532,9 +550,10 @@ public sealed class SyncEngine
         foreach (var item in items)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            var decision = DecideBodyFetch(item, options);
             if (_work.TryGetValue(item.Id, out var existing))
             {
-                if (options.ForceBodyRescan || NeedsBody(item))
+                if (decision != BodyFetchReason.None)
                 {
                     _reconstruction.ScanAttempts++;
                 }
@@ -543,7 +562,7 @@ public sealed class SyncEngine
                 continue;
             }
 
-            if (!options.ForceBodyRescan && !NeedsBody(item))
+            if (decision == BodyFetchReason.None)
             {
                 var record = _store.GetConversation(item.Id);
                 if (ConversationFetchBackoff.IsDeferredFailure(item, record, _clock.UtcNow, false))
@@ -554,14 +573,12 @@ public sealed class SyncEngine
                 continue;
             }
 
-            var stored = _store.GetConversation(item.Id);
-            if (!options.ForceBodyRescan
-                && stored is not null
-                && ConversationFetchBackoff.ReconstructionSemanticsChanged(stored)
-                && !ConversationFetchBackoff.ShouldFetch(item, stored, _clock.UtcNow, false))
+            if (decision == BodyFetchReason.ReconstructionRevalidation)
             {
+                _reconstruction.ReconstructionCandidates++;
                 if (_reconstructionRevalidations >= ConversationFetchBackoff.MaxReconstructionRevalidationsPerSync)
                 {
+                    // Budget exhausted. Leave ReconstructionVersion old so a later sync retries it.
                     continue;
                 }
 
@@ -814,7 +831,7 @@ public sealed class SyncEngine
 
         var now = _clock.UtcNow;
         var trusted = item.UpdateTime > 0;
-        _store.ReconcileConversation(new ConversationRecord
+        var outcome = _store.ReconcileConversation(new ConversationRecord
         {
             ConversationId = item.Id,
             UpdateTime = trusted ? item.UpdateTime : 0,
@@ -833,7 +850,8 @@ public sealed class SyncEngine
             LastAttemptedUpdateTime = trusted ? item.UpdateTime : 0,
             FetchFailureParserVersion = 0,
             ReconstructionVersion = ConversationFetchBackoff.ReconstructionSemanticsVersion
-        }, result.Events, result.Observations);
+        }, result.Events, result.Observations, _ledger);
+        _reconstruction.MergedDuplicateCorrections += outcome.MergedDuplicateCorrections;
         if (!trusted)
         {
             coverage.ConversationIncomplete = true;
@@ -987,24 +1005,22 @@ public sealed class SyncEngine
     private int FamilyCount(QuotaFamily family) =>
         _reconstruction.Families.TryGetValue(family, out var count) ? count : 0;
 
-    private bool NeedsBody(ConversationIndexItem item)
+    /// <summary>Account-wide aggregate ledger state. Safe counts only, no conversation identifiers.</summary>
+    private (int Canonical, int LegacyPending, int Unresolved) SummarizeLedger()
     {
-        var existing = _store.GetConversation(item.Id);
-        if (ConversationFetchBackoff.ShouldFetch(item, existing, _clock.UtcNow, forceBodyRescan: false))
-        {
-            return true;
-        }
-
-        if (existing is not null
-            && ConversationFetchBackoff.ReconstructionSemanticsChanged(existing)
-            && _reconstructionRevalidations < ConversationFetchBackoff.MaxReconstructionRevalidationsPerSync)
-        {
-            _reconstructionRevalidations++;
-            return true;
-        }
-
-        return false;
+        var stored = _store.GetUsageEvents();
+        var legacy = stored.Count(QuotaEngine.IsLegacyUnverified);
+        var unresolved = stored.Count(e =>
+            !QuotaEngine.IsLegacyUnverified(e) && e.UnresolvedKind != UnresolvedEvidenceKind.None);
+        return (stored.Count - legacy, legacy, unresolved);
     }
+
+    private BodyFetchReason DecideBodyFetch(ConversationIndexItem item, SyncRunOptions options) =>
+        ConversationFetchBackoff.DecideBodyFetch(
+            item,
+            _store.GetConversation(item.Id),
+            _clock.UtcNow,
+            options.ForceBodyRescan);
 
     private async Task PaceBodyFetchAsync(CancellationToken cancellationToken)
     {
@@ -1141,6 +1157,8 @@ public sealed class SyncEngine
         public int ZeroEvents { get; set; }
         public int AssistantLikeNodes { get; set; }
         public int NodesWithModelMetadata { get; set; }
+        public int ReconstructionCandidates { get; set; }
+        public int MergedDuplicateCorrections { get; set; }
         public Dictionary<QuotaFamily, int> Families { get; } = [];
 
         public void AddFamily(QuotaFamily family)

@@ -2,6 +2,12 @@ using Microsoft.Data.Sqlite;
 
 namespace ProMeter.Services;
 
+/// <summary>Result of one conversation reconciliation. Counts are derived rows, not server debits.</summary>
+public readonly record struct ReconcileOutcome(
+    int CanonicalCount,
+    int MergedDuplicateCorrections,
+    bool RebuiltFromLedger);
+
 public sealed class SqliteStore : IDisposable
 {
     private const string ConversationSelect = """
@@ -316,10 +322,16 @@ public sealed class SqliteStore : IDisposable
         }
     }
 
-    public void ReconcileConversation(
+    /// <summary>
+    /// Persists new observations and refreshes the derived canonical rows of one conversation.
+    /// When <paramref name="ledger"/> is supplied the canonical rows are rebuilt from the
+    /// complete retained observation set, not from whatever the latest response happened to contain.
+    /// </summary>
+    public ReconcileOutcome ReconcileConversation(
         ConversationRecord record,
         IReadOnlyList<UsageEvent> events,
-        IReadOnlyList<UsageObservation>? observations = null)
+        IReadOnlyList<UsageObservation>? observations = null,
+        ReconstructionLedger? ledger = null)
     {
         lock (_gate)
         {
@@ -344,7 +356,23 @@ public sealed class SqliteStore : IDisposable
             }
 
             var existing = LoadEvents(connection, tx, record.ConversationId);
-            var merged = RequestCanonicalizer.MergeCanonical(existing, events);
+            IReadOnlyList<UsageEvent> merged;
+            var mergedDuplicates = 0;
+            var rebuiltFromLedger = false;
+            if (ledger is not null && record.Status == ConversationScanStatus.Ok)
+            {
+                var retained = LoadObservations(connection, tx, record.ConversationId, graphObservedOnly: true);
+                var rebuilt = ledger.Rebuild(retained, record);
+                var applied = RequestCanonicalizer.ApplyRebuild(existing, rebuilt);
+                merged = applied.Events;
+                mergedDuplicates = applied.MergedDuplicateCorrections;
+                rebuiltFromLedger = true;
+            }
+            else
+            {
+                merged = RequestCanonicalizer.MergeCanonical(existing, events);
+            }
+
             var keep = new HashSet<string>(merged.Select(e => e.DedupeKey), StringComparer.OrdinalIgnoreCase);
             if (keep.Count > 0)
             {
@@ -366,6 +394,7 @@ public sealed class SqliteStore : IDisposable
             }
 
             tx.Commit();
+            return new ReconcileOutcome(merged.Count, mergedDuplicates, rebuiltFromLedger);
         }
     }
 
@@ -692,12 +721,17 @@ public sealed class SqliteStore : IDisposable
                    reasoning_effort, created_at, source, project_id, is_archived, first_seen_at, 0, 'assistant'
             FROM usage_events
             WHERE message_id IS NOT NULL;
-            UPDATE usage_events SET reconstruction_version=0, timestamp_provenance='LegacyUnverified'
-            WHERE reconstruction_version IS NULL OR reconstruction_version=0;
+            UPDATE usage_events
+            SET reconstruction_version=COALESCE(reconstruction_version, 0),
+                timestamp_provenance='LegacyUnverified',
+                unresolved_kind='LegacyUnverified',
+                countable=0
+            WHERE reconstruction_version IS NULL OR reconstruction_version < $target;
             INSERT INTO sync_state(key, value) VALUES($k,$v)
             ON CONFLICT(key) DO UPDATE SET value=excluded.value;
             """;
         copy.Parameters.AddWithValue("$k", ReconstructionSchemaStateKey);
+        copy.Parameters.AddWithValue("$target", ConversationFetchBackoff.ReconstructionSemanticsVersion);
         copy.Parameters.AddWithValue("$v", ConversationFetchBackoff.ReconstructionSemanticsVersion.ToString(CultureInfo.InvariantCulture));
         copy.ExecuteNonQuery();
         tx.Commit();
@@ -838,36 +872,74 @@ public sealed class SqliteStore : IDisposable
         }
     }
 
+    private const string ObservationSelect = """
+        SELECT id, conversation_id, message_id, parent_message_id, request_id, role, hidden, end_turn, recipient,
+               requested_model, response_model, raw_model, reasoning_effort, created_at, source, project_id,
+               is_archived, observed_at, reconstruction_version
+        FROM usage_observations
+        """;
+
     public IReadOnlyList<UsageObservation> GetObservations(string conversationId)
     {
         lock (_gate)
         {
             using var connection = Open();
-            using var command = connection.CreateCommand();
-            command.CommandText = """
-                SELECT id, conversation_id, message_id, parent_message_id, request_id, role, hidden, created_at, request_id
-                FROM usage_observations WHERE conversation_id=$conv
-                """;
-            command.Parameters.AddWithValue("$conv", conversationId);
-            using var reader = command.ExecuteReader();
-            var list = new List<UsageObservation>();
-            while (reader.Read())
-            {
-                list.Add(new UsageObservation
-                {
-                    Id = reader.GetString(0),
-                    ConversationId = reader.GetString(1),
-                    MessageId = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    ParentMessageId = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    RequestId = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    Role = reader.IsDBNull(5) ? "" : reader.GetString(5),
-                    Hidden = !reader.IsDBNull(6) && reader.GetInt32(6) == 1,
-                    CreatedAt = reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7), CultureInfo.InvariantCulture)
-                });
-            }
-
-            return list;
+            return LoadObservations(connection, null, conversationId);
         }
+    }
+
+    /// <summary>
+    /// Loads retained observations. <paramref name="graphObservedOnly"/> excludes rows that the
+    /// migration projected from legacy derived events: those carry no parent graph, so feeding them
+    /// into canonicalization would invent identity that was never observed. They stay stored as
+    /// evidence and are still returned by <see cref="GetObservations"/>.
+    /// </summary>
+    private static List<UsageObservation> LoadObservations(
+        SqliteConnection connection,
+        SqliteTransaction? tx,
+        string conversationId,
+        bool graphObservedOnly = false)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = ObservationSelect
+            + " WHERE conversation_id=$conv"
+            + (graphObservedOnly ? " AND reconstruction_version > 0" : "");
+        command.Parameters.AddWithValue("$conv", conversationId);
+        using var reader = command.ExecuteReader();
+        var list = new List<UsageObservation>();
+        while (reader.Read())
+        {
+            list.Add(new UsageObservation
+            {
+                Id = reader.GetString(0),
+                ConversationId = reader.GetString(1),
+                MessageId = reader.IsDBNull(2) ? null : reader.GetString(2),
+                ParentMessageId = reader.IsDBNull(3) ? null : reader.GetString(3),
+                RequestId = reader.IsDBNull(4) ? null : reader.GetString(4),
+                Role = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                Hidden = !reader.IsDBNull(6) && reader.GetInt32(6) == 1,
+                EndTurn = reader.IsDBNull(7) ? null : reader.GetInt32(7) == 1,
+                Recipient = reader.IsDBNull(8) ? null : reader.GetString(8),
+                RequestedModel = reader.IsDBNull(9) ? null : reader.GetString(9),
+                ResponseModel = reader.IsDBNull(10) ? null : reader.GetString(10),
+                RawModel = reader.IsDBNull(11) ? null : reader.GetString(11),
+                Effort = ReasoningNormalizer.FromStorage(reader.IsDBNull(12) ? null : reader.GetString(12)),
+                CreatedAt = reader.IsDBNull(13) ? null : DateTimeOffset.Parse(reader.GetString(13), CultureInfo.InvariantCulture),
+                Source = Enum.TryParse<UsageSource>(reader.IsDBNull(14) ? null : reader.GetString(14), out var source)
+                    ? source
+                    : UsageSource.ConversationSync,
+                ProjectId = reader.IsDBNull(15) ? null : reader.GetString(15),
+                IsArchived = !reader.IsDBNull(16) && reader.GetInt32(16) == 1,
+                ObservedAt = reader.IsDBNull(17)
+                    ? default
+                    : DateTimeOffset.Parse(reader.GetString(17), CultureInfo.InvariantCulture),
+                ReconstructionVersion = reader.IsDBNull(18) ? 0 : reader.GetInt32(18),
+                HasMessage = true
+            });
+        }
+
+        return list;
     }
 
     public void BackupTo(string destinationPath)

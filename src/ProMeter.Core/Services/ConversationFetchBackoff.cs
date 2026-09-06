@@ -3,7 +3,7 @@ namespace ProMeter.Services;
 public static class ConversationFetchBackoff
 {
     public const int ParserCompatibilityVersion = 4;
-    public const int ReconstructionSemanticsVersion = 4;
+    public const int ReconstructionSemanticsVersion = ReconstructionSemantics.Version;
     public const int MaxReconstructionRevalidationsPerSync = 20;
     public const string BodyTimeout = "BodyTimeout";
     public const string SchemaMismatch = "SchemaMismatch";
@@ -47,7 +47,11 @@ public static class ConversationFetchBackoff
         && existing.NextEligibleFetchAt is DateTimeOffset next
         && next > now;
 
-    public static bool ShouldFetch(
+    /// <summary>
+    /// Pure fetch planning. Never claims budget, mutates state, or writes to the database,
+    /// so the changed-item count can call it as often as it likes.
+    /// </summary>
+    public static BodyFetchReason DecideBodyFetch(
         ConversationIndexItem item,
         ConversationRecord? existing,
         DateTimeOffset now,
@@ -55,41 +59,52 @@ public static class ConversationFetchBackoff
     {
         if (forceBodyRescan)
         {
-            return true;
+            return BodyFetchReason.Force;
         }
 
         if (existing is null)
         {
-            return true;
+            return BodyFetchReason.NewConversation;
         }
 
         if (ParserCompatibilityChanged(existing))
         {
-            return true;
+            return BodyFetchReason.ParserCompatibilityRetry;
         }
 
         if (RemoteChanged(item, existing))
         {
-            return true;
+            return BodyFetchReason.RemoteChanged;
         }
 
         if (item.UpdateTime <= 0)
         {
-            return !IsBackoffActive(existing, now);
+            if (!IsBackoffActive(existing, now))
+            {
+                return BodyFetchReason.UnknownRemoteTime;
+            }
         }
-
-        if (existing.Status == ConversationScanStatus.Ok && existing.LastSuccessfulScan is not null)
+        else if (existing.Status != ConversationScanStatus.Ok || existing.LastSuccessfulScan is null)
         {
-            return false;
+            if (!IsBackoffActive(existing, now))
+            {
+                return BodyFetchReason.FailedRetry;
+            }
         }
 
-        if (IsBackoffActive(existing, now))
-        {
-            return false;
-        }
-
-        return true;
+        return ReconstructionSemanticsChanged(existing)
+            ? BodyFetchReason.ReconstructionRevalidation
+            : BodyFetchReason.None;
     }
+
+    public static bool ShouldFetch(
+        ConversationIndexItem item,
+        ConversationRecord? existing,
+        DateTimeOffset now,
+        bool forceBodyRescan) =>
+        DecideBodyFetch(item, existing, now, forceBodyRescan)
+            is not BodyFetchReason.None
+            and not BodyFetchReason.ReconstructionRevalidation;
 
     public static bool IsDeferredFailure(
         ConversationIndexItem item,

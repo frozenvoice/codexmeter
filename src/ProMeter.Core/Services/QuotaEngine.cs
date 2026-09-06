@@ -23,8 +23,16 @@ public sealed class QuotaEngine
         var periodEvents = new List<UsageEvent>();
         var unresolved = 0;
         var heuristic = 0;
+        var legacyPending = 0;
         foreach (var usage in events)
         {
+            if (IsLegacyUnverified(usage))
+            {
+                legacyPending++;
+                unresolved++;
+                continue;
+            }
+
             if (IsPeriodAmbiguous(usage, start, end))
             {
                 unresolved++;
@@ -136,6 +144,7 @@ public sealed class QuotaEngine
             Gpt6WeeklyUsed = gpt6Weekly,
             ReconstructedUsed = reconstructed,
             UnresolvedCount = unresolved,
+            LegacyPendingCount = legacyPending,
             HeuristicReconstructedCount = heuristic,
             ReconstructionIsLowerBound = lowerBound && !useServerWeekly,
             UsesServerWeeklyCount = useServerWeekly,
@@ -171,7 +180,11 @@ public sealed class QuotaEngine
         var endDate = QuotaPeriodCalculator.LocalDate(lastInstant < start ? start : lastInstant, zoneId);
         for (var date = startDate; date <= endDate; date = date.AddDays(1))
         {
-            var slice = events.Where(e => e.HasUsableTimestamp && QuotaPeriodCalculator.LocalDate(e.CreatedAt, zoneId) == date).ToList();
+            var slice = events
+                .Where(e => !IsLegacyUnverified(e)
+                            && e.HasUsableTimestamp
+                            && QuotaPeriodCalculator.LocalDate(e.CreatedAt, zoneId) == date)
+                .ToList();
             days.Add(new DailyTrendPoint
             {
                 Date = date,
@@ -208,8 +221,22 @@ public sealed class QuotaEngine
                || slug.StartsWith("gpt-6", StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Rows derived before the current reconstruction semantics keep their evidence but must not
+    /// contribute to any displayed reconstruction until they are actually revalidated.
+    /// </summary>
+    public static bool IsLegacyUnverified(UsageEvent usage) =>
+        usage.UnresolvedKind == UnresolvedEvidenceKind.LegacyUnverified
+        || usage.TimestampProvenance == TimestampProvenance.LegacyUnverified
+        || usage.ReconstructionVersion < ReconstructionSemantics.Version;
+
     private static bool CountableInRange(UsageEvent usage, DateTimeOffset start, DateTimeOffset end, DateTimeOffset periodStart, DateTimeOffset periodEnd)
     {
+        if (IsLegacyUnverified(usage))
+        {
+            return false;
+        }
+
         if (!usage.Countable || usage.UnresolvedKind != UnresolvedEvidenceKind.None || !usage.HasUsableTimestamp)
         {
             return false;

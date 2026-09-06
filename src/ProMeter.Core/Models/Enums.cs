@@ -106,7 +106,20 @@ public enum UnresolvedEvidenceKind
     Model,
     Timestamp,
     Period,
-    DuplicateCluster
+    DuplicateCluster,
+    LegacyUnverified
+}
+
+public enum BodyFetchReason
+{
+    None,
+    Force,
+    NewConversation,
+    ParserCompatibilityRetry,
+    RemoteChanged,
+    UnknownRemoteTime,
+    FailedRetry,
+    ReconstructionRevalidation
 }
 
 public enum QuotaWindowKind

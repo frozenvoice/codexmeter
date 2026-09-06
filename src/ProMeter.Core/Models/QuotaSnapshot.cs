@@ -24,6 +24,7 @@ public sealed class QuotaSnapshot
     public int Gpt6WeeklyUsed { get; set; }
     public int ReconstructedUsed { get; set; }
     public int UnresolvedCount { get; set; }
+    public int LegacyPendingCount { get; set; }
     public int HeuristicReconstructedCount { get; set; }
     public bool ReconstructionIsLowerBound { get; set; }
     public bool UsesServerWeeklyCount { get; set; }

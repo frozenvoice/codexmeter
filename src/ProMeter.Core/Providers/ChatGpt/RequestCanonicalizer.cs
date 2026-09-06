@@ -153,6 +153,83 @@ public static class RequestCanonicalizer
         return merged.Values.OrderBy(e => e.CreatedAt).ToList();
     }
 
+    /// <summary>
+    /// Result of replacing derived rows with a ledger rebuild. Observations are never destroyed;
+    /// only derived canonical rows are replaced, and evidence that the ledger cannot reproduce
+    /// (official exports) is preserved and reconciled by alias.
+    /// </summary>
+    public sealed record LedgerRebuild(
+        IReadOnlyList<UsageEvent> Events,
+        int MergedDuplicateCorrections);
+
+    /// <summary>
+    /// Replaces the derived canonical rows of one conversation with <paramref name="rebuilt"/>,
+    /// carrying first-seen evidence forward and preserving sources the observation ledger
+    /// cannot reconstruct.
+    /// </summary>
+    public static LedgerRebuild ApplyRebuild(
+        IReadOnlyList<UsageEvent> existing,
+        IReadOnlyList<UsageEvent> rebuilt)
+    {
+        var byAlias = new Dictionary<string, UsageEvent>(StringComparer.OrdinalIgnoreCase);
+        foreach (var usage in existing)
+        {
+            foreach (var alias in CandidateKeys(usage))
+            {
+                byAlias.TryAdd(alias, usage);
+            }
+        }
+
+        var matched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var merges = 0;
+        var results = new List<UsageEvent>(rebuilt.Count);
+        foreach (var usage in rebuilt)
+        {
+            var priors = new List<UsageEvent>();
+            foreach (var alias in CandidateKeys(usage))
+            {
+                if (byAlias.TryGetValue(alias, out var prior) && !priors.Contains(prior))
+                {
+                    priors.Add(prior);
+                }
+            }
+
+            var carried = Clone(usage);
+            if (priors.Count > 0)
+            {
+                carried.FirstSeenAt = priors.Min(p => p.FirstSeenAt) is var first && first != default
+                    ? (first <= carried.FirstSeenAt ? first : carried.FirstSeenAt)
+                    : carried.FirstSeenAt;
+                foreach (var prior in priors)
+                {
+                    matched.Add(prior.DedupeKey);
+                }
+
+                if (priors.Count > 1)
+                {
+                    merges += priors.Count - 1;
+                    carried.CorrectionReason ??= "merged_duplicate";
+                }
+                else if (!string.Equals(priors[0].DedupeKey, carried.DedupeKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    carried.CorrectionReason ??= "identity_merge";
+                }
+            }
+
+            results.Add(carried);
+        }
+
+        var unreproducible = existing
+            .Where(e => e.Source == UsageSource.OfficialExport && !matched.Contains(e.DedupeKey))
+            .ToList();
+        if (unreproducible.Count == 0)
+        {
+            return new LedgerRebuild(results.OrderBy(e => e.CreatedAt).ToList(), merges);
+        }
+
+        return new LedgerRebuild(MergeCanonical(unreproducible, results), merges);
+    }
+
     private static UsageEvent? BuildEvent(
         string key,
         List<UsageObservation> group,
