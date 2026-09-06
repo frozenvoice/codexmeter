@@ -4,14 +4,27 @@ Windows tray monitor for ChatGPT Pro quota and model usage.
 
 ProMeter는 현재 PC에서 발생한 요청만 세지 않습니다. ChatGPT 계정 conversation history를 **재구성 입력**으로 읽어 회사 PC, 집 PC, Android 앱에서 사용한 계정 단위 GPT Pro 사용량을 추정합니다. 일치하는 서버 quota counter만 Authoritative입니다.
 
+기본 화면은 재구성된 **관측 요청** 집계입니다. 서버가 사용량을 알려주지 않으면 정확한 잔여 횟수를 만들어내지 않습니다.
+
 ```text
 GPT PRO
-██████████████░░░░░░ 34 / 50
-
-Used       34
-Remaining  16
-Reset      3d 11h
+상태                확인 불가
+이번 주기 기록 집계   7회 · 추정
+잔여 횟수            확인 불가
 ```
+
+위 숫자는 화면 형태를 보여주는 예시일 뿐이며 약속된 값이 아닙니다. `추정`은 계정 conversation history에서 재구성한 관측 요청 수이고, 서버가 청구한 quota 사용량이 증명된 값이 아닙니다.
+
+같은 allowance와 현재 period에 대해 서버가 유효한 used / limit / reset counter를 제공할 때에만 정확한 사용량과 잔여가 함께 표시됩니다.
+
+```text
+GPT PRO
+서버 사용량   34 / 50
+잔여          16
+Reset        3d 11h
+```
+
+자세한 의미는 [docs/metering-contract.md](docs/metering-contract.md)를 참고하세요.
 
 ## 설치
 
@@ -108,11 +121,26 @@ Conversation history는 재구성 입력입니다. 로컬 브라우저 요청 �
 - 삭제된 conversation
 - history에 남지 않은 실패 요청
 
-한 번의 사용자 요청은 `request_id` 기준으로 1회로 계산합니다. hidden assistant / reasoning / tool call / final response가 같아도 중복 카운트하지 않습니다.
+한 번의 생성(generation)은 1회로 계산합니다. 신원은 대화 범위로 한정한 `request_id`와 conversation graph 연결 관계를 함께 사용합니다. hidden assistant / reasoning / tool call / final response는 같은 생성이면 중복 카운트하지 않고, 길게 걸린 생성이나 나중에 다시 가져온 응답도 하나로 유지합니다.
+
+`request_id`가 전역적으로 유일하다고 가정하지 않으며, 끼어든 사용자 요청·서로 다른 request_id·독립 regeneration branch는 병합하지 않습니다. 신원이나 모델·시각 근거가 부족한 관측은 확정 요청으로 만들지 않고 **확인 보류**로 따로 표시합니다.
+
+이전 버전 semantics로 저장된 행은 증거로 보존하되, 실제로 재검증되기 전까지는 재구성 집계에 넣지 않고 확인 보류로 셉니다.
 
 ## Temporary / Delete limitation
 
 Coverage는 `Good` / `Estimated` / `Incomplete` 등으로 표시됩니다. 공식 quota API 값이 없으면 `Authoritative` 또는 `Exact`라고 표시하지 않습니다.
+
+## 데이터 이전과 백업
+
+재구성 semantics가 올라가면 저장된 파생 사용량 행을 다시 만들어야 합니다. ProMeter는 사용량 DB를 건드리기 전에 SQLite backup API로 일관된 백업을 만들고 열어서 검증합니다.
+
+- 위치: `%LOCALAPPDATA%\ProMeter\backups\metering\`
+- 이름: `prometer-pre-reconstruction-v<이전>-to-v<현재>-<UTC 시각>.db` (계정 식별자나 개인 이름 없음)
+- 자동 백업은 최근 3개만 보관합니다
+- 백업을 만들거나 검증하지 못하면 이전을 진행하지 않고 중단합니다. 기존 DB는 그대로 남습니다
+
+이미 성공적으로 읽은 대화도 예전 semantics로 만들어졌다면 다시 가져와 재구성합니다. 이 재검증은 동기화당 상한이 있고 중단 후 재개되며, 남은 대화가 없어질 때까지 실행마다 진행됩니다.
 
 ## Privacy
 

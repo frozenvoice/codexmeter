@@ -54,6 +54,9 @@ public static class UiText
     public static string ReconstructedCount(int count) => T($"{count} · estimated", $"{count}회 · 추정");
     public static string CurrentCycleReconstructed => T("This cycle reconstructed", "이번 주기 기록 집계");
     public static string UnresolvedPending => T("Unresolved", "확인 보류");
+    public static string MigrationBackupFailed => T(
+        "ProMeter could not create a verified backup of the usage database, so it stopped before migrating it. Your data was not changed.",
+        "사용량 데이터베이스의 검증된 백업을 만들 수 없어 이전을 중단했습니다. 기존 데이터는 변경되지 않았습니다.");
     public static string UnresolvedPendingCount(int count) => T($"{count} items", $"{count}건");
     public static string ObservedRequestsNotBilled => T(
         "Observed requests, not proven server-billed quota.",

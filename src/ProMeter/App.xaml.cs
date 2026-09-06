@@ -69,8 +69,24 @@ public partial class App : Application
         _settingsStore = new SettingsStore();
         _settings = _settingsStore.Load();
         UiText.SetLanguage(_settings.UiLanguage);
-        _store = new SqliteStore();
         _log = new AppLog();
+
+        // A reconstruction-semantics migration rewrites derived usage rows, so the rollback point
+        // must exist before the auto-migrating store is ever opened.
+        var migration = DatabaseMigrationBootstrap.Prepare(log: _log.Info);
+        if (!migration.CanProceed)
+        {
+            _log.Error("metering db bootstrap refused migration: " + migration.FailureReason);
+            MessageBox.Show(
+                UiText.MigrationBackupFailed,
+                UiText.ProductName,
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+            Shutdown();
+            return;
+        }
+
+        _store = new SqliteStore();
         _models = new ModelNormalizer();
         _models.Hydrate(_store.GetObservedModels());
         _parser = new ConversationParser(_models);
