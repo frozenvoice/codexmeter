@@ -77,10 +77,14 @@ public partial class TaskbarStatusStripWindow : Window
         try
         {
             var hwnd = _hwnd?.Handle ?? IntPtr.Zero;
-            var input = TaskbarWin32.Capture(hwnd);
+            var capture = TaskbarWin32.Capture(hwnd);
+            var input = capture.Input;
             LastEdge = input.Edge;
             var placed = TaskbarStatusPositioner.Place(input);
-            var decision = _visibility.Observe(input, placed.Visible ? placed.Mode : TaskbarStripMode.Hidden);
+            var decision = _visibility.Observe(
+                input,
+                placed.Visible ? placed.Mode : TaskbarStripMode.Hidden,
+                capture.Fullscreen);
             if (!string.IsNullOrWhiteSpace(decision.LogLine))
             {
                 VisibilityLog?.Invoke(decision.LogLine);
@@ -89,7 +93,7 @@ public partial class TaskbarStatusStripWindow : Window
             if (!decision.OverlayVisible)
             {
                 Topmost = false;
-                if (IsVisible && decision.Action == TaskbarStripVisibilityAction.Hide)
+                if (IsVisible)
                 {
                     Hide();
                 }

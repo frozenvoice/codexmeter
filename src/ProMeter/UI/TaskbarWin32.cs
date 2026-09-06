@@ -3,6 +3,8 @@ using ProMeter.Codex;
 
 namespace ProMeter.UI;
 
+internal readonly record struct TaskbarCapture(TaskbarLayoutInput Input, FullscreenObservation Fullscreen);
+
 internal static class TaskbarWin32
 {
     private const uint AbmGetTaskbarPos = 5;
@@ -10,6 +12,11 @@ internal static class TaskbarWin32
     private const int AbsAutoHide = 1;
     private const int GwlStyle = -16;
     private const int WsMaximize = 0x01000000;
+    private const int WsCaption = 0x00C00000;
+    private const int WsThickFrame = 0x00040000;
+    private const int WsPopup = unchecked((int)0x80000000);
+    private const uint GaRoot = 2;
+    private const int DwmwaExtendedFrameBounds = 9;
     public const int WmDisplayChange = 0x007E;
     public const int WmDpiChanged = 0x02E0;
     public const int WmSettingChange = 0x001A;
@@ -22,7 +29,7 @@ internal static class TaskbarWin32
 
     public static int TaskbarCreatedMessage { get; } = RegisterWindowMessage("TaskbarCreated");
 
-    public static TaskbarLayoutInput Capture(IntPtr stripHwnd)
+    public static TaskbarCapture Capture(IntPtr stripHwnd)
     {
         var taskbarHwnd = FindWindow("Shell_TrayWnd", null);
         var pos = GetTaskbarPos(taskbarHwnd);
@@ -37,8 +44,8 @@ internal static class TaskbarWin32
                     ?? ChildRect(notify?.Hwnd ?? IntPtr.Zero, "ClockButton");
         var taskList = ChildRect(taskbarHwnd, "MSTaskListWClass")
                        ?? ChildRect(taskbarHwnd, "MSTaskSwWClass");
-        var fullscreen = ExclusiveFullscreen(monitor.Monitor, work, stripHwnd, taskbarHwnd);
-        return new TaskbarLayoutInput(
+        var fullscreen = ObserveFullscreen(monitor.Monitor, work, stripHwnd, taskbarHwnd);
+        var input = new TaskbarLayoutInput(
             monitor.Monitor,
             work,
             actual,
@@ -49,7 +56,8 @@ internal static class TaskbarWin32
             scale,
             IsAutoHide(),
             IsWindowVisible(taskbarHwnd),
-            fullscreen);
+            fullscreen.Kind == FullscreenObservationKind.Fullscreen);
+        return new TaskbarCapture(input, fullscreen);
     }
 
     public static void ApplyToolWindowStyles(IntPtr hwnd)
@@ -151,26 +159,65 @@ internal static class TaskbarWin32
         return (child, ToRect(rect));
     }
 
-    private static bool ExclusiveFullscreen(ScreenRect monitor, ScreenRect work, IntPtr stripHwnd, IntPtr taskbarHwnd)
+    private static FullscreenObservation ObserveFullscreen(
+        ScreenRect monitor,
+        ScreenRect work,
+        IntPtr stripHwnd,
+        IntPtr taskbarHwnd)
     {
         var foreground = GetForegroundWindow();
-        if (foreground == IntPtr.Zero || foreground == stripHwnd || foreground == taskbarHwnd)
+        if (foreground == IntPtr.Zero)
         {
-            return false;
+            return FullscreenClassifier.Observe(
+                ForegroundWindowFacts.Missing(ForegroundWindowRole.None),
+                monitor,
+                work);
         }
 
-        if (TaskbarStatusPositioner.IsIgnoredFullscreenForeground(WindowClassName(foreground)))
+        var root = GetAncestor(foreground, GaRoot);
+        if (root != IntPtr.Zero)
         {
-            return false;
+            foreground = root;
         }
 
-        if (!GetWindowRect(foreground, out var rect))
+        var className = WindowClassName(foreground);
+        var role = TaskbarStatusPositioner.ClassifyForegroundRole(
+            className,
+            stripHwnd != IntPtr.Zero && foreground == stripHwnd,
+            taskbarHwnd != IntPtr.Zero && foreground == taskbarHwnd);
+        var style = GetWindowLong(foreground, GwlStyle);
+        var facts = new ForegroundWindowFacts(
+            className,
+            FrameBounds(foreground, out var boundsValid),
+            boundsValid,
+            (style & WsMaximize) == WsMaximize,
+            (style & (WsCaption | WsThickFrame)) != 0,
+            (style & WsPopup) != 0,
+            role);
+        return FullscreenClassifier.Observe(facts, monitor, work);
+    }
+
+    private static ScreenRect FrameBounds(IntPtr hwnd, out bool valid)
+    {
+        try
         {
-            return false;
+            if (DwmGetWindowAttribute(hwnd, DwmwaExtendedFrameBounds, out var frame, Marshal.SizeOf<RECT>()) == 0
+                && frame.Right > frame.Left
+                && frame.Bottom > frame.Top)
+            {
+                valid = true;
+                return ToRect(frame);
+            }
+        }
+        catch (DllNotFoundException)
+        {
+        }
+        catch (EntryPointNotFoundException)
+        {
         }
 
-        var maximized = (GetWindowLong(foreground, GwlStyle) & WsMaximize) == WsMaximize;
-        return TaskbarStatusPositioner.IsForegroundFullscreenOnMonitor(ToRect(rect), monitor, work, maximized);
+        valid = GetWindowRect(hwnd, out var rect);
+        return valid ? ToRect(rect) : default;
     }
 
     private static string WindowClassName(IntPtr hwnd)
@@ -234,6 +281,12 @@ internal static class TaskbarWin32
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);

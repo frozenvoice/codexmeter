@@ -87,20 +87,12 @@ public static class TaskbarStatusPositioner
         ScreenRect monitor,
         ScreenRect workArea,
         bool foregroundIsMaximized = false,
-        int tolerancePx = TaskbarVisibilityDetector.FullscreenTolerancePx)
-    {
-        if (!CoversMonitor(foreground, monitor, tolerancePx))
-        {
-            return false;
-        }
-
-        if (CoversMonitor(workArea, monitor, tolerancePx))
-        {
-            return !foregroundIsMaximized;
-        }
-
-        return true;
-    }
+        int tolerancePx = TaskbarVisibilityDetector.FullscreenTolerancePx) =>
+        FullscreenClassifier.Observe(
+            ForegroundWindowFacts.FromMaximizedFlag(foreground, foregroundIsMaximized),
+            monitor,
+            workArea,
+            tolerancePx).Kind == FullscreenObservationKind.Fullscreen;
 
     public static bool CoversMonitor(
         ScreenRect window,
@@ -123,7 +115,30 @@ public static class TaskbarStatusPositioner
     }
 
     public static bool IsIgnoredFullscreenForeground(string? className) =>
-        className is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd" or "Progman" or "WorkerW";
+        IsShellTaskbarForeground(className) || IsDesktopShellForeground(className);
+
+    public static bool IsShellTaskbarForeground(string? className) =>
+        className is "Shell_TrayWnd" or "Shell_SecondaryTrayWnd";
+
+    public static bool IsDesktopShellForeground(string? className) =>
+        className is "Progman" or "WorkerW";
+
+    public static ForegroundWindowRole ClassifyForegroundRole(string? className, bool ownOverlay, bool taskbarWindow)
+    {
+        if (ownOverlay)
+        {
+            return ForegroundWindowRole.OwnOverlay;
+        }
+
+        if (taskbarWindow || IsShellTaskbarForeground(className))
+        {
+            return ForegroundWindowRole.ShellTaskbar;
+        }
+
+        return IsDesktopShellForeground(className)
+            ? ForegroundWindowRole.Desktop
+            : ForegroundWindowRole.Application;
+    }
 
     public static TaskbarLayoutResult Place(
         TaskbarLayoutInput input,

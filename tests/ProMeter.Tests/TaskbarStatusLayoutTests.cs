@@ -116,17 +116,21 @@ public class TaskbarStatusLayoutTests
         Assert.Equal(TaskbarStripVisibilityAction.Hide, hidden.Action);
         Assert.False(hidden.OverlayVisible);
         Assert.Contains("exclusive-fullscreen", hidden.LogLine, StringComparison.Ordinal);
-        Assert.Contains("foregroundCoversMonitor=true", hidden.LogLine, StringComparison.Ordinal);
+        Assert.Contains("observation=fullscreen", hidden.LogLine, StringComparison.Ordinal);
+        Assert.Contains("suppression=true", hidden.LogLine, StringComparison.Ordinal);
         Assert.Contains("taskbarVisible=true", hidden.LogLine, StringComparison.Ordinal);
         var source = File.ReadAllText(Find("src/ProMeter.Core/Codex/TaskbarStatusLayout.cs"));
         var method = source[source.IndexOf("IsForegroundFullscreenOnMonitor(", StringComparison.Ordinal)..];
         Assert.DoesNotContain("taskbarVisible", method[..method.IndexOf("public static bool CoversMonitor", StringComparison.Ordinal)], StringComparison.Ordinal);
         var win32 = File.ReadAllText(Find("src/ProMeter/UI/TaskbarWin32.cs"));
-        var exclusive = win32[win32.IndexOf("private static bool ExclusiveFullscreen", StringComparison.Ordinal)..];
-        exclusive = exclusive[..exclusive.IndexOf("private static string WindowClassName", StringComparison.Ordinal)];
+        var exclusive = win32[win32.IndexOf("private static FullscreenObservation ObserveFullscreen", StringComparison.Ordinal)..];
+        exclusive = exclusive[..exclusive.IndexOf("private static ScreenRect FrameBounds", StringComparison.Ordinal)];
         Assert.DoesNotContain("IsWindowVisible", exclusive, StringComparison.Ordinal);
-        Assert.Contains("IsIgnoredFullscreenForeground", exclusive, StringComparison.Ordinal);
+        Assert.Contains("ClassifyForegroundRole", exclusive, StringComparison.Ordinal);
+        Assert.Contains("GetAncestor", exclusive, StringComparison.Ordinal);
         Assert.Contains("stripHwnd", exclusive, StringComparison.Ordinal);
+        Assert.Contains("DwmGetWindowAttribute", win32, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetWindowText", win32, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -207,10 +211,18 @@ public class TaskbarStatusLayoutTests
         var still = gate.Observe(fullscreen, TaskbarStripMode.Hidden);
         Assert.Equal(TaskbarStripVisibilityAction.Retain, still.Action);
         Assert.False(still.OverlayVisible);
+        for (var i = 1; i < TaskbarStripVisibilityGate.FullscreenExitConfirmationsRequired; i++)
+        {
+            var pending = gate.Observe(visible, TaskbarStripMode.Full);
+            Assert.Equal(TaskbarStripVisibilityAction.Retain, pending.Action);
+            Assert.False(pending.OverlayVisible);
+        }
+
         var restored = gate.Observe(visible, TaskbarStripMode.Full);
         Assert.Equal(TaskbarStripVisibilityAction.Show, restored.Action);
         Assert.True(restored.OverlayVisible);
         Assert.Contains("taskbar strip shown", restored.LogLine, StringComparison.Ordinal);
+        Assert.Contains("fullscreenExitConfirmations=4", restored.LogLine, StringComparison.Ordinal);
     }
 
     [Fact]
