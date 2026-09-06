@@ -106,6 +106,7 @@ public static class NativeMessagingFraming
 public static class NativeMessagingHost
 {
     public const string PipeName = "ProMeterCompanion";
+    public static readonly TimeSpan OtherPumpDrainTimeout = TimeSpan.FromMilliseconds(500);
 
     public static bool ShouldRun(string[] args, CompanionPairingState pairing) =>
         CompanionCallerOrigin.IsAllowed(args, pairing);
@@ -192,11 +193,18 @@ public static class NativeMessagingHost
         }
 
         linked.Cancel();
+        var other = chromeFirst ? pipeToChrome : chromeToPipe;
         try
         {
-            await Task.WhenAll(chromeToPipe, pipeToChrome).ConfigureAwait(false);
+            await other.WaitAsync(OtherPumpDrainTimeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
         }
         catch (OperationCanceledException)
+        {
+        }
+        catch
         {
         }
 

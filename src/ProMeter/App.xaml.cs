@@ -82,6 +82,7 @@ public partial class App : Application
         var pairing = CompanionPairingStore.LoadOrCreate();
         _companionServer = new CompanionPipeServer(_companionHub, pairing, _log);
         _companionServer.Start();
+        EnsureCompanionHostRegistration();
         ApplyTransport();
         _toasts = new ToastNotificationService(_settingsStore, _log);
         StartupConsent.ApplyIfPermitted(new WindowsStartupService(), _settings);
@@ -635,6 +636,39 @@ public partial class App : Application
         _settings.AutoSync = welcome.AutoSyncOptIn;
     }
 
+    private void EnsureCompanionHostRegistration()
+    {
+        try
+        {
+            var pairing = CompanionPairingStore.LoadOrCreate();
+            var chromeId = FirstNonEmpty(_settings.ChromeExtensionId, pairing.ChromeExtensionId);
+            var edgeId = FirstNonEmpty(_settings.EdgeExtensionId, pairing.EdgeExtensionId);
+            var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "prometer.exe");
+            var result = CompanionRegistration.EnsureCurrent(exe, chromeId, edgeId);
+            if (!result.Ok)
+            {
+                _log.Warn("companion host registration: " + AppLog.Sanitize(result.Error));
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("companion host registration: " + AppLog.Sanitize(ex.GetType().Name));
+        }
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return null;
+    }
+
     private string? RegisterCompanionHost(string? chromeId, string? edgeId)
     {
         var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "prometer.exe");
@@ -833,15 +867,26 @@ public partial class App : Application
     private void ExitApp()
     {
         IsExiting = true;
-        _lifetime.Cancel();
         _timer.Stop();
         _codexTimer.Stop();
         _proStatusTimer.Stop();
         _proResetRecheckTimer.Stop();
-        _taskbarStrip?.Close();
+        _lifetime.Cancel();
+        try { _flyout?.Hide(); } catch { }
+        try { _widget?.Hide(); } catch { }
+        try { _main?.Hide(); } catch { }
+        try { _taskbarStrip?.Close(); } catch { }
         _taskbarStrip = null;
-        _tray.Dispose();
+        try
+        {
+            _companionServer?.StopAsync(CompanionPipeServer.StopTimeout).GetAwaiter().GetResult();
+        }
+        catch
+        {
+        }
+
         _companionServer?.Dispose();
+        _tray.Dispose();
         _webViewTransport.Dispose();
         _store.Dispose();
         Shutdown();

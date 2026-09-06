@@ -20,6 +20,7 @@ public static class AppPaths
     public static string WebViewProfile => Directory.CreateDirectory(Path.Combine(Root, "webview")).FullName;
     public static string CompanionPairing => Path.Combine(Root, "companion-pairing.json");
     public static string CompanionHostManifest => Path.Combine(Root, "com.prometer.bridge.json");
+    public static string NativeHostRoot => Directory.CreateDirectory(Path.Combine(Root, "native-host")).FullName;
     public static string CodexSnapshot => Path.Combine(Root, "codex-snapshot.json");
     public static string ProServerStatus => Path.Combine(Root, "pro-server-status.json");
 }

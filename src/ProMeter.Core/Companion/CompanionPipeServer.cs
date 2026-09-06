@@ -8,11 +8,17 @@ namespace ProMeter.Companion;
 
 public sealed class CompanionPipeServer : IDisposable
 {
+    public static readonly TimeSpan StopTimeout = TimeSpan.FromMilliseconds(1000);
+
     private readonly CompanionRequestHub _hub;
     private readonly CompanionPairingState _pairing;
     private readonly AppLog _log;
     private readonly string _pipeName;
+    private readonly object _gate = new();
     private CancellationTokenSource? _cts;
+    private Task? _listenTask;
+    private Task? _stopTask;
+    private NamedPipeServerStream? _activePipe;
     private string? _hostExitReason;
 
     public CompanionPipeServer(CompanionRequestHub hub, CompanionPairingState pairing, AppLog log, string? pipeName = null)
@@ -25,8 +31,107 @@ public sealed class CompanionPipeServer : IDisposable
 
     public void Start()
     {
-        _cts = new CancellationTokenSource();
-        _ = Task.Run(() => ListenAsync(_cts.Token));
+        lock (_gate)
+        {
+            if (_listenTask is not null)
+            {
+                return;
+            }
+
+            _cts = new CancellationTokenSource();
+            _listenTask = Task.Run(() => ListenAsync(_cts.Token));
+        }
+    }
+
+    public Task StopAsync() => StopAsync(StopTimeout);
+
+    public Task StopAsync(TimeSpan timeout)
+    {
+        lock (_gate)
+        {
+            _stopTask ??= StopCoreAsync(timeout);
+            return _stopTask;
+        }
+    }
+
+    private async Task StopCoreAsync(TimeSpan timeout)
+    {
+        try
+        {
+            _cts?.Cancel();
+        }
+        catch
+        {
+        }
+
+        NamedPipeServerStream? pipe;
+        lock (_gate)
+        {
+            pipe = _activePipe;
+        }
+
+        try
+        {
+            pipe?.Dispose();
+        }
+        catch
+        {
+        }
+
+        _hub.FailAllPending(CompanionBridgeProtocol.DisconnectResponse());
+
+        Task? listen;
+        lock (_gate)
+        {
+            listen = _listenTask;
+        }
+
+        if (listen is not null)
+        {
+            try
+            {
+                await listen.WaitAsync(timeout).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            catch
+            {
+            }
+        }
+
+        NamedPipeServerStream? leftover;
+        lock (_gate)
+        {
+            leftover = _activePipe;
+        }
+
+        try
+        {
+            leftover?.Dispose();
+        }
+        catch
+        {
+        }
+
+        if (listen is null || listen.IsCompleted)
+        {
+            try
+            {
+                _cts?.Dispose();
+            }
+            catch
+            {
+            }
+
+            lock (_gate)
+            {
+                _cts = null;
+            }
+        }
     }
 
     private async Task ListenAsync(CancellationToken cancellationToken)
@@ -43,6 +148,12 @@ public sealed class CompanionPipeServer : IDisposable
                     1,
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                SetActivePipe(pipe);
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 await pipe.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
                 generation = _hub.BeginConnection();
                 _hostExitReason = null;
@@ -56,11 +167,20 @@ public sealed class CompanionPipeServer : IDisposable
             }
             catch (Exception ex)
             {
-                _log.Warn("companion pipe: " + AppLog.Sanitize(ex.GetType().Name));
-                _hostExitReason ??= CompanionHostLifecycle.ToWire(CompanionHostLifecycleReason.PipePumpFailed);
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    _log.Warn("companion pipe: " + AppLog.Sanitize(ex.GetType().Name));
+                    _hostExitReason ??= CompanionHostLifecycle.ToWire(CompanionHostLifecycleReason.PipePumpFailed);
+                }
+
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
             }
             finally
             {
+                ClearActivePipe(pipe);
                 if (_hub.IsConnected)
                 {
                     _log.Info("companion disconnected");
@@ -75,7 +195,37 @@ public sealed class CompanionPipeServer : IDisposable
                 }
 
                 _hub.Disconnect(generation);
-                pipe?.Dispose();
+                try
+                {
+                    pipe?.Dispose();
+                }
+                catch
+                {
+                }
+            }
+        }
+    }
+
+    private void SetActivePipe(NamedPipeServerStream pipe)
+    {
+        lock (_gate)
+        {
+            _activePipe = pipe;
+        }
+    }
+
+    private void ClearActivePipe(NamedPipeServerStream? pipe)
+    {
+        if (pipe is null)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (ReferenceEquals(_activePipe, pipe))
+            {
+                _activePipe = null;
             }
         }
     }
@@ -133,6 +283,9 @@ public sealed class CompanionPipeServer : IDisposable
             catch (OperationCanceledException)
             {
             }
+            catch
+            {
+            }
         }, cancellationToken);
 
         try
@@ -154,7 +307,7 @@ public sealed class CompanionPipeServer : IDisposable
             writes.Writer.TryComplete();
             try
             {
-                await writer.ConfigureAwait(false);
+                await writer.WaitAsync(TimeSpan.FromMilliseconds(250)).ConfigureAwait(false);
             }
             catch
             {
@@ -237,9 +390,13 @@ public sealed class CompanionPipeServer : IDisposable
 
     public void Dispose()
     {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _hub.FailAllPending(CompanionBridgeProtocol.DisconnectResponse());
+        try
+        {
+            StopAsync(StopTimeout).GetAwaiter().GetResult();
+        }
+        catch
+        {
+        }
     }
 }
 

@@ -1,8 +1,5 @@
 using System.IO;
-using System.Text.Json.Nodes;
 using Microsoft.Win32;
-using ProMeter.Providers.ChatGpt;
-using ProMeter.Services;
 
 namespace ProMeter.Companion;
 
@@ -11,10 +8,35 @@ public static class CompanionRegistration
     public const string ChromeNativeHosts = @"Software\Google\Chrome\NativeMessagingHosts\" + CompanionBridgeProtocol.NativeHostName;
     public const string EdgeNativeHosts = @"Software\Microsoft\Edge\NativeMessagingHosts\" + CompanionBridgeProtocol.NativeHostName;
 
+    public static CompanionHostManifestResult EnsureCurrent(string trayExePath, string? chromeExtensionId, string? edgeExtensionId)
+    {
+        if (string.IsNullOrWhiteSpace(chromeExtensionId) && string.IsNullOrWhiteSpace(edgeExtensionId))
+        {
+            return new CompanionHostManifestResult { Ok = true };
+        }
+
+        return Register(trayExePath, chromeExtensionId, edgeExtensionId);
+    }
+
     public static CompanionHostManifestResult Register(string trayExePath, string? chromeExtensionId, string? edgeExtensionId)
     {
-        var host = ResolveHostPath(trayExePath);
-        var created = CompanionHostManifest.TryCreate(host, chromeExtensionId, edgeExtensionId);
+        var releaseHost = ResolveHostPath(trayExePath);
+        if (releaseHost is null)
+        {
+            return new CompanionHostManifestResult { Error = "prometer-companion-host.exe is missing" };
+        }
+
+        string stagedHost;
+        try
+        {
+            stagedHost = CompanionHostStager.EnsureStaged(releaseHost);
+        }
+        catch (Exception ex)
+        {
+            return new CompanionHostManifestResult { Error = "companion host staging failed: " + ex.GetType().Name };
+        }
+
+        var created = CompanionHostManifest.TryCreate(stagedHost, chromeExtensionId, edgeExtensionId);
         if (!created.Ok || created.ManifestJson is null || created.HostPath is null)
         {
             return created;

@@ -121,6 +121,34 @@ public class CompanionHostLifecycleTests
     }
 
     [Fact]
+    public async Task RunPumpsAsync_PipeEof_DoesNotHangOnCancellationIgnoringChromeInput()
+    {
+        using var chromeIn = new CancellationIgnoringHangStream();
+        using var chromeOut = new MemoryStream();
+        using var pipe = new MemoryStream();
+        var started = DateTime.UtcNow;
+        var result = await NativeMessagingHost.RunPumpsAsync(chromeIn, chromeOut, pipe, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(CompanionHostLifecycleReason.PipeInputEof, result.Reason);
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(1.5));
+        Assert.False(chromeIn.ReadCompleted);
+    }
+
+    [Fact]
+    public async Task RunPumpsAsync_ChromeEof_DoesNotHangOnCancellationIgnoringPipeReader()
+    {
+        using var chromeIn = new MemoryStream();
+        using var chromeOut = new MemoryStream();
+        using var pipe = new CancellationIgnoringHangStream();
+        var started = DateTime.UtcNow;
+        var result = await NativeMessagingHost.RunPumpsAsync(chromeIn, chromeOut, pipe, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(CompanionHostLifecycleReason.ChromeInputEof, result.Reason);
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(1.5));
+        Assert.False(pipe.ReadCompleted);
+    }
+
+    [Fact]
     public void PipeServerSource_LogsFixedReasonsWithoutRawPayloads()
     {
         var source = File.ReadAllText(Find("src/ProMeter.Core/Companion/CompanionPipeServer.cs"));
@@ -135,10 +163,23 @@ public class CompanionHostLifecycleTests
         Assert.Contains("CompanionHostLifecycle.PipeConnectedLine", host, StringComparison.Ordinal);
         Assert.Contains("CompanionHostLifecycle.ExitingLine", host, StringComparison.Ordinal);
         Assert.Contains("TryEmitLifecycleToPipeAsync", host, StringComparison.Ordinal);
+        Assert.Contains("OtherPumpDrainTimeout", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("await Task.WhenAll(chromeToPipe, pipeToChrome)", host, StringComparison.Ordinal);
+        Assert.Contains("pipe.Connect(2000)", host, StringComparison.Ordinal);
         Assert.DoesNotContain("Console.WriteLine", host, StringComparison.Ordinal);
         Assert.DoesNotContain("Console.Write(", host, StringComparison.Ordinal);
         Assert.Contains("catch (Exception ex)", host, StringComparison.Ordinal);
         Assert.Contains("ex.GetType().Name", host, StringComparison.Ordinal);
+        var registration = File.ReadAllText(Find("src/ProMeter/Companion/CompanionRegistration.cs"));
+        Assert.Contains("CompanionHostStager.EnsureStaged", registration, StringComparison.Ordinal);
+        Assert.Contains("EnsureCurrent", registration, StringComparison.Ordinal);
+        var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
+        Assert.Contains("EnsureCompanionHostRegistration", app, StringComparison.Ordinal);
+        var exitApp = app.IndexOf("private void ExitApp()", StringComparison.Ordinal);
+        Assert.True(exitApp >= 0);
+        var stop = app.IndexOf("StopAsync(CompanionPipeServer.StopTimeout)", exitApp, StringComparison.Ordinal);
+        var shutdown = app.IndexOf("Shutdown();", exitApp, StringComparison.Ordinal);
+        Assert.True(stop >= 0 && shutdown > stop);
     }
 
     [Fact]
@@ -177,5 +218,48 @@ public class CompanionHostLifecycleTests
         }
 
         throw new FileNotFoundException(relative);
+    }
+
+    private sealed class CancellationIgnoringHangStream : Stream
+    {
+        private readonly TaskCompletionSource<int> _read = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public bool ReadCompleted => _read.Task.IsCompleted;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => 0;
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) =>
+            _read.Task.GetAwaiter().GetResult();
+
+        public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            _read.Task;
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken) =>
+            new(_read.Task);
+
+        public override void Write(byte[] buffer, int offset, int count)
+        {
+        }
+
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) =>
+            ValueTask.CompletedTask;
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
     }
 }
