@@ -68,6 +68,10 @@ public partial class FlyoutWindow : Window
         HistoryLowerBoundCaption.Visibility = presentation.ShowHistoryLowerBound ? Visibility.Visible : Visibility.Collapsed;
         ConfirmedUsageText.Text = presentation.ConfirmedRequestsText;
         HistoryLowerBoundCaption.Text = presentation.HistoryLowerBoundCaption;
+        UnresolvedPendingPanel.Visibility = presentation.UnresolvedCount > 0 ? Visibility.Visible : Visibility.Collapsed;
+        UnresolvedPendingText.Text = presentation.UnresolvedCount > 0
+            ? UiText.UnresolvedPendingCount(presentation.UnresolvedCount)
+            : "";
         HistoryStatsPanel.Visibility = Visibility.Collapsed;
         ConfirmedRequestsText.Text = presentation.ConfirmedRequestsText;
         CountSourceText.Text = presentation.CountSourceText;
@@ -251,8 +255,9 @@ public partial class FlyoutWindow : Window
     {
         ProStateLabel.Text = UiText.T("Status", "상태");
         ExactRemainingLabel.Text = UiText.RemainingCount;
-        ConfirmedUsageLabel.Text = UiText.ConfirmedProUsage;
-        HistoryLowerBoundCaption.Text = UiText.HistoryBasedLowerBound;
+        ConfirmedUsageLabel.Text = UiText.CurrentCycleReconstructed;
+        HistoryLowerBoundCaption.Text = UiText.ReconstructedObservedCaption;
+        UnresolvedPendingLabel.Text = UiText.UnresolvedPending;
         HistoryStatsLabel.Text = UiText.HistoryStatistics;
         ConfirmedRequestsLabel.Text = UiText.ConfirmedProRequests;
         Gpt6WeekLabel.Text = UiText.Gpt6ProWeek;

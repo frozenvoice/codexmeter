@@ -10,7 +10,7 @@ public class OnboardingOutcomeTests
         var view = OnboardingOutcomeMapper.From(AppSyncStatus.UpToDate, 12, 50, null);
         Assert.True(view.ShowCount);
         Assert.True(view.AllowFinish);
-        Assert.Contains("12+", view.Message, StringComparison.Ordinal);
+        Assert.Contains("12 · estimated", view.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("12 / 50", view.Message, StringComparison.Ordinal);
     }
 

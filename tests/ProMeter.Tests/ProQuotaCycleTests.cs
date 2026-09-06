@@ -65,7 +65,7 @@ public class ProQuotaCycleTests
         Assert.Equal(2, snapshot.ReconstructedUsed);
         Assert.Equal(ResetAnchorSource.RetainedServer, snapshot.ResetAnchorSource);
         Assert.True(snapshot.CurrentCycleKnown);
-        Assert.Equal("2+", ProStatusPresentation.From(snapshot).ConfirmedRequestsText);
+        Assert.Equal(UiText.ReconstructedCount(2), ProStatusPresentation.From(snapshot).ConfirmedRequestsText);
     }
 
     [Fact]
@@ -166,7 +166,7 @@ public class ProQuotaCycleTests
         Assert.True(snapshot.CurrentCycleKnown);
         Assert.Equal(ResetAnchorSource.UserConfigured, snapshot.ResetAnchorSource);
         Assert.Equal(1, snapshot.ReconstructedUsed);
-        Assert.Equal("1+", ProStatusPresentation.From(snapshot).ConfirmedRequestsText);
+        Assert.Equal(UiText.ReconstructedCount(1), ProStatusPresentation.From(snapshot).ConfirmedRequestsText);
     }
 
     [Fact]

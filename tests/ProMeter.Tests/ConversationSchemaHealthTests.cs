@@ -68,7 +68,7 @@ public class ConversationSchemaHealthTests
         Assert.Equal(
             expected,
             ConversationSchemaHealthPolicy.RestoreLatch(storedValue, storedParserVersion, currentParserVersion));
-        Assert.Equal(3, ConversationFetchBackoff.ParserCompatibilityVersion);
+        Assert.Equal(4, ConversationFetchBackoff.ParserCompatibilityVersion);
     }
 
     [Fact]
@@ -409,7 +409,7 @@ public class ConversationSchemaHealthTests
         store.SetState(ConversationSchemaHealthPolicy.LatchParserVersionStateKey, "999");
         var engine = RestartEngine(store);
         Assert.False(engine.ConversationSchemaSystemicFailureLatched);
-        Assert.Equal(3, ConversationFetchBackoff.ParserCompatibilityVersion);
+        Assert.Equal(4, ConversationFetchBackoff.ParserCompatibilityVersion);
         Assert.False(
             ConversationSchemaHealthPolicy.RestoreLatch(
                 "true",

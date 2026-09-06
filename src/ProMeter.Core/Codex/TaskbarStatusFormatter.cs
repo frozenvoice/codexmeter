@@ -70,9 +70,10 @@ public static class TaskbarStatusFormatter
                 : presentation.Restricted
                     ? "P!"
                     : "P";
+            var staleMark = count.EndsWith('~') && stale == "~" ? "" : stale;
             return mode == TaskbarStripMode.Full
-                ? $"{prefix} {count}{stale}"
-                : $"{prefix}{count}{stale}";
+                ? $"{prefix} {count}{staleMark}"
+                : $"{prefix}{count}{staleMark}";
         }
 
         if (!presentation.ServerStatusKnown || presentation.ResetAmbiguous)
@@ -107,7 +108,7 @@ public static class TaskbarStatusFormatter
             return null;
         }
 
-        return snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture) + "+";
+        return ProStatusPresentation.CompactReconstructedToken(snapshot);
     }
 
     private static string CodexToken(CodexQuotaSnapshot snapshot, TaskbarStripMode mode)

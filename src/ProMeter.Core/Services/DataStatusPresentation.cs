@@ -70,7 +70,7 @@ public sealed class DataStatusPresentation
             $"{UiText.CountConfidence}    {DisplayFormatting.CountConfidenceLabel(coverage.CountConfidence)}",
             UiText.HistoryConfirmedMinPro(snapshot.DisplayUsageUnavailable
                 ? "?"
-                : snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture) + "+")
+                : ProStatusPresentation.FormatReconstructedCount(snapshot))
         };
 
         var failures = DisplayFormatting.CoverageFailureDetailLines(coverage);

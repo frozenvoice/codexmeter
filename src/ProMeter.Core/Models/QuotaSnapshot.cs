@@ -23,6 +23,9 @@ public sealed class QuotaSnapshot
     public int CombinedToday { get; set; }
     public int Gpt6WeeklyUsed { get; set; }
     public int ReconstructedUsed { get; set; }
+    public int UnresolvedCount { get; set; }
+    public int HeuristicReconstructedCount { get; set; }
+    public bool ReconstructionIsLowerBound { get; set; }
     public bool UsesServerWeeklyCount { get; set; }
     public bool UsesServerSolDailyCount { get; set; }
     public bool UsesServerCombinedDailyCount { get; set; }

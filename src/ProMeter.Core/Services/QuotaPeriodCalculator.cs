@@ -55,6 +55,22 @@ public static class QuotaPeriodCalculator
     public static bool InRange(DateTimeOffset value, DateTimeOffset start, DateTimeOffset end) =>
         value >= start && value < end;
 
+    public static DateTimeOffset LocalWeekStart(DateTimeOffset now, AppSettings settings)
+    {
+        var zone = ResolveZone(settings.ResetTimeZoneId);
+        var local = TimeZoneInfo.ConvertTime(now, zone);
+        var days = ((int)local.DayOfWeek - (int)settings.ResetWeekday + 7) % 7;
+        var start = new DateTimeOffset(local.Year, local.Month, local.Day, 0, 0, 0, local.Offset).AddDays(-days);
+        return start.ToUniversalTime();
+    }
+
+    public static DateOnly LocalDate(DateTimeOffset value, string? timeZoneId)
+    {
+        var zone = ResolveZone(timeZoneId);
+        var local = TimeZoneInfo.ConvertTime(value, zone);
+        return DateOnly.FromDateTime(local.DateTime);
+    }
+
     private static DateTimeOffset NextOrSameAnchor(DateTimeOffset localNow, DayOfWeek weekday, TimeSpan time)
     {
         var days = ((int)weekday - (int)localNow.DayOfWeek + 7) % 7;

@@ -30,7 +30,7 @@ public class QuotaCountAuthorityTests
         Assert.Equal(200, snapshot.Limit);
         Assert.Equal("11 / 200", DisplayFormatting.UsageLabel(snapshot));
         Assert.Equal("11 / 200", DisplayFormatting.WindowUsage(snapshot.Used, snapshot.Limit, snapshot.UsesServerWeeklyCount));
-        Assert.Equal("1+", DisplayFormatting.WindowUsage(snapshot.TodaySolPro, snapshot.SolProDailyLimit, snapshot.UsesServerSolDailyCount));
+        Assert.Equal(UiText.ReconstructedCount(1), DisplayFormatting.WindowUsage(snapshot.TodaySolPro, snapshot.SolProDailyLimit, snapshot.UsesServerSolDailyCount));
         Assert.True(ProStatusPresentation.From(snapshot).ExactRemainingAvailable);
         Assert.DoesNotContain(
             QuotaNotificationPolicy.Evaluate(snapshot, settings),
@@ -58,7 +58,7 @@ public class QuotaCountAuthorityTests
 
         Assert.True(snapshot.UsesServerWeeklyCount);
         Assert.False(snapshot.UsesServerCombinedDailyCount);
-        Assert.Equal("1+", DisplayFormatting.WindowUsage(snapshot.CombinedToday, snapshot.CombinedDailyLimit, snapshot.UsesServerCombinedDailyCount));
+        Assert.Equal(UiText.ReconstructedCount(1), DisplayFormatting.WindowUsage(snapshot.CombinedToday, snapshot.CombinedDailyLimit, snapshot.UsesServerCombinedDailyCount));
         Assert.DoesNotContain(
             QuotaNotificationPolicy.Evaluate(snapshot, settings),
             item => item.Body == UiText.ToastCombined10 || item.Body == UiText.ToastCombined20 || item.Body == UiText.ToastCombinedExhausted);
@@ -141,7 +141,7 @@ public class QuotaCountAuthorityTests
         Assert.False(snapshot.UsesServerSolDailyCount);
         Assert.False(snapshot.UsesServerCombinedDailyCount);
         Assert.Equal(1, snapshot.ReconstructedUsed);
-        Assert.Equal("1+", DisplayFormatting.UsageLabel(snapshot));
+        Assert.Equal(UiText.ReconstructedCount(1), DisplayFormatting.UsageLabel(snapshot));
         Assert.False(ProStatusPresentation.From(snapshot).ExactRemainingAvailable);
         Assert.Equal(UiText.ExactRemainingUnavailable, ProStatusPresentation.From(snapshot).ExactRemainingText);
     }

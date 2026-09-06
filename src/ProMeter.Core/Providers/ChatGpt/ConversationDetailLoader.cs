@@ -236,6 +236,11 @@ public sealed class ConversationDetailLoader
             return false;
         }
 
+        if (HasRemainingPagination(node))
+        {
+            return false;
+        }
+
         if (node["mapping"] is not JsonObject mapping || mapping.Count == 0)
         {
             return false;
@@ -262,6 +267,47 @@ public sealed class ConversationDetailLoader
             }
 
             cursor = ChatGptJson.GetString(obj, "parent");
+        }
+
+        return GraphReferencesResolved(mapping);
+    }
+
+    public static bool HasRemainingPagination(JsonNode node)
+    {
+        var info = node["page_info"] ?? node["pageInfo"];
+        return ChatGptJson.GetBool(info, "has_previous_page", "hasPreviousPage") == true;
+    }
+
+    public static bool GraphReferencesResolved(JsonObject mapping)
+    {
+        foreach (var property in mapping)
+        {
+            if (property.Value is not JsonObject obj)
+            {
+                continue;
+            }
+
+            var parent = ChatGptJson.GetString(obj, "parent");
+            if (!string.IsNullOrWhiteSpace(parent)
+                && parent is not "none" and not "null"
+                && !mapping.ContainsKey(parent))
+            {
+                return false;
+            }
+
+            if (obj["children"] is not JsonArray children)
+            {
+                continue;
+            }
+
+            foreach (var child in children)
+            {
+                var id = child?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(id) && !mapping.ContainsKey(id))
+                {
+                    return false;
+                }
+            }
         }
 
         return true;

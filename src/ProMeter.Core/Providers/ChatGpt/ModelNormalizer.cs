@@ -42,8 +42,29 @@ public sealed class ModelNormalizer
         }
 
         var family = ClassifyFromSignals(key, title, description);
-        var display = !string.IsNullOrWhiteSpace(title) ? title.Trim() : key;
-        _observed[key] = new MappedModel(key, display, family, Mapped: family != QuotaFamily.Unknown);
+        if (_observed.TryGetValue(key, out var existing))
+        {
+            if (existing.Mapped && family == QuotaFamily.Unknown && string.IsNullOrWhiteSpace(title))
+            {
+                return;
+            }
+
+            var display = !string.IsNullOrWhiteSpace(title) ? title.Trim() : existing.DisplayName;
+            var keepFamily = existing.Mapped && family == QuotaFamily.Unknown ? existing.Family : family;
+            _observed[key] = new MappedModel(key, display, keepFamily, Mapped: keepFamily != QuotaFamily.Unknown);
+            return;
+        }
+
+        var displayName = !string.IsNullOrWhiteSpace(title) ? title.Trim() : key;
+        _observed[key] = new MappedModel(key, displayName, family, Mapped: family != QuotaFamily.Unknown);
+    }
+
+    public void Hydrate(IEnumerable<(string Slug, string? Title)> observed)
+    {
+        foreach (var (slug, title) in observed)
+        {
+            Observe(slug, title);
+        }
     }
 
     public NormalizedModel Resolve(string? requestedModel, string? responseModel, string? catalogTitle = null)
@@ -73,8 +94,13 @@ public sealed class ModelNormalizer
             return ToNormalized(confirmed, raw);
         }
 
-        Observe(key, catalogTitle);
         if (_observed.TryGetValue(key, out var observed) && observed.Mapped)
+        {
+            return ToNormalized(observed, raw);
+        }
+
+        Observe(key, catalogTitle);
+        if (_observed.TryGetValue(key, out observed) && observed.Mapped)
         {
             return ToNormalized(observed, raw);
         }

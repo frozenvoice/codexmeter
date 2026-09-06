@@ -25,6 +25,7 @@ public sealed class ProStatusPresentation
     public bool HasServerReset { get; init; }
     public bool ResetAmbiguous { get; init; }
     public DateTimeOffset? ServerResetAt { get; init; }
+    public int UnresolvedCount { get; init; }
 
     public static ProStatusPresentation From(QuotaSnapshot snapshot)
     {
@@ -35,11 +36,7 @@ public sealed class ProStatusPresentation
         var ambiguous = status.HasAmbiguousResets || status.ResetConfidence == ServerResetConfidence.Ambiguous;
         var hasServerReset = status.ResetConfidence == ServerResetConfidence.Server && status.ResetAt is not null;
         var exact = snapshot.UsesServerWeeklyCount && !snapshot.DisplayUsageUnavailable;
-        var reconstructed = snapshot.DisplayUsageUnavailable
-            ? "?"
-            : !snapshot.CurrentCycleKnown
-                ? UiText.Unavailable
-                : snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture) + "+";
+        var reconstructed = FormatReconstructedCount(snapshot);
         var stateText = status.RestrictionState switch
         {
             ProRestrictionState.CorrelatedRestriction => UiText.ProRestricted,
@@ -74,12 +71,14 @@ public sealed class ProStatusPresentation
                 : known
                     ? "P"
                     : "?";
-        var lowerBoundCaption = UiText.HistoryBasedLowerBound;
+        var lowerBoundCaption = SupportsLowerBound(snapshot)
+            ? UiText.HistoryBasedLowerBound
+            : UiText.ReconstructedObservedCaption;
         var countSource = exact
             ? UiText.ServerCount(snapshot.ReconstructedUsed)
             : snapshot.DisplayUsageUnavailable
                 ? UiText.IncompleteReconstruction
-                : UiText.HistoryBasedLowerBound;
+                : lowerBoundCaption;
         if (snapshot.IsSyncing && snapshot.LastSync is not null)
         {
             countSource = $"{UiText.PreviousData} · {countSource}";
@@ -113,8 +112,53 @@ public sealed class ProStatusPresentation
             CountSourceText = countSource,
             HistoryLowerBoundCaption = exact ? "" : lowerBoundCaption,
             Headline = headline,
-            ShowHistoryLowerBound = !exact
+            ShowHistoryLowerBound = !exact,
+            UnresolvedCount = snapshot.UnresolvedCount
         };
+    }
+
+    public static string FormatReconstructedCount(QuotaSnapshot snapshot)
+    {
+        if (snapshot.DisplayUsageUnavailable)
+        {
+            return "?";
+        }
+
+        if (!snapshot.CurrentCycleKnown)
+        {
+            return UiText.Unavailable;
+        }
+
+        var n = snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture);
+        return SupportsLowerBound(snapshot) ? n + "+" : UiText.ReconstructedCount(snapshot.ReconstructedUsed);
+    }
+
+    public static bool SupportsLowerBound(QuotaSnapshot snapshot)
+    {
+        if (snapshot.ReconstructionIsLowerBound)
+        {
+            return true;
+        }
+
+        if (snapshot.UnresolvedCount > 0 || snapshot.HeuristicReconstructedCount > 0 || snapshot.DisplayUsageUnavailable)
+        {
+            return false;
+        }
+
+        return snapshot.Coverage.IndexIncomplete
+               || snapshot.Coverage.ConversationIncomplete
+               || snapshot.Coverage.FailedConversations > 0;
+    }
+
+    public static string CompactReconstructedToken(QuotaSnapshot snapshot)
+    {
+        if (!snapshot.CurrentCycleKnown || snapshot.DisplayUsageUnavailable)
+        {
+            return "";
+        }
+
+        var n = snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture);
+        return SupportsLowerBound(snapshot) ? n + "+" : n + "~";
     }
 
     public string TrayTooltip(QuotaSnapshot snapshot)

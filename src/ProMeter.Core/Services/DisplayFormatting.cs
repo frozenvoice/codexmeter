@@ -142,10 +142,12 @@ public static class DisplayFormatting
         _ => UiText.Idle
     };
 
-    public static string WindowUsage(int used, int? limit, bool authoritative) =>
+    public static string WindowUsage(int used, int? limit, bool authoritative, bool lowerBound = false) =>
         authoritative && limit is int value
             ? $"{used} / {value}"
-            : $"{used}+";
+            : lowerBound
+                ? $"{used}+"
+                : UiText.ReconstructedCount(used);
 
     public static string UsageLabel(QuotaSnapshot snapshot)
     {

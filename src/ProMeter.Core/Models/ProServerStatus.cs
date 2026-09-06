@@ -16,6 +16,8 @@ public sealed class ProServerStatus
     public DateTimeOffset? ResetAt { get; set; }
     public ServerResetConfidence ResetConfidence { get; set; } = ServerResetConfidence.None;
     public DateTimeOffset? LastConfirmedResetAt { get; set; }
+    public string? LastConfirmedResetAllowanceId { get; set; }
+    public QuotaWindowKind LastConfirmedResetWindowKind { get; set; }
     public DateTimeOffset? ObservedAt { get; set; }
     public IReadOnlyList<ProModelLimit> ModelLimits { get; set; } = [];
     public string? CorrelatedBlockedFeatureName { get; set; }
@@ -43,6 +45,8 @@ public sealed class ProServerStatus
         ResetAt = ResetAt,
         ResetConfidence = ResetConfidence,
         LastConfirmedResetAt = LastConfirmedResetAt,
+        LastConfirmedResetAllowanceId = LastConfirmedResetAllowanceId,
+        LastConfirmedResetWindowKind = LastConfirmedResetWindowKind,
         ObservedAt = ObservedAt,
         ModelLimits = ModelLimits.Select(limit => new ProModelLimit
         {
@@ -65,10 +69,21 @@ public sealed class ProServerStatus
         if (incoming.ResetConfidence == ServerResetConfidence.Server && incoming.ResetAt is DateTimeOffset live)
         {
             incoming.LastConfirmedResetAt = live;
+            incoming.LastConfirmedResetAllowanceId = incoming.LastConfirmedResetAllowanceId
+                ?? incoming.LastConfirmedResetWindowKind switch
+                {
+                    QuotaWindowKind.Gpt6ProWeekly => "pro200-gpt6-weekly",
+                    QuotaWindowKind.SharedProWeekly => "pro100-shared-weekly",
+                    _ => incoming.LastConfirmedResetAllowanceId
+                };
             return;
         }
 
         incoming.LastConfirmedResetAt = previous?.LastConfirmedResetAt ?? incoming.LastConfirmedResetAt;
+        incoming.LastConfirmedResetAllowanceId = previous?.LastConfirmedResetAllowanceId ?? incoming.LastConfirmedResetAllowanceId;
+        incoming.LastConfirmedResetWindowKind = previous is { LastConfirmedResetWindowKind: not QuotaWindowKind.Unclassified }
+            ? previous.LastConfirmedResetWindowKind
+            : incoming.LastConfirmedResetWindowKind;
     }
 
     public static void MigrateLoadedConfirmedReset(ProServerStatus status)

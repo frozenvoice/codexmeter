@@ -132,12 +132,12 @@ public class IsolatedConversationFailureTests
         Assert.Equal(0, store.GetConversation("conv-giant")?.ConsecutiveFetchFailures);
         Assert.Null(store.GetConversation("conv-giant")?.LastFetchFailureCategory);
         var events = store.GetUsageEvents().Where(e => e.QuotaFamily == QuotaFamily.GptPro).ToList();
-        Assert.Equal(3, events.Count);
+        Assert.Equal(4, events.Count);
         Assert.Equal(events.Count, events.Select(e => e.DedupeKey).Distinct(StringComparer.Ordinal).Count());
         var snapshot3 = Snapshot(engine, store, settings);
-        Assert.Equal(3, snapshot3.ReconstructedUsed);
+        Assert.Equal(4, snapshot3.ReconstructedUsed);
         Assert.Equal(UserFacingHealthKind.Usable, UserFacingHealth.From(snapshot3).Kind);
-        Assert.Equal("3+", ProStatusPresentation.From(snapshot3).ConfirmedRequestsText);
+        Assert.Equal(UiText.ReconstructedCount(4), ProStatusPresentation.From(snapshot3).ConfirmedRequestsText);
     }
 
     private static QuotaSnapshot Snapshot(SyncEngine engine, SqliteStore store, AppSettings settings) =>

@@ -48,7 +48,11 @@ public partial class MainWindow : Window
             : $"{UiText.GptPro}  {presentation.ProStateText}";
         if (presentation.ShowHistoryLowerBound)
         {
-            proLine += $"   ·   {UiText.ConfirmedProUsage} {presentation.ConfirmedRequestsText}   ·   {presentation.HistoryLowerBoundCaption}";
+            proLine += $"   ·   {UiText.CurrentCycleReconstructed} {presentation.ConfirmedRequestsText}   ·   {presentation.HistoryLowerBoundCaption}";
+            if (presentation.UnresolvedCount > 0)
+            {
+                proLine += $"   ·   {UiText.UnresolvedPending} {UiText.UnresolvedPendingCount(presentation.UnresolvedCount)}";
+            }
         }
 
         ProStatusText.Text = proLine;

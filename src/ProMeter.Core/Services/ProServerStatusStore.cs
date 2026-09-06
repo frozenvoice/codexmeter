@@ -72,6 +72,8 @@ public sealed class ProServerStatusStore
         public DateTimeOffset? ResetAt { get; set; }
         public string ResetConfidence { get; set; } = nameof(ServerResetConfidence.None);
         public DateTimeOffset? LastConfirmedResetAt { get; set; }
+        public string? LastConfirmedResetAllowanceId { get; set; }
+        public string LastConfirmedResetWindowKind { get; set; } = nameof(QuotaWindowKind.Unclassified);
         public DateTimeOffset? ObservedAt { get; set; }
         public List<PersistedLimit> ModelLimits { get; set; } = [];
         public string? CorrelatedBlockedFeatureName { get; set; }
@@ -90,6 +92,8 @@ public sealed class ProServerStatusStore
             ResetAt = status.ResetAt,
             ResetConfidence = status.ResetConfidence.ToString(),
             LastConfirmedResetAt = status.LastConfirmedResetAt,
+            LastConfirmedResetAllowanceId = status.LastConfirmedResetAllowanceId,
+            LastConfirmedResetWindowKind = status.LastConfirmedResetWindowKind.ToString(),
             ObservedAt = status.ObservedAt,
             ModelLimits = status.ModelLimits.Select(PersistedLimit.From).ToList(),
             CorrelatedBlockedFeatureName = status.CorrelatedBlockedFeatureName,
@@ -113,6 +117,10 @@ public sealed class ProServerStatusStore
                 ResetAt = ResetAt,
                 ResetConfidence = reset,
                 LastConfirmedResetAt = LastConfirmedResetAt,
+                LastConfirmedResetAllowanceId = LastConfirmedResetAllowanceId,
+                LastConfirmedResetWindowKind = Enum.TryParse<QuotaWindowKind>(LastConfirmedResetWindowKind, out var kind)
+                    ? kind
+                    : QuotaWindowKind.Unclassified,
                 ObservedAt = ObservedAt,
                 ModelLimits = ModelLimits.Select(limit => limit.ToLimit()).ToList(),
                 CorrelatedBlockedFeatureName = CorrelatedBlockedFeatureName,

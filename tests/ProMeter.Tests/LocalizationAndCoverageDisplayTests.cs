@@ -175,7 +175,7 @@ public class LocalizationAndCoverageDisplayTests
             },
             Reasoning = new ReasoningStats { Today = 3, ThisWeek = 10, Limit = null }
         };
-        Assert.Equal("28+", DisplayFormatting.UsageLabel(snapshot));
+        Assert.Equal(UiText.ReconstructedCount(28), DisplayFormatting.UsageLabel(snapshot));
         Assert.Contains("Previous data", DisplayFormatting.CountSourceLabel(snapshot), StringComparison.Ordinal);
         Assert.Contains("Syncing...", DisplayFormatting.StatusLabel(snapshot), StringComparison.Ordinal);
         Assert.Equal("Not available", DisplayFormatting.ReasoningLimitValue(snapshot.Reasoning.Limit));

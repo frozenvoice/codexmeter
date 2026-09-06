@@ -48,6 +48,16 @@ public static class UiText
     public static string NextReset => T("Next reset", "다음 리셋");
     public static string EstimatedStamp(string stamp) => T($"{stamp} · estimated", $"{stamp} · 추정");
     public static string HistoryBasedLowerBound => T("History-based minimum", "기록 기반 최소치");
+    public static string ReconstructedObservedCaption => T(
+        "Reconstructed observed requests · estimated",
+        "기록 집계 · 추정");
+    public static string ReconstructedCount(int count) => T($"{count} · estimated", $"{count}회 · 추정");
+    public static string CurrentCycleReconstructed => T("This cycle reconstructed", "이번 주기 기록 집계");
+    public static string UnresolvedPending => T("Unresolved", "확인 보류");
+    public static string UnresolvedPendingCount(int count) => T($"{count} items", $"{count}건");
+    public static string ObservedRequestsNotBilled => T(
+        "Observed requests, not proven server-billed quota.",
+        "관측된 요청이며 서버 차감 횟수는 아닙니다.");
     public static string HistoryStatistics => T("History statistics", "기록 통계");
     public static string ProRestricted => T("Restricted", "제한됨");
     public static string ProNoServerRestriction => T("No server restriction observed", "서버 제한 없음");

@@ -79,6 +79,36 @@ public enum DedupeConfidence
     Heuristic
 }
 
+public enum TimestampProvenance
+{
+    Unspecified,
+    ResponseFragment,
+    RequestStart,
+    LinkedUserThisInvocation,
+    Unknown,
+    LegacyUnverified
+}
+
+public enum ModelEvidenceConfidence
+{
+    Unspecified,
+    ObservedResponse,
+    RequestedOnly,
+    Catalog,
+    Conflicting,
+    Unknown
+}
+
+public enum UnresolvedEvidenceKind
+{
+    None,
+    Identity,
+    Model,
+    Timestamp,
+    Period,
+    DuplicateCluster
+}
+
 public enum QuotaWindowKind
 {
     Unclassified,

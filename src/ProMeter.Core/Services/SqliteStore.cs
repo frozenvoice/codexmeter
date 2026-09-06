@@ -8,7 +8,7 @@ public sealed class SqliteStore : IDisposable
         SELECT conversation_id, update_time, project_id, archived, last_scanned, last_seen_update_time, source,
                last_successful_scan, last_error_at, last_error, scan_status,
                consecutive_fetch_failures, next_eligible_fetch_at, last_fetch_failure_category,
-               last_attempted_update_time, fetch_failure_parser_version
+               last_attempted_update_time, fetch_failure_parser_version, reconstruction_version
         FROM conversations
         """;
 
@@ -108,8 +108,67 @@ public sealed class SqliteStore : IDisposable
             EnsureColumn(connection, "conversations", "last_attempted_update_time", "REAL NOT NULL DEFAULT 0");
             EnsureColumn(connection, "conversations", "fetch_failure_parser_version", "INTEGER NOT NULL DEFAULT 0");
             EnsureColumn(connection, "usage_events", "dedupe_confidence", "TEXT");
+            EnsureColumn(connection, "usage_events", "timestamp_provenance", "TEXT");
+            EnsureColumn(connection, "usage_events", "model_confidence", "TEXT");
+            EnsureColumn(connection, "usage_events", "period_ambiguous", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "usage_events", "countable", "INTEGER NOT NULL DEFAULT 1");
+            EnsureColumn(connection, "usage_events", "unresolved_kind", "TEXT");
+            EnsureColumn(connection, "usage_events", "reconstruction_version", "INTEGER NOT NULL DEFAULT 0");
+            EnsureColumn(connection, "usage_events", "request_started_at", "TEXT");
+            EnsureColumn(connection, "usage_events", "response_completed_at", "TEXT");
+            EnsureColumn(connection, "usage_events", "correction_reason", "TEXT");
+            EnsureColumn(connection, "usage_events", "identity_aliases", "TEXT");
+            EnsureColumn(connection, "conversations", "reconstruction_version", "INTEGER NOT NULL DEFAULT 0");
+            using var extra = connection.CreateCommand();
+            extra.CommandText = """
+                CREATE TABLE IF NOT EXISTS usage_observations (
+                    id TEXT PRIMARY KEY,
+                    conversation_id TEXT NOT NULL,
+                    message_id TEXT,
+                    parent_message_id TEXT,
+                    request_id TEXT,
+                    role TEXT,
+                    hidden INTEGER NOT NULL DEFAULT 0,
+                    end_turn INTEGER,
+                    recipient TEXT,
+                    requested_model TEXT,
+                    response_model TEXT,
+                    raw_model TEXT,
+                    reasoning_effort TEXT,
+                    created_at TEXT,
+                    source TEXT,
+                    project_id TEXT,
+                    is_archived INTEGER NOT NULL DEFAULT 0,
+                    observed_at TEXT NOT NULL,
+                    reconstruction_version INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE(conversation_id, message_id)
+                );
+                """;
+            extra.ExecuteNonQuery();
+            extra.CommandText = "CREATE INDEX IF NOT EXISTS idx_obs_conversation ON usage_observations(conversation_id);";
+            extra.ExecuteNonQuery();
+            extra.CommandText = """
+                CREATE TABLE IF NOT EXISTS usage_identity_aliases (
+                    alias_key TEXT PRIMARY KEY,
+                    canonical_dedupe_key TEXT NOT NULL
+                );
+                """;
+            extra.ExecuteNonQuery();
+            extra.CommandText = """
+                CREATE TABLE IF NOT EXISTS metering_snapshots (
+                    id TEXT PRIMARY KEY,
+                    captured_at TEXT NOT NULL,
+                    reconstruction_version INTEGER NOT NULL,
+                    kind TEXT NOT NULL,
+                    payload TEXT NOT NULL
+                );
+                """;
+            extra.ExecuteNonQuery();
+            MigrateReconstructionLedger(connection);
         }
     }
+
+    public const string ReconstructionSchemaStateKey = "reconstruction_schema_version";
 
     private static void EnsureColumn(SqliteConnection connection, string table, string column, string type)
     {
@@ -257,7 +316,10 @@ public sealed class SqliteStore : IDisposable
         }
     }
 
-    public void ReconcileConversation(ConversationRecord record, IReadOnlyList<UsageEvent> events)
+    public void ReconcileConversation(
+        ConversationRecord record,
+        IReadOnlyList<UsageEvent> events,
+        IReadOnlyList<UsageObservation>? observations = null)
     {
         lock (_gate)
         {
@@ -268,40 +330,41 @@ public sealed class SqliteStore : IDisposable
             BindConversation(upsertConv, record);
             upsertConv.ExecuteNonQuery();
 
-            var keys = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var usage in events)
+            var incomingObservations = observations is { Count: > 0 }
+                ? observations
+                : events.Select(EventAsObservation).ToList();
+            foreach (var observation in incomingObservations)
             {
-                var key = string.IsNullOrWhiteSpace(usage.DedupeKey)
-                    ? UsageEvent.BuildDedupeKey(usage.ConversationId, usage.RequestId, usage.MessageId)
-                    : usage.DedupeKey;
-                keys.Add(key);
-                InsertEvent(connection, tx, usage);
+                if (string.IsNullOrWhiteSpace(observation.ConversationId))
+                {
+                    observation.ConversationId = record.ConversationId;
+                }
+
+                InsertObservation(connection, tx, observation);
             }
 
-            using var stale = connection.CreateCommand();
-            stale.Transaction = tx;
-            if (keys.Count == 0)
+            var existing = LoadEvents(connection, tx, record.ConversationId);
+            var merged = RequestCanonicalizer.MergeCanonical(existing, events);
+            var keep = new HashSet<string>(merged.Select(e => e.DedupeKey), StringComparer.OrdinalIgnoreCase);
+            if (keep.Count > 0)
             {
+                using var stale = connection.CreateCommand();
+                stale.Transaction = tx;
                 stale.CommandText = """
                     DELETE FROM usage_events
                     WHERE conversation_id=$conv
-                      AND source IN ('ConversationSync','ArchivedSync','ProjectSync')
-                    """;
-                stale.Parameters.AddWithValue("$conv", record.ConversationId);
-            }
-            else
-            {
-                stale.CommandText = """
-                    DELETE FROM usage_events
-                    WHERE conversation_id=$conv
-                      AND source IN ('ConversationSync','ArchivedSync','ProjectSync')
                       AND dedupe_key NOT IN (SELECT value FROM json_each($keys))
                     """;
                 stale.Parameters.AddWithValue("$conv", record.ConversationId);
-                stale.Parameters.AddWithValue("$keys", JsonSerializer.Serialize(keys));
+                stale.Parameters.AddWithValue("$keys", JsonSerializer.Serialize(keep));
+                stale.ExecuteNonQuery();
+            }
+            foreach (var usage in merged)
+            {
+                InsertEvent(connection, tx, usage);
+                RememberAliases(connection, tx, usage);
             }
 
-            stale.ExecuteNonQuery();
             tx.Commit();
         }
     }
@@ -332,7 +395,10 @@ public sealed class SqliteStore : IDisposable
             command.CommandText = """
                 SELECT id, request_id, conversation_id, message_id, created_at, requested_model, response_model,
                        normalized_model, raw_model, reasoning_effort, source, project_id, is_archived,
-                       first_seen_at, last_seen_at, quota_family, dedupe_key, dedupe_confidence
+                       first_seen_at, last_seen_at, quota_family, dedupe_key, dedupe_confidence,
+                       timestamp_provenance, model_confidence, period_ambiguous, countable, unresolved_kind,
+                       reconstruction_version, request_started_at, response_completed_at, correction_reason,
+                       identity_aliases
                 FROM usage_events
                 ORDER BY created_at ASC
                 """;
@@ -404,9 +470,9 @@ public sealed class SqliteStore : IDisposable
                 conversation_id, update_time, project_id, archived, last_scanned, last_seen_update_time, source,
                 last_successful_scan, last_error_at, last_error, scan_status,
                 consecutive_fetch_failures, next_eligible_fetch_at, last_fetch_failure_category,
-                last_attempted_update_time, fetch_failure_parser_version)
+                last_attempted_update_time, fetch_failure_parser_version, reconstruction_version)
             VALUES($id,$update,$project,$archived,$scanned,$seen,$source,$success,$errat,$err,$status,
-                   $failures,$next,$failcat,$attempted,$parser)
+                   $failures,$next,$failcat,$attempted,$parser,$recon)
             ON CONFLICT(conversation_id) DO UPDATE SET
                 update_time=CASE WHEN excluded.scan_status='Ok' THEN excluded.update_time ELSE conversations.update_time END,
                 project_id=excluded.project_id,
@@ -422,7 +488,8 @@ public sealed class SqliteStore : IDisposable
                 next_eligible_fetch_at=excluded.next_eligible_fetch_at,
                 last_fetch_failure_category=excluded.last_fetch_failure_category,
                 last_attempted_update_time=excluded.last_attempted_update_time,
-                fetch_failure_parser_version=excluded.fetch_failure_parser_version;
+                fetch_failure_parser_version=excluded.fetch_failure_parser_version,
+                reconstruction_version=excluded.reconstruction_version;
             """;
         command.Parameters.AddWithValue("$id", record.ConversationId);
         command.Parameters.AddWithValue("$update", record.UpdateTime);
@@ -440,6 +507,7 @@ public sealed class SqliteStore : IDisposable
         command.Parameters.AddWithValue("$failcat", (object?)record.LastFetchFailureCategory ?? DBNull.Value);
         command.Parameters.AddWithValue("$attempted", record.LastAttemptedUpdateTime);
         command.Parameters.AddWithValue("$parser", record.FetchFailureParserVersion);
+        command.Parameters.AddWithValue("$recon", record.ReconstructionVersion);
     }
 
     private static int InsertEvent(SqliteConnection connection, SqliteTransaction tx, UsageEvent e)
@@ -450,19 +518,35 @@ public sealed class SqliteStore : IDisposable
             INSERT INTO usage_events(
                 id, request_id, conversation_id, message_id, created_at, requested_model, response_model,
                 normalized_model, raw_model, reasoning_effort, source, project_id, is_archived,
-                first_seen_at, last_seen_at, quota_family, dedupe_key, dedupe_confidence)
-            VALUES($id,$req,$conv,$msg,$created,$reqm,$resm,$norm,$raw,$effort,$source,$project,$archived,$first,$last,$family,$dedupe,$conf)
+                first_seen_at, last_seen_at, quota_family, dedupe_key, dedupe_confidence,
+                timestamp_provenance, model_confidence, period_ambiguous, countable, unresolved_kind,
+                reconstruction_version, request_started_at, response_completed_at, correction_reason,
+                identity_aliases)
+            VALUES($id,$req,$conv,$msg,$created,$reqm,$resm,$norm,$raw,$effort,$source,$project,$archived,$first,$last,$family,$dedupe,$conf,
+                   $tprov,$mconf,$pamb,$countable,$unres,$rver,$rstart,$rend,$corr,$aliases)
             ON CONFLICT(dedupe_key) DO UPDATE SET
                 last_seen_at=excluded.last_seen_at,
+                request_id=COALESCE(excluded.request_id, usage_events.request_id),
                 requested_model=COALESCE(excluded.requested_model, usage_events.requested_model),
                 response_model=COALESCE(excluded.response_model, usage_events.response_model),
-                normalized_model=excluded.normalized_model,
-                raw_model=excluded.raw_model,
+                normalized_model=CASE WHEN excluded.quota_family='Unknown' THEN usage_events.normalized_model ELSE excluded.normalized_model END,
+                raw_model=COALESCE(NULLIF(excluded.raw_model,''), usage_events.raw_model),
                 reasoning_effort=excluded.reasoning_effort,
                 project_id=COALESCE(excluded.project_id, usage_events.project_id),
                 is_archived=excluded.is_archived,
-                quota_family=excluded.quota_family,
-                dedupe_confidence=excluded.dedupe_confidence;
+                quota_family=CASE WHEN excluded.quota_family='Unknown' THEN usage_events.quota_family ELSE excluded.quota_family END,
+                dedupe_confidence=excluded.dedupe_confidence,
+                timestamp_provenance=excluded.timestamp_provenance,
+                model_confidence=excluded.model_confidence,
+                period_ambiguous=excluded.period_ambiguous,
+                countable=excluded.countable,
+                unresolved_kind=excluded.unresolved_kind,
+                reconstruction_version=excluded.reconstruction_version,
+                request_started_at=COALESCE(excluded.request_started_at, usage_events.request_started_at),
+                response_completed_at=COALESCE(excluded.response_completed_at, usage_events.response_completed_at),
+                correction_reason=COALESCE(excluded.correction_reason, usage_events.correction_reason),
+                identity_aliases=excluded.identity_aliases,
+                created_at=CASE WHEN excluded.timestamp_provenance IN ('Unknown','LegacyUnverified') THEN usage_events.created_at ELSE excluded.created_at END;
             """;
         command.Parameters.AddWithValue("$id", string.IsNullOrWhiteSpace(e.Id) ? Guid.NewGuid().ToString("N") : e.Id);
         command.Parameters.AddWithValue("$req", (object?)e.RequestId ?? DBNull.Value);
@@ -484,6 +568,16 @@ public sealed class SqliteStore : IDisposable
             ? UsageEvent.BuildDedupeKey(e.ConversationId, e.RequestId, e.MessageId)
             : e.DedupeKey);
         command.Parameters.AddWithValue("$conf", e.DedupeConfidence.ToString());
+        command.Parameters.AddWithValue("$tprov", e.TimestampProvenance.ToString());
+        command.Parameters.AddWithValue("$mconf", e.ModelConfidence.ToString());
+        command.Parameters.AddWithValue("$pamb", e.PeriodAmbiguous ? 1 : 0);
+        command.Parameters.AddWithValue("$countable", e.Countable ? 1 : 0);
+        command.Parameters.AddWithValue("$unres", e.UnresolvedKind.ToString());
+        command.Parameters.AddWithValue("$rver", e.ReconstructionVersion);
+        command.Parameters.AddWithValue("$rstart", (object?)e.RequestStartedAt?.ToUniversalTime().ToString("O") ?? DBNull.Value);
+        command.Parameters.AddWithValue("$rend", (object?)e.ResponseCompletedAt?.ToUniversalTime().ToString("O") ?? DBNull.Value);
+        command.Parameters.AddWithValue("$corr", (object?)e.CorrectionReason ?? DBNull.Value);
+        command.Parameters.AddWithValue("$aliases", (object?)e.IdentityAliases ?? DBNull.Value);
         return command.ExecuteNonQuery() > 0 ? 1 : 0;
     }
 
@@ -508,7 +602,8 @@ public sealed class SqliteStore : IDisposable
             : null,
         LastFetchFailureCategory = reader.FieldCount > 13 && !reader.IsDBNull(13) ? reader.GetString(13) : null,
         LastAttemptedUpdateTime = reader.FieldCount > 14 && !reader.IsDBNull(14) ? reader.GetDouble(14) : 0,
-        FetchFailureParserVersion = ReadInt32(reader, 15)
+        FetchFailureParserVersion = ReadInt32(reader, 15),
+        ReconstructionVersion = ReadInt32(reader, 16)
     };
 
     private static int ReadInt32(SqliteDataReader reader, int ordinal)
@@ -542,6 +637,304 @@ public sealed class SqliteStore : IDisposable
         DedupeKey = reader.GetString(16),
         DedupeConfidence = reader.FieldCount > 17 && !reader.IsDBNull(17) && Enum.TryParse<DedupeConfidence>(reader.GetString(17), out var conf)
             ? conf
-            : DedupeConfidence.High
+            : DedupeConfidence.High,
+        TimestampProvenance = ReadEnum(reader, 18, TimestampProvenance.Unspecified),
+        ModelConfidence = ReadEnum(reader, 19, ModelEvidenceConfidence.Unspecified),
+        PeriodAmbiguous = reader.FieldCount > 20 && !reader.IsDBNull(20) && Convert.ToInt32(reader.GetValue(20), CultureInfo.InvariantCulture) == 1,
+        Countable = reader.FieldCount <= 21 || reader.IsDBNull(21) || Convert.ToInt32(reader.GetValue(21), CultureInfo.InvariantCulture) == 1,
+        UnresolvedKind = ReadEnum(reader, 22, UnresolvedEvidenceKind.None),
+        ReconstructionVersion = ReadInt32(reader, 23),
+        RequestStartedAt = ReadTime(reader, 24),
+        ResponseCompletedAt = ReadTime(reader, 25),
+        CorrectionReason = reader.FieldCount > 26 && !reader.IsDBNull(26) ? reader.GetString(26) : null,
+        IdentityAliases = reader.FieldCount > 27 && !reader.IsDBNull(27) ? reader.GetString(27) : null
     };
+
+    private static T ReadEnum<T>(SqliteDataReader reader, int ordinal, T fallback) where T : struct, Enum
+    {
+        if (reader.FieldCount <= ordinal || reader.IsDBNull(ordinal))
+        {
+            return fallback;
+        }
+
+        return Enum.TryParse<T>(reader.GetString(ordinal), out var value) ? value : fallback;
+    }
+
+    private static DateTimeOffset? ReadTime(SqliteDataReader reader, int ordinal)
+    {
+        if (reader.FieldCount <= ordinal || reader.IsDBNull(ordinal))
+        {
+            return null;
+        }
+
+        return DateTimeOffset.Parse(reader.GetString(ordinal), CultureInfo.InvariantCulture);
+    }
+
+    private static void MigrateReconstructionLedger(SqliteConnection connection)
+    {
+        using var state = connection.CreateCommand();
+        state.CommandText = "SELECT value FROM sync_state WHERE key=$k";
+        state.Parameters.AddWithValue("$k", ReconstructionSchemaStateKey);
+        var current = state.ExecuteScalar()?.ToString();
+        if (string.Equals(current, ConversationFetchBackoff.ReconstructionSemanticsVersion.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        using var tx = connection.BeginTransaction();
+        using var copy = connection.CreateCommand();
+        copy.Transaction = tx;
+        copy.CommandText = """
+            INSERT OR IGNORE INTO usage_observations(
+                id, conversation_id, message_id, request_id, requested_model, response_model, raw_model,
+                reasoning_effort, created_at, source, project_id, is_archived, observed_at, reconstruction_version, role)
+            SELECT id, conversation_id, message_id, request_id, requested_model, response_model, raw_model,
+                   reasoning_effort, created_at, source, project_id, is_archived, first_seen_at, 0, 'assistant'
+            FROM usage_events
+            WHERE message_id IS NOT NULL;
+            UPDATE usage_events SET reconstruction_version=0, timestamp_provenance='LegacyUnverified'
+            WHERE reconstruction_version IS NULL OR reconstruction_version=0;
+            INSERT INTO sync_state(key, value) VALUES($k,$v)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value;
+            """;
+        copy.Parameters.AddWithValue("$k", ReconstructionSchemaStateKey);
+        copy.Parameters.AddWithValue("$v", ConversationFetchBackoff.ReconstructionSemanticsVersion.ToString(CultureInfo.InvariantCulture));
+        copy.ExecuteNonQuery();
+        tx.Commit();
+    }
+
+    private static List<UsageEvent> LoadEvents(SqliteConnection connection, SqliteTransaction tx, string conversationId)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = """
+            SELECT id, request_id, conversation_id, message_id, created_at, requested_model, response_model,
+                   normalized_model, raw_model, reasoning_effort, source, project_id, is_archived,
+                   first_seen_at, last_seen_at, quota_family, dedupe_key, dedupe_confidence,
+                   timestamp_provenance, model_confidence, period_ambiguous, countable, unresolved_kind,
+                   reconstruction_version, request_started_at, response_completed_at, correction_reason,
+                   identity_aliases
+            FROM usage_events
+            WHERE conversation_id=$conv
+            """;
+        command.Parameters.AddWithValue("$conv", conversationId);
+        using var reader = command.ExecuteReader();
+        var list = new List<UsageEvent>();
+        while (reader.Read())
+        {
+            list.Add(ReadEvent(reader));
+        }
+
+        return list;
+    }
+
+    private static void InsertObservation(SqliteConnection connection, SqliteTransaction tx, UsageObservation observation)
+    {
+        var messageId = observation.MessageId ?? observation.Id;
+        if (string.IsNullOrWhiteSpace(messageId) || string.IsNullOrWhiteSpace(observation.ConversationId))
+        {
+            return;
+        }
+
+        using var command = connection.CreateCommand();
+        command.Transaction = tx;
+        command.CommandText = """
+            INSERT INTO usage_observations(
+                id, conversation_id, message_id, parent_message_id, request_id, role, hidden, end_turn, recipient,
+                requested_model, response_model, raw_model, reasoning_effort, created_at, source, project_id,
+                is_archived, observed_at, reconstruction_version)
+            VALUES($id,$conv,$msg,$parent,$req,$role,$hidden,$end,$recip,$reqm,$resm,$raw,$effort,$created,$source,$project,$archived,$obs,$ver)
+            ON CONFLICT(conversation_id, message_id) DO UPDATE SET
+                parent_message_id=COALESCE(excluded.parent_message_id, usage_observations.parent_message_id),
+                request_id=COALESCE(excluded.request_id, usage_observations.request_id),
+                requested_model=COALESCE(excluded.requested_model, usage_observations.requested_model),
+                response_model=COALESCE(excluded.response_model, usage_observations.response_model),
+                raw_model=COALESCE(excluded.raw_model, usage_observations.raw_model),
+                created_at=COALESCE(excluded.created_at, usage_observations.created_at),
+                observed_at=excluded.observed_at,
+                reconstruction_version=excluded.reconstruction_version;
+            """;
+        command.Parameters.AddWithValue("$id", observation.ConversationId + ":" + messageId);
+        command.Parameters.AddWithValue("$conv", observation.ConversationId);
+        command.Parameters.AddWithValue("$msg", messageId);
+        command.Parameters.AddWithValue("$parent", (object?)observation.ParentMessageId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$req", (object?)observation.RequestId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$role", observation.Role);
+        command.Parameters.AddWithValue("$hidden", observation.Hidden ? 1 : 0);
+        command.Parameters.AddWithValue("$end", (object?)(observation.EndTurn is null ? DBNull.Value : observation.EndTurn.Value ? 1 : 0));
+        command.Parameters.AddWithValue("$recip", (object?)observation.Recipient ?? DBNull.Value);
+        command.Parameters.AddWithValue("$reqm", (object?)observation.RequestedModel ?? DBNull.Value);
+        command.Parameters.AddWithValue("$resm", (object?)observation.ResponseModel ?? DBNull.Value);
+        command.Parameters.AddWithValue("$raw", (object?)observation.RawModel ?? DBNull.Value);
+        command.Parameters.AddWithValue("$effort", ReasoningNormalizer.ToStorage(observation.Effort));
+        command.Parameters.AddWithValue("$created", (object?)observation.CreatedAt?.ToUniversalTime().ToString("O") ?? DBNull.Value);
+        command.Parameters.AddWithValue("$source", observation.Source.ToString());
+        command.Parameters.AddWithValue("$project", (object?)observation.ProjectId ?? DBNull.Value);
+        command.Parameters.AddWithValue("$archived", observation.IsArchived ? 1 : 0);
+        command.Parameters.AddWithValue("$obs", observation.ObservedAt.ToUniversalTime().ToString("O"));
+        command.Parameters.AddWithValue("$ver", observation.ReconstructionVersion);
+        command.ExecuteNonQuery();
+    }
+
+    private static void RememberAliases(SqliteConnection connection, SqliteTransaction tx, UsageEvent usage)
+    {
+        foreach (var alias in new[]
+                 {
+                     usage.DedupeKey,
+                     usage.RequestId is null ? null : UsageEvent.ScopedRequestKey(usage.ConversationId, usage.RequestId),
+                     usage.RequestId is null || string.IsNullOrWhiteSpace(usage.ConversationId)
+                         ? null
+                         : "legacy:" + usage.ConversationId + ":req:" + usage.RequestId,
+                     usage.MessageId is null ? null : "msg:" + usage.ConversationId + ":" + usage.MessageId
+                 }.Where(v => !string.IsNullOrWhiteSpace(v)))
+        {
+            using var command = connection.CreateCommand();
+            command.Transaction = tx;
+            command.CommandText = """
+                INSERT INTO usage_identity_aliases(alias_key, canonical_dedupe_key)
+                VALUES($alias,$canon)
+                ON CONFLICT(alias_key) DO UPDATE SET canonical_dedupe_key=excluded.canonical_dedupe_key;
+                """;
+            command.Parameters.AddWithValue("$alias", alias);
+            command.Parameters.AddWithValue("$canon", usage.DedupeKey);
+            command.ExecuteNonQuery();
+        }
+    }
+
+    private static UsageObservation EventAsObservation(UsageEvent usage) => new()
+    {
+        Id = usage.Id,
+        ConversationId = usage.ConversationId,
+        MessageId = usage.MessageId ?? usage.Id,
+        RequestId = usage.RequestId,
+        Role = "assistant",
+        RequestedModel = usage.RequestedModel,
+        ResponseModel = usage.ResponseModel,
+        RawModel = usage.RawModel,
+        Effort = usage.ReasoningEffort,
+        CreatedAt = usage.HasUsableTimestamp ? usage.CreatedAt : null,
+        Source = usage.Source,
+        ProjectId = usage.ProjectId,
+        IsArchived = usage.IsArchived,
+        ObservedAt = usage.LastSeenAt == default ? DateTimeOffset.UtcNow : usage.LastSeenAt,
+        ReconstructionVersion = usage.ReconstructionVersion
+    };
+
+    public IReadOnlyList<(string Slug, string? Title)> GetObservedModels()
+    {
+        lock (_gate)
+        {
+            using var connection = Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT slug, title FROM observed_models";
+            using var reader = command.ExecuteReader();
+            var list = new List<(string, string?)>();
+            while (reader.Read())
+            {
+                list.Add((reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1)));
+            }
+
+            return list;
+        }
+    }
+
+    public IReadOnlyList<UsageObservation> GetObservations(string conversationId)
+    {
+        lock (_gate)
+        {
+            using var connection = Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, conversation_id, message_id, parent_message_id, request_id, role, hidden, created_at, request_id
+                FROM usage_observations WHERE conversation_id=$conv
+                """;
+            command.Parameters.AddWithValue("$conv", conversationId);
+            using var reader = command.ExecuteReader();
+            var list = new List<UsageObservation>();
+            while (reader.Read())
+            {
+                list.Add(new UsageObservation
+                {
+                    Id = reader.GetString(0),
+                    ConversationId = reader.GetString(1),
+                    MessageId = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    ParentMessageId = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    RequestId = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    Role = reader.IsDBNull(5) ? "" : reader.GetString(5),
+                    Hidden = !reader.IsDBNull(6) && reader.GetInt32(6) == 1,
+                    CreatedAt = reader.IsDBNull(7) ? null : DateTimeOffset.Parse(reader.GetString(7), CultureInfo.InvariantCulture)
+                });
+            }
+
+            return list;
+        }
+    }
+
+    public void BackupTo(string destinationPath)
+    {
+        lock (_gate)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+            using var source = Open();
+            using var dest = new SqliteConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = destinationPath,
+                Mode = SqliteOpenMode.ReadWriteCreate
+            }.ToString());
+            dest.Open();
+            source.BackupDatabase(dest);
+        }
+    }
+
+    public void RecordMeteringSnapshot(string kind, object payload, DateTimeOffset? now = null)
+    {
+        lock (_gate)
+        {
+            using var connection = Open();
+            using var tx = connection.BeginTransaction();
+            using var insert = connection.CreateCommand();
+            insert.Transaction = tx;
+            insert.CommandText = """
+                INSERT INTO metering_snapshots(id, captured_at, reconstruction_version, kind, payload)
+                VALUES($id,$at,$ver,$kind,$payload);
+                """;
+            var captured = (now ?? DateTimeOffset.UtcNow).ToUniversalTime();
+            insert.Parameters.AddWithValue("$id", Guid.NewGuid().ToString("N"));
+            insert.Parameters.AddWithValue("$at", captured.ToString("O"));
+            insert.Parameters.AddWithValue("$ver", ConversationFetchBackoff.ReconstructionSemanticsVersion);
+            insert.Parameters.AddWithValue("$kind", kind);
+            insert.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(payload));
+            insert.ExecuteNonQuery();
+            using var trim = connection.CreateCommand();
+            trim.Transaction = tx;
+            trim.CommandText = """
+                DELETE FROM metering_snapshots
+                WHERE captured_at < COALESCE((
+                    SELECT captured_at FROM metering_snapshots
+                    ORDER BY captured_at DESC
+                    LIMIT 1 OFFSET 39
+                ), captured_at);
+                """;
+            trim.ExecuteNonQuery();
+            tx.Commit();
+        }
+    }
+
+    public IReadOnlyList<string> GetMeteringSnapshotKinds()
+    {
+        lock (_gate)
+        {
+            using var connection = Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT kind FROM metering_snapshots ORDER BY captured_at DESC";
+            using var reader = command.ExecuteReader();
+            var list = new List<string>();
+            while (reader.Read())
+            {
+                list.Add(reader.GetString(0));
+            }
+
+            return list;
+        }
+    }
 }

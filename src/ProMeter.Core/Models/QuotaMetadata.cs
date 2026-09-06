@@ -8,7 +8,19 @@ public sealed class QuotaWindow
     public int? Limit { get; set; }
     public string? FeatureName { get; set; }
 
+    public DateTimeOffset? ObservedAt { get; set; }
+    public string? AllowanceId { get; set; }
+    public QuotaWindowKind WindowKind { get; set; } = QuotaWindowKind.Unclassified;
+
     public bool IsAuthoritative => Used is not null && Limit is not null && ResetAt is not null;
+
+    public bool IsAuthoritativeAt(DateTimeOffset now) =>
+        Used is int used
+        && used >= 0
+        && Limit is int limit
+        && limit >= 0
+        && ResetAt is DateTimeOffset reset
+        && reset > now;
 }
 
 public sealed class QuotaMetadataSet

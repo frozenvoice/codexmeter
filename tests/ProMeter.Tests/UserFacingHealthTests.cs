@@ -424,7 +424,7 @@ public class UserFacingHealthTests
         Assert.Equal("", presentation.HistoryLowerBoundCaption);
         Assert.Equal("7 / 50", DisplayFormatting.UsageLabel(snapshot));
         Assert.Equal("43", presentation.ExactRemainingText);
-        Assert.Equal("4+", presentation.ReconstructedText);
+        Assert.Equal(UiText.ReconstructedCount(4), presentation.ReconstructedText);
     }
 
     [Fact]
@@ -487,8 +487,8 @@ public class UserFacingHealthTests
         Assert.Contains("ShowHistoryLowerBound", code, StringComparison.Ordinal);
         Assert.Contains("HistoryStatsPanel.Visibility = Visibility.Collapsed", code, StringComparison.Ordinal);
         Assert.Contains("ModelRows.Visibility = Visibility.Collapsed", code, StringComparison.Ordinal);
-        Assert.Contains("ConfirmedProUsage", code, StringComparison.Ordinal);
-        Assert.Contains("HistoryBasedLowerBound", code, StringComparison.Ordinal);
+        Assert.Contains("CurrentCycleReconstructed", code, StringComparison.Ordinal);
+        Assert.Contains("ReconstructedObservedCaption", code, StringComparison.Ordinal);
         Assert.Contains("RemainingCount", code, StringComparison.Ordinal);
         Assert.DoesNotContain("StatusLabel(snapshot)", code, StringComparison.Ordinal);
         Assert.DoesNotContain("ModelBreakdown", code, StringComparison.Ordinal);

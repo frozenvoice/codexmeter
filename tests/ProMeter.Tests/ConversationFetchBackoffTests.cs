@@ -108,7 +108,7 @@ public class ConversationFetchBackoffTests
             Status = ConversationScanStatus.SchemaMismatch,
             LastFetchFailureCategory = ConversationFetchBackoff.SchemaMismatch
         };
-        Assert.Equal(3, ConversationFetchBackoff.ParserCompatibilityVersion);
+        Assert.Equal(4, ConversationFetchBackoff.ParserCompatibilityVersion);
         Assert.True(ConversationFetchBackoff.ParserCompatibilityChanged(failed));
         Assert.True(ConversationFetchBackoff.ShouldFetch(item, failed, now, forceBodyRescan: false));
     }

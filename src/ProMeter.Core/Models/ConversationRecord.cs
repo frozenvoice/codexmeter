@@ -18,6 +18,7 @@ public sealed class ConversationRecord
     public string? LastFetchFailureCategory { get; set; }
     public double LastAttemptedUpdateTime { get; set; }
     public int FetchFailureParserVersion { get; set; }
+    public int ReconstructionVersion { get; set; }
 }
 
 public enum ConversationScanStatus

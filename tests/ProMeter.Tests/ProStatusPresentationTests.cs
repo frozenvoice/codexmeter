@@ -12,10 +12,10 @@ public class ProStatusPresentationTests
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.False(presentation.ExactRemainingAvailable);
         Assert.True(presentation.ShowHistoryLowerBound);
-        Assert.Equal("31+", presentation.ReconstructedText);
-        Assert.Equal(UiText.HistoryBasedLowerBound, presentation.HistoryLowerBoundCaption);
+        Assert.Equal(UiText.ReconstructedCount(31), presentation.ReconstructedText);
+        Assert.Equal(UiText.ReconstructedObservedCaption, presentation.HistoryLowerBoundCaption);
         Assert.Equal(UiText.ExactRemainingUnavailable, presentation.ExactRemainingText);
-        Assert.Equal("31+", DisplayFormatting.UsageLabel(snapshot));
+        Assert.Equal(UiText.ReconstructedCount(31), DisplayFormatting.UsageLabel(snapshot));
         Assert.DoesNotContain("31 / 50", DisplayFormatting.UsageLabel(snapshot), StringComparison.Ordinal);
         Assert.DoesNotContain("remaining 19", DisplayFormatting.TrayTooltip(snapshot), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Remaining: 19", DisplayFormatting.TrayTooltip(snapshot), StringComparison.Ordinal);
@@ -40,14 +40,14 @@ public class ProStatusPresentationTests
         Assert.True(presentation.HasServerReset);
         Assert.Equal(UiText.ProRestricted, presentation.ProStateText.Replace(" · " + UiText.Stale, "", StringComparison.Ordinal));
         Assert.Contains(DisplayFormatting.FormatStamp(reset), presentation.ResetText, StringComparison.Ordinal);
-        Assert.Equal("P! 31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
-        Assert.Equal("P!31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Compact));
-        Assert.Equal("P!31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.UltraCompact));
+        Assert.Equal("P! 31~", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
+        Assert.Equal("P!31~", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Compact));
+        Assert.Equal("P!31~", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.UltraCompact));
         var tooltip = TaskbarStatusFormatter.Tooltip(snapshot, Codex());
         Assert.Contains(UiText.ServerReset, tooltip, StringComparison.Ordinal);
         Assert.DoesNotContain("31+", tooltip, StringComparison.Ordinal);
         Assert.DoesNotContain("31/50", tooltip, StringComparison.Ordinal);
-        Assert.Equal(UiText.HistoryBasedLowerBound, presentation.CountSourceText);
+        Assert.Equal(UiText.ReconstructedObservedCaption, presentation.CountSourceText);
         Assert.True(presentation.ShowHistoryLowerBound);
     }
 
@@ -64,9 +64,9 @@ public class ProStatusPresentationTests
         };
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.Equal(UiText.ProNoServerRestriction, presentation.ProStateText);
-        Assert.Equal("P 31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
-        Assert.Equal("P31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Compact));
-        Assert.Equal("P31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.UltraCompact));
+        Assert.Equal("P 31~", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
+        Assert.Equal("P31~", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Compact));
+        Assert.Equal("P31~", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.UltraCompact));
     }
 
     [Fact]
@@ -75,7 +75,7 @@ public class ProStatusPresentationTests
         var snapshot = Reconstructed(31, 50);
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.Equal(UiText.Unavailable, presentation.ProStateText);
-        Assert.Equal("P? 31+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
+        Assert.Equal("P? 31~", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
         Assert.Equal("?", DisplayFormatting.TrayIconText(snapshot));
     }
 
@@ -102,8 +102,8 @@ public class ProStatusPresentationTests
         Assert.True(presentation.ExactRemainingAvailable);
         Assert.False(presentation.ShowHistoryLowerBound);
         Assert.Equal("7 / 50", DisplayFormatting.UsageLabel(snapshot));
-        Assert.Equal("4+", presentation.ReconstructedText);
-        Assert.Equal("4+", presentation.ConfirmedRequestsText);
+        Assert.Equal(UiText.ReconstructedCount(4), presentation.ReconstructedText);
+        Assert.Equal(UiText.ReconstructedCount(4), presentation.ConfirmedRequestsText);
         Assert.Equal("43", DisplayFormatting.TrayIconText(snapshot));
     }
 
@@ -129,8 +129,8 @@ public class ProStatusPresentationTests
         var presentation = ProStatusPresentation.From(snapshot);
         Assert.True(presentation.ExactRemainingAvailable);
         Assert.Equal("40 / 50", DisplayFormatting.UsageLabel(snapshot));
-        Assert.Equal("0+", presentation.ReconstructedText);
-        Assert.Equal("0+", presentation.ConfirmedRequestsText);
+        Assert.Equal(UiText.ReconstructedCount(0), presentation.ReconstructedText);
+        Assert.Equal(UiText.ReconstructedCount(0), presentation.ConfirmedRequestsText);
         Assert.Contains("40 / 50", presentation.Headline, StringComparison.Ordinal);
         Assert.DoesNotContain("40+", presentation.Headline, StringComparison.Ordinal);
         Assert.DoesNotContain("40+", presentation.ConfirmedRequestsText, StringComparison.Ordinal);
@@ -171,8 +171,17 @@ public class ProStatusPresentationTests
             HasAmbiguousResets = true,
             ResetConfidence = ServerResetConfidence.Ambiguous
         };
-        Assert.Equal("P? 8+", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
+        Assert.Equal("P? 8~", TaskbarStatusFormatter.ChatGptToken(snapshot, TaskbarStripMode.Full));
         Assert.Equal(UiText.MultipleProResets, ProStatusPresentation.From(snapshot).ResetText);
+    }
+
+    [Fact]
+    public void PlusSuffix_OnlyWhenIncompleteCoverageCannotOvercount()
+    {
+        var incomplete = Reconstructed(31, 50);
+        incomplete.Coverage.FailedConversations = 2;
+        Assert.Equal("31+", ProStatusPresentation.From(incomplete).ReconstructedText);
+        Assert.Equal(UiText.HistoryBasedLowerBound, ProStatusPresentation.From(incomplete).HistoryLowerBoundCaption);
     }
 
     private static QuotaSnapshot Reconstructed(int used, int limit) => new()

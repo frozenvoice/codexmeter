@@ -287,7 +287,9 @@ public static class OnboardingOutcomeMapper
         bool usageUnavailable = false,
         bool usesServerCount = false)
     {
-        var reconstructed = used.ToString(CultureInfo.InvariantCulture) + "+";
+        var reconstructed = usesServerCount
+            ? used.ToString(CultureInfo.InvariantCulture)
+            : UiText.ReconstructedCount(used);
         return status switch
         {
             AppSyncStatus.UpToDate => new OnboardingPresentation(

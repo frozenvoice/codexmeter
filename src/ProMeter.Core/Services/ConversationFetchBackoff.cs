@@ -2,7 +2,9 @@ namespace ProMeter.Services;
 
 public static class ConversationFetchBackoff
 {
-    public const int ParserCompatibilityVersion = 3;
+    public const int ParserCompatibilityVersion = 4;
+    public const int ReconstructionSemanticsVersion = 4;
+    public const int MaxReconstructionRevalidationsPerSync = 20;
     public const string BodyTimeout = "BodyTimeout";
     public const string SchemaMismatch = "SchemaMismatch";
     public const string PayloadTooLarge = "PayloadTooLarge";
@@ -35,6 +37,10 @@ public static class ConversationFetchBackoff
     public static bool ParserCompatibilityChanged(ConversationRecord existing) =>
         existing.ConsecutiveFetchFailures > 0
         && existing.FetchFailureParserVersion != ParserCompatibilityVersion;
+
+    public static bool ReconstructionSemanticsChanged(ConversationRecord existing) =>
+        existing.Status == ConversationScanStatus.Ok
+        && existing.ReconstructionVersion < ReconstructionSemanticsVersion;
 
     public static bool IsBackoffActive(ConversationRecord existing, DateTimeOffset now) =>
         existing.ConsecutiveFetchFailures > 0

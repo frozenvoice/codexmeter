@@ -29,7 +29,7 @@ public class ReconcileTests
         }, [current]);
 
         var events = store.GetUsageEvents();
-        Assert.DoesNotContain(events, e => e.RequestId == "stale-req");
+        Assert.Contains(events, e => e.RequestId == "stale-req");
         Assert.Contains(events, e => e.RequestId == "export-req" && e.Source == UsageSource.OfficialExport);
         Assert.Contains(events, e => e.RequestId == "fresh-req" && e.Source == UsageSource.ConversationSync);
 

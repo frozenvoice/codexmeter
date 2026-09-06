@@ -72,6 +72,7 @@ public partial class App : Application
         _store = new SqliteStore();
         _log = new AppLog();
         _models = new ModelNormalizer();
+        _models.Hydrate(_store.GetObservedModels());
         _parser = new ConversationParser(_models);
         _quota = new QuotaEngine();
         _sync = new SyncEngine(_store, _parser, _models, _log);
@@ -387,7 +388,7 @@ public partial class App : Application
         _taskbarStrip?.Bind(_snapshot, _codex.Snapshot);
         if (_main is { IsVisible: true })
         {
-            var trend = _quota.BuildTrend(events, DateTimeOffset.UtcNow.AddDays(-30), DateTimeOffset.UtcNow.AddDays(1));
+            var trend = _quota.BuildTrend(events, DateTimeOffset.UtcNow.AddDays(-30), DateTimeOffset.UtcNow.AddDays(1), _settings);
             _main.Bind(_snapshot, events, trend, _codex.Snapshot);
         }
     }

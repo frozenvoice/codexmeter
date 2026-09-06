@@ -20,6 +20,7 @@ public sealed class SyncEngine
     private bool _pacedBodyThisSync;
     private int _consecutiveBodyTimeouts;
     private ReconstructionTotals _reconstruction = new();
+    private int _reconstructionRevalidations;
     private readonly List<DeferredZeroEventScan> _deferredZeroEvents = [];
     private readonly Dictionary<string, ConversationWorkEntry> _work = new(StringComparer.Ordinal);
     private readonly HashSet<string> _deferredIds = new(StringComparer.Ordinal);
@@ -108,6 +109,7 @@ public sealed class SyncEngine
         _pacedBodyThisSync = false;
         _consecutiveBodyTimeouts = 0;
         _reconstruction = new ReconstructionTotals();
+        _reconstructionRevalidations = 0;
         _deferredZeroEvents.Clear();
         _work.Clear();
         _deferredIds.Clear();
@@ -174,7 +176,17 @@ public sealed class SyncEngine
             var period = ProQuotaPeriodResolver.Resolve(settings, periodReference, fetchedStatus, weeklyReset);
             var calculatedPeriodStart = period.Start;
             var periodStart = options.PeriodStartOverride ?? calculatedPeriodStart;
-            var minUpdate = periodStart.ToUnixTimeSeconds();
+            var scanStart = periodStart;
+            if (options.PeriodStartOverride is null)
+            {
+                var localWeekStart = QuotaPeriodCalculator.LocalWeekStart(periodReference, settings);
+                if (localWeekStart < scanStart)
+                {
+                    scanStart = localWeekStart;
+                }
+            }
+
+            var minUpdate = scanStart.ToUnixTimeSeconds();
 
             LastStatus = AppSyncStatus.Syncing;
             Report(UiText.ScanningPeriod);
@@ -290,6 +302,25 @@ public sealed class SyncEngine
             var completed = _clock.UtcNow.ToUniversalTime();
             _store.SetState(LastSyncCompletedStateKey, completed.ToString("O", CultureInfo.InvariantCulture));
             LastSyncCompleted = completed;
+            try
+            {
+                _store.RecordMeteringSnapshot("sync-complete", new
+                {
+                    reconstructionVersion = ConversationFetchBackoff.ReconstructionSemanticsVersion,
+                    capturedAt = completed.ToString("O", CultureInfo.InvariantCulture),
+                    status = LastStatus.ToString(),
+                    coverage = coverage.SummaryLabel,
+                    fetched = _reconstruction.BodyFetches,
+                    parsed = _reconstruction.WithEvents,
+                    indexed = _reconstruction.IndexedConversations,
+                    gptProParsed = FamilyCount(QuotaFamily.GptPro),
+                    revalidations = _reconstructionRevalidations
+                }, completed);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn("metering snapshot skipped: " + AppLog.Sanitize(ex.Message));
+            }
             return new SyncOutcome(LastStatus, LastStatusDetail, parsed);
         }
         catch (ChatGptProviderException ex) when (ex.IsUnauthorized)
@@ -523,6 +554,20 @@ public sealed class SyncEngine
                 continue;
             }
 
+            var stored = _store.GetConversation(item.Id);
+            if (!options.ForceBodyRescan
+                && stored is not null
+                && ConversationFetchBackoff.ReconstructionSemanticsChanged(stored)
+                && !ConversationFetchBackoff.ShouldFetch(item, stored, _clock.UtcNow, false))
+            {
+                if (_reconstructionRevalidations >= ConversationFetchBackoff.MaxReconstructionRevalidationsPerSync)
+                {
+                    continue;
+                }
+
+                _reconstructionRevalidations++;
+            }
+
             _reconstruction.ScanAttempts++;
             _reconstruction.UniqueConversations++;
             var entry = new ConversationWorkEntry { First = item, UsageSource = usageSource, Attempted = true };
@@ -606,10 +651,7 @@ public sealed class SyncEngine
                     ProjectId = item.ProjectId,
                     Archived = item.Archived,
                     Source = usageSource,
-                    UpdateTime = item.UpdateTime,
-                    FallbackCreatedAt = item.CreateTime > 0
-                        ? DateTimeOffset.FromUnixTimeSeconds((long)item.CreateTime)
-                        : null
+                    UpdateTime = item.UpdateTime
                 });
 
                 if (result.SchemaMismatch)
@@ -789,8 +831,9 @@ public sealed class SyncEngine
             NextEligibleFetchAt = null,
             LastFetchFailureCategory = null,
             LastAttemptedUpdateTime = trusted ? item.UpdateTime : 0,
-            FetchFailureParserVersion = 0
-        }, result.Events);
+            FetchFailureParserVersion = 0,
+            ReconstructionVersion = ConversationFetchBackoff.ReconstructionSemanticsVersion
+        }, result.Events, result.Observations);
         if (!trusted)
         {
             coverage.ConversationIncomplete = true;
@@ -944,8 +987,24 @@ public sealed class SyncEngine
     private int FamilyCount(QuotaFamily family) =>
         _reconstruction.Families.TryGetValue(family, out var count) ? count : 0;
 
-    private bool NeedsBody(ConversationIndexItem item) =>
-        ConversationFetchBackoff.ShouldFetch(item, _store.GetConversation(item.Id), _clock.UtcNow, forceBodyRescan: false);
+    private bool NeedsBody(ConversationIndexItem item)
+    {
+        var existing = _store.GetConversation(item.Id);
+        if (ConversationFetchBackoff.ShouldFetch(item, existing, _clock.UtcNow, forceBodyRescan: false))
+        {
+            return true;
+        }
+
+        if (existing is not null
+            && ConversationFetchBackoff.ReconstructionSemanticsChanged(existing)
+            && _reconstructionRevalidations < ConversationFetchBackoff.MaxReconstructionRevalidationsPerSync)
+        {
+            _reconstructionRevalidations++;
+            return true;
+        }
+
+        return false;
+    }
 
     private async Task PaceBodyFetchAsync(CancellationToken cancellationToken)
     {

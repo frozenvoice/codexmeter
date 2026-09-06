@@ -73,7 +73,7 @@ public class UsageDedupeTests
 
         Assert.Single(result.Events);
         Assert.Equal("req-mixed", result.Events[0].RequestId);
-        Assert.Equal(DedupeConfidence.Heuristic, result.Events[0].DedupeConfidence);
+        Assert.Equal(DedupeConfidence.High, result.Events[0].DedupeConfidence);
         Assert.Equal("final", result.Events[0].MessageId);
     }
 

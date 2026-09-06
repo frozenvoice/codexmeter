@@ -25,7 +25,7 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 - blocked_features metadata may be correlated with Pro model-limit reset metadata, but correlation must not be presented as an explicit server relationship unless the server actually provides one.
 - A null block_reason must not be converted into "quota exhausted", "safeguard", or another invented cause.
 - Every visible UI surface must use the same Pro status presentation semantics: tray, Flyout, Main window, taskbar strip, floating widget, tooltip and notifications.
-- Reconstructed counts must be clearly labelled as confirmed/reconstructed history, preferably as a lower bound such as "31+" when server completeness is not guaranteed.
+- Reconstructed counts must be labelled as reconstructed observed requests, not as billed quota. Use `N+` / “minimum” only when identity, model, time, period, and duplicate uncertainty allow a true lower bound. Missing history alone does not justify `N+` on an arbitrary reconstructed number. Otherwise use an explicit reconstruction/estimate label and keep unresolved evidence separate. See `docs/metering-contract.md`.
 - Fake Monday/local reset anchors are allowed only for historical reconstruction estimates, never as authoritative quota reset times.
 - Taskbar and floating widget must never show a reconstructed value in a form that looks like authoritative remaining quota.
 - Lightweight server-status refresh must not require a full conversation-history scan.

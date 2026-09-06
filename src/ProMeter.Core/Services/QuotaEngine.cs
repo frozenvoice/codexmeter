@@ -14,36 +14,73 @@ public sealed class QuotaEngine
     {
         var weekly = serverQuota?.WeeklyWindow(settings.PlanPreset);
         var proStatus = serverQuota?.ProServerStatus ?? ProServerStatus.Unknown();
-        var period = ProQuotaPeriodResolver.Resolve(settings, now, proStatus, weekly?.ResetAt);
+        var period = ProQuotaPeriodResolver.Resolve(settings, now, proStatus, weekly?.ResetAt, serverQuota);
         var start = period.Start;
         var end = period.End;
         var resetSource = period.Source;
         var todayStart = QuotaPeriodCalculator.LocalDayStart(now, settings);
-        var periodEvents = events.Where(e => QuotaPeriodCalculator.InRange(e.CreatedAt, start, end)).ToList();
-        var todayEvents = events.Where(e => e.CreatedAt >= todayStart).ToList();
+        var weekStart = QuotaPeriodCalculator.LocalWeekStart(now, settings);
+        var periodEvents = new List<UsageEvent>();
+        var unresolved = 0;
+        var heuristic = 0;
+        foreach (var usage in events)
+        {
+            if (IsPeriodAmbiguous(usage, start, end))
+            {
+                unresolved++;
+                continue;
+            }
+
+            if (!usage.Countable || usage.UnresolvedKind != UnresolvedEvidenceKind.None || !usage.HasUsableTimestamp)
+            {
+                if (usage.QuotaFamily == QuotaFamily.GptPro || usage.UnresolvedKind != UnresolvedEvidenceKind.None)
+                {
+                    unresolved++;
+                }
+
+                continue;
+            }
+
+            if (usage.DedupeConfidence == DedupeConfidence.Heuristic && usage.QuotaFamily == QuotaFamily.GptPro)
+            {
+                heuristic++;
+            }
+
+            if (QuotaPeriodCalculator.InRange(usage.CreatedAt, start, end))
+            {
+                periodEvents.Add(usage);
+            }
+        }
+
+        var todayEvents = events.Where(e => CountableInRange(e, todayStart, todayStart.AddDays(1), start, end)).ToList();
+        var weekEvents = events.Where(e => CountableInRange(e, weekStart, weekStart.AddDays(7), start, end)).ToList();
         var proEvents = periodEvents.Where(e => e.QuotaFamily == QuotaFamily.GptPro).ToList();
-        var reasoning = periodEvents.Where(e => e.QuotaFamily == QuotaFamily.SolReasoning).ToList();
+        var reasoningWeek = weekEvents.Where(e => e.QuotaFamily == QuotaFamily.SolReasoning).ToList();
         var todayReasoning = todayEvents.Where(e => e.QuotaFamily == QuotaFamily.SolReasoning).ToList();
         var reconstructed = proEvents.Count;
         var gpt6Weekly = proEvents.Count(IsGpt6Pro);
         var todaySol = todayEvents.Count(IsSolPro);
         var combinedToday = todayEvents.Count(e => e.QuotaFamily == QuotaFamily.GptPro);
-        var useServerWeekly = weekly is { IsAuthoritative: true };
+        var useServerWeekly = weekly is not null && weekly.IsAuthoritativeAt(now);
         var allowSolDaily = AllowsDailyWindow(settings, settings.SolProDailyQuota);
         var allowCombinedDaily = AllowsDailyWindow(settings, settings.CombinedDailyQuota);
         var solWindow = allowSolDaily ? serverQuota?.SolProDaily : null;
         var combinedWindow = allowCombinedDaily ? serverQuota?.CombinedProDaily : null;
-        var useServerSol = solWindow is { IsAuthoritative: true };
-        var useServerCombined = combinedWindow is { IsAuthoritative: true };
+        var useServerSol = solWindow is not null && solWindow.IsAuthoritativeAt(now);
+        var useServerCombined = combinedWindow is not null && combinedWindow.IsAuthoritativeAt(now);
         var historyComplete = coverage is { NormalChats: true, IndexIncomplete: false, ConversationIncomplete: false, FailedConversations: 0 };
         var periodTrusted = period.CurrentCycleKnown;
+        var lowerBound = unresolved == 0
+                         && heuristic == 0
+                         && reconstructed >= 0
+                         && (coverage.IndexIncomplete || coverage.ConversationIncomplete || coverage.FailedConversations > 0);
 
         coverage.ResetAnchorSource = resetSource;
         coverage.ResetTimeAuthoritative = resetSource == ResetAnchorSource.Server && !period.NextResetEstimated;
         coverage.QuotaMetadataAuthoritative = useServerWeekly;
         coverage.CountConfidence = useServerWeekly
             ? CoverageConfidence.Authoritative
-            : historyComplete && periodTrusted
+            : historyComplete && periodTrusted && unresolved == 0
                 ? CoverageConfidence.HighConfidence
                 : CoverageConfidence.Estimated;
         coverage.ResetConfidence = resetSource switch
@@ -98,6 +135,9 @@ public sealed class QuotaEngine
             CombinedToday = combinedUsed,
             Gpt6WeeklyUsed = gpt6Weekly,
             ReconstructedUsed = reconstructed,
+            UnresolvedCount = unresolved,
+            HeuristicReconstructedCount = heuristic,
+            ReconstructionIsLowerBound = lowerBound && !useServerWeekly,
             UsesServerWeeklyCount = useServerWeekly,
             UsesServerSolDailyCount = useServerSol,
             UsesServerCombinedDailyCount = useServerCombined,
@@ -108,24 +148,30 @@ public sealed class QuotaEngine
             Reasoning = new ReasoningStats
             {
                 Today = todayReasoning.Count,
-                ThisWeek = reasoning.Count,
-                Medium = reasoning.Count(e => e.ReasoningEffort == ReasoningEffort.Medium),
-                High = reasoning.Count(e => e.ReasoningEffort == ReasoningEffort.High),
-                ExtraHigh = reasoning.Count(e => e.ReasoningEffort == ReasoningEffort.ExtraHigh),
-                Unknown = reasoning.Count(e => e.ReasoningEffort == ReasoningEffort.Unknown),
+                ThisWeek = reasoningWeek.Count,
+                Medium = reasoningWeek.Count(e => e.ReasoningEffort == ReasoningEffort.Medium),
+                High = reasoningWeek.Count(e => e.ReasoningEffort == ReasoningEffort.High),
+                ExtraHigh = reasoningWeek.Count(e => e.ReasoningEffort == ReasoningEffort.ExtraHigh),
+                Unknown = reasoningWeek.Count(e => e.ReasoningEffort == ReasoningEffort.Unknown),
                 Limit = settings.ReasoningQuota
             }
         };
     }
 
-    public IReadOnlyList<DailyTrendPoint> BuildTrend(IReadOnlyList<UsageEvent> events, DateTimeOffset start, DateTimeOffset end)
+    public IReadOnlyList<DailyTrendPoint> BuildTrend(
+        IReadOnlyList<UsageEvent> events,
+        DateTimeOffset start,
+        DateTimeOffset end,
+        AppSettings? settings = null)
     {
         var days = new List<DailyTrendPoint>();
-        for (var date = DateOnly.FromDateTime(start.UtcDateTime); date <= DateOnly.FromDateTime(end.UtcDateTime.AddTicks(-1)); date = date.AddDays(1))
+        var zoneId = settings?.ResetTimeZoneId;
+        var startDate = QuotaPeriodCalculator.LocalDate(start, zoneId);
+        var lastInstant = end.AddTicks(-1);
+        var endDate = QuotaPeriodCalculator.LocalDate(lastInstant < start ? start : lastInstant, zoneId);
+        for (var date = startDate; date <= endDate; date = date.AddDays(1))
         {
-            var dayStart = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-            var dayEnd = dayStart.AddDays(1);
-            var slice = events.Where(e => e.CreatedAt >= dayStart && e.CreatedAt < dayEnd).ToList();
+            var slice = events.Where(e => e.HasUsableTimestamp && QuotaPeriodCalculator.LocalDate(e.CreatedAt, zoneId) == date).ToList();
             days.Add(new DailyTrendPoint
             {
                 Date = date,
@@ -160,6 +206,36 @@ public sealed class QuotaEngine
         var slug = ModelNormalizer.NormalizeSlug(e.RawModel);
         return ContainsAny(e.NormalizedModel, "gpt-6", "gpt 6")
                || slug.StartsWith("gpt-6", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool CountableInRange(UsageEvent usage, DateTimeOffset start, DateTimeOffset end, DateTimeOffset periodStart, DateTimeOffset periodEnd)
+    {
+        if (!usage.Countable || usage.UnresolvedKind != UnresolvedEvidenceKind.None || !usage.HasUsableTimestamp)
+        {
+            return false;
+        }
+
+        if (IsPeriodAmbiguous(usage, periodStart, periodEnd) || IsPeriodAmbiguous(usage, start, end))
+        {
+            return false;
+        }
+
+        return QuotaPeriodCalculator.InRange(usage.CreatedAt, start, end);
+    }
+
+    private static bool IsPeriodAmbiguous(UsageEvent usage, DateTimeOffset start, DateTimeOffset end)
+    {
+        if (usage.PeriodAmbiguous)
+        {
+            return true;
+        }
+
+        if (usage.RequestStartedAt is not DateTimeOffset begun || usage.ResponseCompletedAt is not DateTimeOffset finished)
+        {
+            return false;
+        }
+
+        return (begun < start && finished >= start) || (begun < end && finished >= end);
     }
 
     private static bool AllowsDailyWindow(AppSettings settings, int? configuredLimit) =>
