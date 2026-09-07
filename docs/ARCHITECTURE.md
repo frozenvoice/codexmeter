@@ -37,6 +37,8 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Widget drag uses captured screen-coordinate deltas, independent of the moving window.
   Crossing the movement threshold suppresses click-to-open; release or capture loss emits
   one position-save event. Click-through remains an explicit setting and disables input.
+- Reset-credit help is click-toggled on one reused tooltip instance. Refresh keeps its state;
+  hiding the detail window closes it. Automatic hover opening is disabled for this button.
 - Flyout refresh uses only the header status and fixed-size spinning button; no sliding progress
   bar or duplicate in-card refreshing message changes the card height.
 - Flyout header exposes refresh, settings, pin and close. Settings is owned by the visible

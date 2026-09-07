@@ -15,13 +15,19 @@ public partial class FlyoutWindow : Window
     public bool Pinned { get; private set; }
     private readonly RefreshIndicatorController _refreshIndicator = new();
     private bool _refreshActive;
+    private System.Windows.Controls.ToolTip? _creditHelpTip;
 
     public FlyoutWindow()
     {
         InitializeComponent();
         ApplyLocalizedTexts();
         SourceInitialized += (_, _) => FitContentToWorkArea();
-        IsVisibleChanged += (_, _) => ApplyRefreshVisuals();
+        ToolTipService.SetIsEnabled(CreditHelpButton, false);
+        IsVisibleChanged += (_, _) =>
+        {
+            ApplyRefreshVisuals();
+            if (!IsVisible && _creditHelpTip is not null) _creditHelpTip.IsOpen = false;
+        };
         Activated += (_, _) => ApplyRefreshVisuals();
         ContentRendered += (_, _) => ApplyRefreshVisuals();
         Closed += (_, _) =>
@@ -136,7 +142,13 @@ public partial class FlyoutWindow : Window
     {
         Title = UiText.ProductName;
         ResetCreditsTitle.Text = UiText.ResetCredits;
-        CreditHelpButton.ToolTip = MakeTooltip(UiText.T("Reset credits can renew your Codex usage limits. This app only shows their availability and expiry dates.", "리셋권으로 Codex 사용 한도를 갱신할 수 있습니다. 이 앱에서는 보유 수와 만료일만 확인합니다."));
+        var helpText = UiText.T("Reset credits can renew your Codex usage limits. This app only shows their availability and expiry dates.", "리셋권으로 Codex 사용 한도를 갱신할 수 있습니다. 이 앱에서는 보유 수와 만료일만 확인합니다.");
+        _creditHelpTip ??= MakeTooltip(helpText);
+        ((TextBlock)_creditHelpTip.Content).Text = helpText;
+        _creditHelpTip.Background = (Brush)FindResource("CardBrush");
+        _creditHelpTip.BorderBrush = (Brush)FindResource("LineBrush");
+        ((TextBlock)_creditHelpTip.Content).Foreground = (Brush)FindResource("TextBrush");
+        CreditHelpButton.ToolTip = _creditHelpTip;
         System.Windows.Automation.AutomationProperties.SetName(CreditHelpButton, UiText.T("About reset credits", "리셋권 안내"));
         SettingsButton.ToolTip = UiText.Settings;
         System.Windows.Automation.AutomationProperties.SetName(SettingsButton, UiText.Settings);
@@ -292,7 +304,7 @@ public partial class FlyoutWindow : Window
         if (CreditHelpButton.ToolTip is System.Windows.Controls.ToolTip tip)
         {
             tip.PlacementTarget = CreditHelpButton;
-            tip.IsOpen = true;
+            tip.IsOpen = !tip.IsOpen;
         }
     }
 

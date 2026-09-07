@@ -92,6 +92,17 @@ public class WidgetInteractionTests
         Assert.DoesNotContain("Shutdown", close);
     }
 
+    [Fact]
+    public void CreditHelp_TogglesAndReusesItsPopupAcrossRefresh()
+    {
+        var code = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
+        Assert.Contains("tip.IsOpen = !tip.IsOpen", code);
+        Assert.Contains("_creditHelpTip ??= MakeTooltip(helpText)", code);
+        Assert.Contains("ToolTipService.SetIsEnabled(CreditHelpButton, false)", code);
+        Assert.Contains("if (!IsVisible && _creditHelpTip is not null) _creditHelpTip.IsOpen = false", code);
+        Assert.DoesNotContain("CreditHelpButton.ToolTip = MakeTooltip(", code);
+    }
+
     private static string Find(string relative)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);
