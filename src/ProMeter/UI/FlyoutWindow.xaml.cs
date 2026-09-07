@@ -103,6 +103,9 @@ public partial class FlyoutWindow : Window
         }
 
         var reset = DisplayFormatting.ResetDisplay(snapshot);
+        var hasResetTimeRow = !string.IsNullOrEmpty(reset.TimeValue);
+        ResetTimeLabel.Visibility = hasResetTimeRow ? Visibility.Visible : Visibility.Collapsed;
+        ResetText.Visibility = hasResetTimeRow ? Visibility.Visible : Visibility.Collapsed;
         ResetTimeLabel.Text = reset.TimeLabel;
         ResetText.Text = reset.TimeValue;
         if (reset.EstimateValue is null)

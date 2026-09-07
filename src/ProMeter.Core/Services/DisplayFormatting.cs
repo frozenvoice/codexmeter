@@ -70,7 +70,9 @@ public static class DisplayFormatting
         {
             ResetAnchorSource.Server => new ResetDisplayInfo(UiText.ServerReset, UiText.ResetServer(stamp), null, null),
             ResetAnchorSource.UserConfigured => new ResetDisplayInfo(UiText.ResetTime, UiText.ResetUserConfigured(stamp), null, null),
-            _ => new ResetDisplayInfo(UiText.ResetTime, UiText.NotConfirmed, UiText.Estimate, stamp)
+            // No confirmed cycle boundary at all - show only the single estimated-reset
+            // row, never a "Reset time: Not confirmed" row alongside it.
+            _ => new ResetDisplayInfo(string.Empty, string.Empty, UiText.EstimatedNextReset, stamp)
         };
     }
 
@@ -80,8 +82,13 @@ public static class DisplayFormatting
     public static string ResetLabel(QuotaSnapshot snapshot)
     {
         var display = ResetDisplay(snapshot);
-        return display.EstimateValue is null
-            ? display.TimeValue
+        if (display.EstimateValue is null)
+        {
+            return display.TimeValue;
+        }
+
+        return string.IsNullOrEmpty(display.TimeValue)
+            ? $"{display.EstimateLabel} {display.EstimateValue}"
             : $"{display.TimeValue} · {display.EstimateLabel} {display.EstimateValue}";
     }
 

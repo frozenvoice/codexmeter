@@ -79,6 +79,52 @@ public class CompanionHostManifestTests
             File.Delete(host);
         }
     }
+
+    [Fact]
+    public void BuiltInId_IsMergedAndDeduplicatedWithManualIds()
+    {
+        var host = Path.Combine(Path.GetTempPath(), "prometer-companion-host.exe");
+        File.WriteAllText(host, "placeholder");
+        const string chrome = "abcdefghijklmnopabcdefghijklmnop";
+        const string builtIn = "fkmkjahclfbkokccidjbjkafpgimadci";
+        try
+        {
+            var result = CompanionHostManifest.TryCreate(host, chrome, null, builtIn);
+            Assert.True(result.Ok);
+            Assert.Equal(2, result.AllowedOrigins.Count);
+            Assert.Contains("chrome-extension://" + chrome + "/", result.AllowedOrigins);
+            Assert.Contains("chrome-extension://" + builtIn + "/", result.AllowedOrigins);
+
+            var duplicateOfChrome = CompanionHostManifest.TryCreate(host, chrome, null, chrome);
+            Assert.True(duplicateOfChrome.Ok);
+            Assert.Single(duplicateOfChrome.AllowedOrigins);
+
+            var builtInOnly = CompanionHostManifest.TryCreate(host, null, null, builtIn);
+            Assert.True(builtInOnly.Ok);
+            Assert.Single(builtInOnly.AllowedOrigins);
+        }
+        finally
+        {
+            File.Delete(host);
+        }
+    }
+
+    [Fact]
+    public void MalformedBuiltInId_FailsClosed()
+    {
+        var host = Path.Combine(Path.GetTempPath(), "prometer-companion-host.exe");
+        File.WriteAllText(host, "placeholder");
+        try
+        {
+            var result = CompanionHostManifest.TryCreate(host, null, null, "NOT-A-VALID-ID");
+            Assert.False(result.Ok);
+            Assert.Contains("malformed", result.Error, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            File.Delete(host);
+        }
+    }
 }
 
 public class SettingsMigrationTests

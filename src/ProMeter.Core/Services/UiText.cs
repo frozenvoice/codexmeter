@@ -75,6 +75,10 @@ public static class UiText
     public static string Reset => T("Reset", "리셋");
     public static string ResetTime => T("Reset time", "리셋 시각");
     public static string Estimate => T("Estimate", "추정 기준");
+    public static string EstimatedNextReset => T("Estimated next reset", "추정 다음 리셋");
+    public static string EstimatedPeriodFooter => T(
+        "Reconstructed from conversation history using an estimated period boundary. Not an official remaining quota.",
+        "대화 기록에서 재구성한 값이며 주기 경계는 추정입니다. 공식 잔여 사용량이 아닙니다.");
     public static string NotConfirmed => T("Not confirmed", "확인되지 않음");
     public static string NotAvailable => T("Not available", "확인되지 않음");
     public static string Limit => T("Limit", "한도");

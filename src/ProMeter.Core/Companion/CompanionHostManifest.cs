@@ -19,7 +19,11 @@ public static class CompanionHostManifest
     public static bool IsExtensionId(string? value) =>
         !string.IsNullOrWhiteSpace(value) && ExtensionIdPattern.IsMatch(value.Trim());
 
-    public static CompanionHostManifestResult TryCreate(string? companionHostPath, string? chromeExtensionId, string? edgeExtensionId)
+    public static CompanionHostManifestResult TryCreate(
+        string? companionHostPath,
+        string? chromeExtensionId,
+        string? edgeExtensionId,
+        string? builtInExtensionId = null)
     {
         if (string.IsNullOrWhiteSpace(companionHostPath)
             || !File.Exists(companionHostPath)
@@ -29,6 +33,7 @@ public static class CompanionHostManifest
         }
 
         var origins = new List<string>();
+
         if (!string.IsNullOrWhiteSpace(chromeExtensionId))
         {
             if (!IsExtensionId(chromeExtensionId))
@@ -36,7 +41,7 @@ public static class CompanionHostManifest
                 return new CompanionHostManifestResult { Error = "Chrome extension ID is malformed" };
             }
 
-            origins.Add("chrome-extension://" + chromeExtensionId.Trim() + "/");
+            AddOrigin(origins, chromeExtensionId);
         }
 
         if (!string.IsNullOrWhiteSpace(edgeExtensionId))
@@ -46,11 +51,19 @@ public static class CompanionHostManifest
                 return new CompanionHostManifestResult { Error = "Edge extension ID is malformed" };
             }
 
-            var origin = "chrome-extension://" + edgeExtensionId.Trim() + "/";
-            if (!origins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+            AddOrigin(origins, edgeExtensionId);
+        }
+
+        // Deterministic ID derived from the shipped extension's manifest key. Applies to
+        // both Chrome and Edge, since Chromium's ID derivation is browser-agnostic.
+        if (!string.IsNullOrWhiteSpace(builtInExtensionId))
+        {
+            if (!IsExtensionId(builtInExtensionId))
             {
-                origins.Add(origin);
+                return new CompanionHostManifestResult { Error = "built-in Companion extension ID is malformed" };
             }
+
+            AddOrigin(origins, builtInExtensionId);
         }
 
         if (origins.Count == 0)
@@ -80,6 +93,15 @@ public static class CompanionHostManifest
             ManifestJson = manifest.ToJsonString(),
             AllowedOrigins = origins
         };
+    }
+
+    private static void AddOrigin(List<string> origins, string extensionId)
+    {
+        var origin = "chrome-extension://" + extensionId.Trim() + "/";
+        if (!origins.Contains(origin, StringComparer.OrdinalIgnoreCase))
+        {
+            origins.Add(origin);
+        }
     }
 
     public static bool HasOnlyApprovedOrigins(string manifestJson, IReadOnlyCollection<string> expected)

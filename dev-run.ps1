@@ -57,6 +57,97 @@ function Write-StepHeader {
     Write-Host "[$Index/$Total] $Name" -ForegroundColor Cyan
 }
 
+# Mirrors ProMeter.Core's ChromiumExtensionId.TryCompute: SHA-256 of the manifest's
+# base64 "key" (DER SubjectPublicKeyInfo), first 16 bytes, each nibble mapped
+# 0-9a-f -> a-p. Read-only: this never writes a key, it only derives the ID an
+# unpacked load of this manifest will get, regardless of which folder it's loaded
+# from.
+function Get-DeterministicCompanionExtensionId {
+    param([Parameter(Mandatory)][string]$ManifestPath)
+
+    if (-not (Test-Path $ManifestPath)) {
+        return $null
+    }
+
+    try {
+        $manifest = Get-Content -Path $ManifestPath -Raw | ConvertFrom-Json
+    }
+    catch {
+        return $null
+    }
+
+    $keyB64 = $manifest.key
+    if ([string]::IsNullOrWhiteSpace($keyB64)) {
+        return $null
+    }
+
+    try {
+        $keyBytes = [Convert]::FromBase64String($keyB64.Trim())
+    }
+    catch {
+        return $null
+    }
+
+    $hash = [System.Security.Cryptography.SHA256]::HashData($keyBytes)
+    $sb = New-Object System.Text.StringBuilder
+    for ($i = 0; $i -lt 16; $i++) {
+        $b = $hash[$i]
+        [void]$sb.Append([char](97 + ($b -shr 4)))
+        [void]$sb.Append([char](97 + ($b -band 0xF)))
+    }
+    return $sb.ToString()
+}
+
+# Read-only inspection of ProMeter's own native-host manifest and HKCU
+# registration. dev-run.ps1 never writes the registry or the manifest itself -
+# ProMeter owns registration; this only verifies and reports.
+function Get-CompanionRegistrationState {
+    param([Parameter(Mandatory)][string]$ExpectedExtensionId)
+
+    $manifestPath = Join-Path $env:LOCALAPPDATA 'ProMeter\com.prometer.bridge.json'
+    $expectedOrigin = "chrome-extension://$ExpectedExtensionId/"
+
+    $state = [ordered]@{
+        ManifestPath      = $manifestPath
+        ManifestExists    = $false
+        ManifestHasOrigin = $false
+        ChromeRegistered  = $false
+        EdgeRegistered    = $false
+    }
+
+    if (Test-Path $manifestPath) {
+        $state.ManifestExists = $true
+        try {
+            $manifestJson = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
+            if ($manifestJson.allowed_origins -contains $expectedOrigin) {
+                $state.ManifestHasOrigin = $true
+            }
+        }
+        catch {
+            # Leave ManifestHasOrigin false; malformed manifest is reported as a mismatch.
+        }
+    }
+
+    $chromeKey = 'HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.prometer.bridge'
+    $chromeItem = Get-Item -Path $chromeKey -ErrorAction SilentlyContinue
+    if ($chromeItem -and $chromeItem.GetValue('') -eq $manifestPath) {
+        $state.ChromeRegistered = $true
+    }
+
+    $edgeKey = 'HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.prometer.bridge'
+    $edgeItem = Get-Item -Path $edgeKey -ErrorAction SilentlyContinue
+    if ($edgeItem -and $edgeItem.GetValue('') -eq $manifestPath) {
+        $state.EdgeRegistered = $true
+    }
+
+    return $state
+}
+
+function Test-CompanionRegistrationMatches {
+    param($State)
+    return $State.ManifestExists -and $State.ManifestHasOrigin -and ($State.ChromeRegistered -or $State.EdgeRegistered)
+}
+
 # ---------------------------------------------------------------------------
 # Preliminaries: repo root, dotnet availability, current HEAD.
 # ---------------------------------------------------------------------------
@@ -80,6 +171,15 @@ $HeadSha = $HeadSha.Trim()
 
 Write-Host "Repo root : $RepoRoot"
 Write-Host "HEAD      : $HeadSha"
+
+$ExpectedExtensionId = Get-DeterministicCompanionExtensionId -ManifestPath (Join-Path $RepoRoot 'extension\manifest.json')
+if ($ExpectedExtensionId) {
+    Write-Host "Companion extension ID : $ExpectedExtensionId"
+}
+else {
+    Write-Host "Companion extension ID : unavailable (extension\manifest.json has no 'key')" -ForegroundColor Yellow
+}
+
 if ($Fast) {
     Write-Host ""
     Write-Host "FAST MODE: full tests skipped" -ForegroundColor Yellow
@@ -158,6 +258,22 @@ if ($NoLaunch) {
     Write-Host ""
     Write-Host "[5/$TotalSteps] Launch" -ForegroundColor Cyan
     Write-Host "  Skipped (-NoLaunch): no new instance started."
+
+    if ($ExpectedExtensionId) {
+        Write-Host ""
+        Write-Host "Browser Companion registration (informational, -NoLaunch changes nothing):"
+        $state = Get-CompanionRegistrationState -ExpectedExtensionId $ExpectedExtensionId
+        if (Test-CompanionRegistrationMatches $state) {
+            Write-Host "  OK - existing registration already matches extension ID $ExpectedExtensionId"
+        }
+        elseif ($state.ManifestExists) {
+            Write-Host "  Mismatch - $($state.ManifestPath) does not currently include chrome-extension://$ExpectedExtensionId/"
+        }
+        else {
+            Write-Host "  Not registered yet - $($state.ManifestPath) does not exist (expected once Browser Companion is opted in and ProMeter has started)"
+        }
+    }
+
     Write-Host ""
     Write-Host "ProMeter local build ready (not launched)"
     Write-Host "HEAD    : $HeadSha"
@@ -248,6 +364,27 @@ if (-not (Test-Path $ExePath)) {
 
 Start-Process -FilePath $ExePath | Out-Null
 Write-Host "  Started $ExePath"
+
+if ($ExpectedExtensionId) {
+    # Bounded wait for ProMeter's own startup registration (EnsureCompanionHostRegistration)
+    # to run; dev-run.ps1 never writes the manifest or registry itself.
+    $deadline = (Get-Date).AddSeconds(8)
+    do {
+        Start-Sleep -Milliseconds 500
+        $state = Get-CompanionRegistrationState -ExpectedExtensionId $ExpectedExtensionId
+    } while (-not (Test-CompanionRegistrationMatches $state) -and (Get-Date) -lt $deadline)
+
+    Write-Host ""
+    if (Test-CompanionRegistrationMatches $state) {
+        Write-Host "Browser Companion registration: OK" -ForegroundColor Green
+        Write-Host "Extension ID: $ExpectedExtensionId"
+    }
+    else {
+        Write-Host "Browser Companion registration mismatch" -ForegroundColor Yellow
+        Write-Host "Expected extension ID: $ExpectedExtensionId"
+        Write-Host "Restart ProMeter or re-register Browser Companion."
+    }
+}
 
 Write-Host ""
 Write-Host "ProMeter local build running"

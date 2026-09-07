@@ -124,21 +124,26 @@ public class ProQuotaCycleTests
     }
 
     [Fact]
-    public void I_NoAnchor_PrimaryCurrentCycleUsageUnavailable()
+    public void I_NoAnchor_UsableReconstructionShowsAsEstimatedNotUnavailable()
     {
         var now = new DateTimeOffset(2026, 9, 6, 8, 0, 0, TimeSpan.Zero);
         var snapshot = Engine([Pro("old", now.AddDays(-1))], now, ProServerStatus.Unknown());
         Assert.False(snapshot.CurrentCycleKnown);
         Assert.Equal(ResetAnchorSource.Default, snapshot.ResetAnchorSource);
+        Assert.Equal(1, snapshot.ReconstructedUsed);
         UiText.SetLanguage(UiLanguage.Korean);
         try
         {
             var presentation = ProStatusPresentation.From(snapshot);
-            Assert.Equal("확인 불가", presentation.ConfirmedRequestsText);
+            // An unconfirmed cycle boundary must not hide a usable reconstructed count
+            // behind "Unavailable" - it shows as an explicit estimate instead.
+            Assert.Equal(UiText.ReconstructedCount(1), presentation.ConfirmedRequestsText);
+            Assert.DoesNotContain("확인 불가", presentation.ConfirmedRequestsText, StringComparison.Ordinal);
             Assert.Equal("이번 주기 확인 사용", UiText.ConfirmedProUsage);
             var display = DisplayFormatting.ResetDisplay(snapshot);
-            Assert.Equal("확인되지 않음", display.TimeValue);
-            Assert.Equal("추정 기준", display.EstimateLabel);
+            // No separate "Not confirmed" reset-time row alongside the estimate.
+            Assert.Equal("", display.TimeValue);
+            Assert.Equal(UiText.EstimatedNextReset, display.EstimateLabel);
         }
         finally
         {

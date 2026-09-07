@@ -8,17 +8,27 @@ public static class CompanionRegistration
     public const string ChromeNativeHosts = @"Software\Google\Chrome\NativeMessagingHosts\" + CompanionBridgeProtocol.NativeHostName;
     public const string EdgeNativeHosts = @"Software\Microsoft\Edge\NativeMessagingHosts\" + CompanionBridgeProtocol.NativeHostName;
 
-    public static CompanionHostManifestResult EnsureCurrent(string trayExePath, string? chromeExtensionId, string? edgeExtensionId)
+    public static CompanionHostManifestResult EnsureCurrent(
+        string trayExePath,
+        string? chromeExtensionId,
+        string? edgeExtensionId,
+        string? builtInExtensionId = null)
     {
-        if (string.IsNullOrWhiteSpace(chromeExtensionId) && string.IsNullOrWhiteSpace(edgeExtensionId))
+        if (string.IsNullOrWhiteSpace(chromeExtensionId)
+            && string.IsNullOrWhiteSpace(edgeExtensionId)
+            && string.IsNullOrWhiteSpace(builtInExtensionId))
         {
             return new CompanionHostManifestResult { Ok = true };
         }
 
-        return Register(trayExePath, chromeExtensionId, edgeExtensionId);
+        return Register(trayExePath, chromeExtensionId, edgeExtensionId, builtInExtensionId);
     }
 
-    public static CompanionHostManifestResult Register(string trayExePath, string? chromeExtensionId, string? edgeExtensionId)
+    public static CompanionHostManifestResult Register(
+        string trayExePath,
+        string? chromeExtensionId,
+        string? edgeExtensionId,
+        string? builtInExtensionId = null)
     {
         var releaseHost = ResolveHostPath(trayExePath);
         if (releaseHost is null)
@@ -36,7 +46,7 @@ public static class CompanionRegistration
             return new CompanionHostManifestResult { Error = "companion host staging failed: " + ex.GetType().Name };
         }
 
-        var created = CompanionHostManifest.TryCreate(stagedHost, chromeExtensionId, edgeExtensionId);
+        var created = CompanionHostManifest.TryCreate(stagedHost, chromeExtensionId, edgeExtensionId, builtInExtensionId);
         if (!created.Ok || created.ManifestJson is null || created.HostPath is null)
         {
             return created;
@@ -48,19 +58,17 @@ public static class CompanionRegistration
             return new CompanionHostManifestResult { Error = "native-host manifest origins were not approved" };
         }
 
-        if (!string.IsNullOrWhiteSpace(chromeExtensionId))
+        // The deterministic built-in ID is browser-agnostic, so its presence alone is
+        // enough to register both browsers. A manually configured ID still only implies
+        // registration for that specific browser, preserving prior single-browser behavior.
+        if (!string.IsNullOrWhiteSpace(chromeExtensionId) || !string.IsNullOrWhiteSpace(builtInExtensionId))
         {
             SetHost(Registry.CurrentUser, ChromeNativeHosts, AppPaths.CompanionHostManifest);
         }
 
-        if (!string.IsNullOrWhiteSpace(edgeExtensionId))
+        if (!string.IsNullOrWhiteSpace(edgeExtensionId) || !string.IsNullOrWhiteSpace(builtInExtensionId))
         {
             SetHost(Registry.CurrentUser, EdgeNativeHosts, AppPaths.CompanionHostManifest);
-        }
-
-        if (string.IsNullOrWhiteSpace(chromeExtensionId) && string.IsNullOrWhiteSpace(edgeExtensionId))
-        {
-            return new CompanionHostManifestResult { Error = "a Chrome or Edge extension ID is required" };
         }
 
         return created;

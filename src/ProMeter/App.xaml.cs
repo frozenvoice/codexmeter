@@ -664,8 +664,9 @@ public partial class App : Application
             var pairing = CompanionPairingStore.LoadOrCreate();
             var chromeId = FirstNonEmpty(_settings.ChromeExtensionId, pairing.ChromeExtensionId);
             var edgeId = FirstNonEmpty(_settings.EdgeExtensionId, pairing.EdgeExtensionId);
+            var builtInId = _settings.CompanionConnectOptIn ? ResolveBuiltInCompanionExtensionId() : null;
             var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "prometer.exe");
-            var result = CompanionRegistration.EnsureCurrent(exe, chromeId, edgeId);
+            var result = CompanionRegistration.EnsureCurrent(exe, chromeId, edgeId, builtInId);
             if (!result.Ok)
             {
                 _log.Warn("companion host registration: " + AppLog.Sanitize(result.Error));
@@ -675,6 +676,19 @@ public partial class App : Application
         {
             _log.Warn("companion host registration: " + AppLog.Sanitize(ex.GetType().Name));
         }
+    }
+
+    /// <summary>
+    /// Recovers the Browser Companion extension's own deterministic ID from the
+    /// extension/manifest.json shipped next to prometer.exe. No browser profile data
+    /// is read; the ID depends only on the manifest's own "key" field.
+    /// </summary>
+    private static string? ResolveBuiltInCompanionExtensionId()
+    {
+        var manifestPath = Path.Combine(AppContext.BaseDirectory, "extension", "manifest.json");
+        return CompanionExtensionManifest.TryReadBuiltInExtensionId(manifestPath, out var extensionId)
+            ? extensionId
+            : null;
     }
 
     private static string? FirstNonEmpty(params string?[] values)
@@ -693,7 +707,8 @@ public partial class App : Application
     private string? RegisterCompanionHost(string? chromeId, string? edgeId)
     {
         var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "prometer.exe");
-        var result = CompanionRegistration.Register(exe, chromeId, edgeId);
+        var builtInId = ResolveBuiltInCompanionExtensionId();
+        var result = CompanionRegistration.Register(exe, chromeId, edgeId, builtInId);
         if (!result.Ok)
         {
             return result.Error ?? UiText.NativeHostFailed;

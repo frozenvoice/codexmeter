@@ -62,9 +62,11 @@ public class LocalizationAndCoverageDisplayTests
 
         UiText.SetLanguage(UiLanguage.English);
         var english = DisplayFormatting.ResetDisplay(snapshot);
-        Assert.Equal("Reset time", english.TimeLabel);
-        Assert.Equal("Not confirmed", english.TimeValue);
-        Assert.Equal("Estimate", english.EstimateLabel);
+        // No confirmed reset time at all, so there is no separate "Reset time: Not
+        // confirmed" row - only the single estimated-reset row.
+        Assert.Equal("", english.TimeLabel);
+        Assert.Equal("", english.TimeValue);
+        Assert.Equal("Estimated next reset", english.EstimateLabel);
         Assert.Contains("Sep 7 00:00", english.EstimateValue, StringComparison.Ordinal);
         Assert.DoesNotContain("estimated reset", english.TimeValue, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("%", DisplayFormatting.CoverageFlyoutValue(snapshot), StringComparison.Ordinal);
@@ -73,9 +75,9 @@ public class LocalizationAndCoverageDisplayTests
         try
         {
             var korean = DisplayFormatting.ResetDisplay(snapshot);
-            Assert.Equal("리셋 시각", korean.TimeLabel);
-            Assert.Equal("확인되지 않음", korean.TimeValue);
-            Assert.Equal("추정 기준", korean.EstimateLabel);
+            Assert.Equal("", korean.TimeLabel);
+            Assert.Equal("", korean.TimeValue);
+            Assert.Equal("추정 다음 리셋", korean.EstimateLabel);
             Assert.Contains("9월 7일 00:00", korean.EstimateValue, StringComparison.Ordinal);
             Assert.Equal("지금 동기화", UiText.SyncNow);
             Assert.Equal("데이터 상태", UiText.DataStatus);

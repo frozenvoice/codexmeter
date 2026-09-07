@@ -71,9 +71,11 @@ public sealed class ProStatusPresentation
                 : known
                     ? "P"
                     : "?";
-        var lowerBoundCaption = SupportsLowerBound(snapshot)
-            ? UiText.HistoryBasedLowerBound
-            : UiText.ReconstructedObservedCaption;
+        var lowerBoundCaption = !snapshot.CurrentCycleKnown && !snapshot.DisplayUsageUnavailable
+            ? UiText.EstimatedPeriodFooter
+            : SupportsLowerBound(snapshot)
+                ? UiText.HistoryBasedLowerBound
+                : UiText.ReconstructedObservedCaption;
         var countSource = exact
             ? UiText.ServerCount(snapshot.ReconstructedUsed)
             : snapshot.DisplayUsageUnavailable
@@ -126,7 +128,10 @@ public sealed class ProStatusPresentation
 
         if (!snapshot.CurrentCycleKnown)
         {
-            return UiText.Unavailable;
+            // The reset/cycle boundary is unconfirmed, but the reconstruction itself is
+            // usable for the estimated fallback period - show it as an explicit estimate
+            // rather than hiding a real, usable count behind "Unavailable".
+            return UiText.ReconstructedCount(snapshot.ReconstructedUsed);
         }
 
         var n = snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture);
@@ -160,12 +165,19 @@ public sealed class ProStatusPresentation
 
     public static string CompactReconstructedToken(QuotaSnapshot snapshot)
     {
-        if (!snapshot.CurrentCycleKnown || snapshot.DisplayUsageUnavailable)
+        if (snapshot.DisplayUsageUnavailable)
         {
             return "";
         }
 
         var n = snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture);
+        if (!snapshot.CurrentCycleKnown)
+        {
+            // Only the period boundary is estimated; never claim a mathematical lower
+            // bound ("+") when the boundary itself isn't confirmed.
+            return n + "~";
+        }
+
         return SupportsLowerBound(snapshot) ? n + "+" : n + "~";
     }
 

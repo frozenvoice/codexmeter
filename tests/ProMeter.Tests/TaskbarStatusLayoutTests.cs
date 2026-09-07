@@ -535,7 +535,9 @@ public class TaskbarStatusLayoutTests
         Assert.Equal("P? 31~", TaskbarStatusFormatter.ChatGptToken(unknown, TaskbarStripMode.Full));
         Assert.Equal("P? 31~", TaskbarStatusFormatter.ChatGptToken(unknownStale, TaskbarStripMode.Full));
         Assert.Equal("P? 31~ · C 42%", TaskbarStatusFormatter.Format(unknown, weekly, TaskbarStripMode.Full));
-        Assert.Equal("P?", TaskbarStatusFormatter.ChatGptToken(new QuotaSnapshot { CurrentCycleKnown = false, ReconstructedUsed = 31 }, TaskbarStripMode.Full));
+        // An unconfirmed cycle boundary must not hide an otherwise-usable reconstructed
+        // count; it shows as an explicit estimate ("~"), never a lower bound ("+").
+        Assert.Equal("P? 31~", TaskbarStatusFormatter.ChatGptToken(new QuotaSnapshot { CurrentCycleKnown = false, ReconstructedUsed = 31 }, TaskbarStripMode.Full));
         Assert.Equal("P?", TaskbarStatusFormatter.ChatGptToken(new QuotaSnapshot { DisplayUsageUnavailable = true, ReconstructedUsed = 0, Limit = 50 }, TaskbarStripMode.Full));
     }
 

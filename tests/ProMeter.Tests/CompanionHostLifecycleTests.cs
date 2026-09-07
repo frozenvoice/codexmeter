@@ -186,6 +186,49 @@ public class CompanionHostLifecycleTests
     }
 
     [Fact]
+    public void BuiltInExtensionId_IsWiredIntoStartupRegistrationForBothBrowsers()
+    {
+        var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
+        Assert.Contains("ResolveBuiltInCompanionExtensionId", app, StringComparison.Ordinal);
+        Assert.Contains("CompanionExtensionManifest.TryReadBuiltInExtensionId", app, StringComparison.Ordinal);
+
+        var ensureMethod = app.IndexOf("private void EnsureCompanionHostRegistration()", StringComparison.Ordinal);
+        Assert.True(ensureMethod >= 0);
+        var builtInUsedInEnsure = app.IndexOf("builtInId", ensureMethod, StringComparison.Ordinal);
+        var ensureCurrentCall = app.IndexOf("CompanionRegistration.EnsureCurrent(exe, chromeId, edgeId, builtInId)", ensureMethod, StringComparison.Ordinal);
+        Assert.True(builtInUsedInEnsure >= 0 && ensureCurrentCall > builtInUsedInEnsure);
+
+        // Only compute/use the built-in ID when the user has actually opted into
+        // Browser Companion, never unconditionally at every startup.
+        var optInCheck = app.IndexOf("_settings.CompanionConnectOptIn ? ResolveBuiltInCompanionExtensionId()", ensureMethod, StringComparison.Ordinal);
+        Assert.True(optInCheck >= 0 && optInCheck < ensureCurrentCall);
+
+        var registration = File.ReadAllText(Find("src/ProMeter/Companion/CompanionRegistration.cs"));
+        Assert.Contains("builtInExtensionId", registration, StringComparison.Ordinal);
+
+        // The deterministic ID applies to both browsers, so its presence alone must be
+        // enough to register both HKCU NativeMessagingHosts entries.
+        var chromeSetHost = registration.IndexOf("SetHost(Registry.CurrentUser, ChromeNativeHosts,", StringComparison.Ordinal);
+        var edgeSetHost = registration.IndexOf("SetHost(Registry.CurrentUser, EdgeNativeHosts,", StringComparison.Ordinal);
+        Assert.True(chromeSetHost >= 0 && edgeSetHost >= 0);
+        var chromeGuard = registration.LastIndexOf("if (", chromeSetHost, StringComparison.Ordinal);
+        var edgeGuard = registration.LastIndexOf("if (", edgeSetHost, StringComparison.Ordinal);
+        Assert.Contains("builtInExtensionId", registration[chromeGuard..chromeSetHost], StringComparison.Ordinal);
+        Assert.Contains("builtInExtensionId", registration[edgeGuard..edgeSetHost], StringComparison.Ordinal);
+
+        var manifest = File.ReadAllText(Find("src/ProMeter.Core/Companion/CompanionHostManifest.cs"));
+        Assert.Contains("builtInExtensionId", manifest, StringComparison.Ordinal);
+
+        // dev-run.ps1 must not duplicate registry logic: it may read the HKCU
+        // NativeMessagingHosts entry ProMeter itself owns, but must never write one.
+        var devRun = File.ReadAllText(Find("dev-run.ps1"));
+        Assert.DoesNotContain("Set-ItemProperty", devRun, StringComparison.Ordinal);
+        Assert.DoesNotContain("New-ItemProperty", devRun, StringComparison.Ordinal);
+        Assert.DoesNotContain("New-Item -Path 'HKCU", devRun, StringComparison.Ordinal);
+        Assert.DoesNotContain("Remove-Item -Path 'HKCU", devRun, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void OriginRejected_DoesNotWriteStdout()
     {
         var logs = new List<string>();

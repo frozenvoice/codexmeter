@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "ProMeter ChatGPT Companion",
   "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw6/Q09IDARmodxok17l3NIATpSqNWs8DNYfqWcz2fRkwpX4eOdZjAD/uN4HlpXKTCGJp01MY4abBjmijPxE5hKgtqvoZf1VxVMXeHPmojEVmp04bJycyRXcns2J0ebwbB+ORlEo0uHZ+0tGs2IgpIFbAqUdU3yHkdnKLmGD6oMQgEuD4weNTgNNvgfwHTZ86zrKzgKPbXANISwOsNWPJZjd5f1K4YygL4aM92HdIgEymg1SYzLPckMLGlVxMREXzIU0oBiaSJwsgO/YGQHvcCcvQfQ+81I7iJUKCvS/EDabV2VJiaGfszybAqTs5BL5DKPEH3wrBnZjdPmF0HPyFyQIDAQAB",
   "description": "Runs approved same-origin ChatGPT fetches for ProMeter from a normal browser session. Does not read cookie databases or send tokens.",
   "permissions": ["nativeMessaging", "storage", "scripting", "alarms"],
   "host_permissions": ["https://chatgpt.com/*"],

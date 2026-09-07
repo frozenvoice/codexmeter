@@ -62,7 +62,7 @@ public static class TaskbarStatusFormatter
     {
         var presentation = ProStatusPresentation.From(snapshot);
         var stale = presentation.Stale && presentation.ServerStatusKnown ? "~" : "";
-        var count = CurrentCycleLowerBound(snapshot);
+        var count = CurrentCycleReconstructedToken(snapshot);
         if (count is not null && !presentation.ExactRemainingAvailable)
         {
             var prefix = !presentation.ServerStatusKnown || presentation.ResetAmbiguous
@@ -96,9 +96,9 @@ public static class TaskbarStatusFormatter
         return mode == TaskbarStripMode.Full ? $"P OK{stale}" : $"POK{stale}";
     }
 
-    private static string? CurrentCycleLowerBound(QuotaSnapshot snapshot)
+    private static string? CurrentCycleReconstructedToken(QuotaSnapshot snapshot)
     {
-        if (!snapshot.CurrentCycleKnown || snapshot.DisplayUsageUnavailable)
+        if (snapshot.DisplayUsageUnavailable)
         {
             return null;
         }
