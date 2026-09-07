@@ -17,7 +17,7 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Existing settings/cache paths are retained; history is neither read nor deleted.
   Startup removes only known native-host registrations matching the old owned manifest path.
   The browser extension must be removed via the browser's extension manager.
-- Internal namespaces/solution name remain ProMeter for compatibility.
+- Repository and local checkout are named `codexmeter`; internal namespaces/solution name remain ProMeter for compatibility.
 - Windows owns the notification icon's allocated slot through NotifyIcon. The retired taskbar
   overlay and TaskbarWin32 are excluded from the desktop build, with no geometry/fullscreen
   polling. Its old JSON settings remain compatible but startup/save disable the overlay.

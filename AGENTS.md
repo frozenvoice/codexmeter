@@ -1,6 +1,6 @@
 # CodexMeter agent instructions
 
-Repository/solution: `prometer` / `ProMeter.sln`. Product: **CodexMeter**.
+Repository/solution: `codexmeter` / `ProMeter.sln`. Product: **CodexMeter**.
 Windows-only .NET 8 WPF tray app, distributed as one `CodexMeter.exe`.
 
 ## Active product direction

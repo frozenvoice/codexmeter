@@ -44,7 +44,7 @@ Codex CLI 자체는 이 배포 파일에 포함하지 않습니다.
 
 ## 개발
 
-저장소/솔루션 이름 `prometer` / `ProMeter.sln`과 내부 네임스페이스는 호환성을 위해 유지합니다.
+저장소 이름은 `codexmeter`입니다. 솔루션 이름 `ProMeter.sln`과 내부 네임스페이스는 호환성을 위해 유지합니다.
 
 ```powershell
 .\dev-run.ps1
