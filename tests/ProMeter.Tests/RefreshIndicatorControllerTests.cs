@@ -16,7 +16,6 @@ public class RefreshIndicatorControllerTests
         Assert.Equal(RefreshIndicatorTransition.None, controller.Apply(false));
         Assert.False(controller.IsAnimating);
         Assert.InRange(RefreshIndicatorController.DurationSeconds, 0.7, 1.0);
-        Assert.InRange(RefreshIndicatorController.StripDurationSeconds, 0.8, 1.3);
     }
 
     [Fact]

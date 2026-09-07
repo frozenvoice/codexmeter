@@ -189,23 +189,6 @@
                           Stretch="Uniform"/>
                 </Button>
             </Grid>
-            <Grid x:Name="SyncProgressStrip"
-                  DockPanel.Dock="Top"
-                  Height="3"
-                  ClipToBounds="True"
-                  Visibility="Collapsed">
-                <Rectangle x:Name="SyncProgressSegment"
-                           Width="72"
-                           Height="3"
-                           HorizontalAlignment="Left"
-                           RadiusX="1.5"
-                           RadiusY="1.5"
-                           Fill="{DynamicResource AccentBrush}">
-                    <Rectangle.RenderTransform>
-                        <TranslateTransform x:Name="SyncProgressTranslate" X="-80"/>
-                    </Rectangle.RenderTransform>
-                </Rectangle>
-            </Grid>
             <StackPanel Margin="16,8,16,16">
 
             <!-- CODEX -->

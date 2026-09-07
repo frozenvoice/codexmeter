@@ -81,7 +81,6 @@ public partial class FlyoutWindow : Window
         var state = FlyoutRefreshVisualState.Create(_refreshActive, IsVisible);
         RefreshAllIcon.Visibility = state.IdleIconVisible ? Visibility.Visible : Visibility.Collapsed;
         RefreshSpinner.Visibility = state.SpinnerVisible ? Visibility.Visible : Visibility.Collapsed;
-        SyncProgressStrip.Visibility = state.ProgressStripVisible ? Visibility.Visible : Visibility.Collapsed;
         if (state.RunAnimation)
         {
             if (_refreshIndicator.Apply(true) == RefreshIndicatorTransition.Started)
@@ -106,16 +105,6 @@ public partial class FlyoutWindow : Window
             RepeatBehavior = RepeatBehavior.Forever
         };
         spinner.BeginAnimation(RotateTransform.AngleProperty, spin, HandoffBehavior.SnapshotAndReplace);
-
-        var strip = LiveProgressTranslate();
-        var slide = new DoubleAnimation
-        {
-            From = -80,
-            To = 328,
-            Duration = TimeSpan.FromSeconds(RefreshIndicatorController.StripDurationSeconds),
-            RepeatBehavior = RepeatBehavior.Forever
-        };
-        strip.BeginAnimation(TranslateTransform.XProperty, slide, HandoffBehavior.SnapshotAndReplace);
     }
 
     private void StopRefreshAnimations()
@@ -123,10 +112,6 @@ public partial class FlyoutWindow : Window
         var spinner = LiveSpinnerRotate();
         spinner.BeginAnimation(RotateTransform.AngleProperty, null);
         spinner.Angle = 0;
-
-        var strip = LiveProgressTranslate();
-        strip.BeginAnimation(TranslateTransform.XProperty, null);
-        strip.X = -80;
     }
 
     private RotateTransform LiveSpinnerRotate()
@@ -141,20 +126,6 @@ public partial class FlyoutWindow : Window
             : RefreshSpinnerRotate;
         RefreshSpinner.RenderTransform = live;
         RefreshSpinner.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
-        return live;
-    }
-
-    private TranslateTransform LiveProgressTranslate()
-    {
-        if (SyncProgressSegment.RenderTransform is TranslateTransform current && !current.IsFrozen)
-        {
-            return current;
-        }
-
-        var live = SyncProgressTranslate.IsFrozen
-            ? (TranslateTransform)SyncProgressTranslate.Clone()
-            : SyncProgressTranslate;
-        SyncProgressSegment.RenderTransform = live;
         return live;
     }
 
@@ -215,7 +186,7 @@ public partial class FlyoutWindow : Window
 
     private void BindCodex(CodexQuotaSnapshot snapshot)
     {
-        CodexStatusText.Text = CodexDisplayFormatting.StatusText(snapshot);
+        CodexStatusText.Text = snapshot.Status == CodexQuotaStatus.Refreshing ? "" : CodexDisplayFormatting.StatusText(snapshot);
         CodexStatusText.Visibility = string.IsNullOrWhiteSpace(CodexStatusText.Text)
             ? Visibility.Collapsed
             : Visibility.Visible;

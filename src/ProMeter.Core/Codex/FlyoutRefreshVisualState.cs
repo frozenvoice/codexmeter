@@ -4,7 +4,6 @@ public readonly record struct FlyoutRefreshVisualState(
     bool SyncingTextVisible,
     bool IdleIconVisible,
     bool SpinnerVisible,
-    bool ProgressStripVisible,
     bool RunAnimation)
 {
     public static FlyoutRefreshVisualState Create(bool refreshing, bool windowVisible)
@@ -14,7 +13,6 @@ public readonly record struct FlyoutRefreshVisualState(
             SyncingTextVisible: refreshing,
             IdleIconVisible: !motion,
             SpinnerVisible: motion,
-            ProgressStripVisible: motion,
             RunAnimation: motion);
     }
 }

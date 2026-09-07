@@ -29,6 +29,8 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   are deduplicated transiently by ID and projected to nullable expiry timestamps only.
   The additive cache field preserves older snapshots; missing/partial expiries stay explicit.
   Credit rows show up to three date groups with full timestamp detail in the tooltip.
+- Flyout refresh uses only the header status and fixed-size spinning button; no sliding progress
+  bar or duplicate in-card refreshing message changes the card height.
 - Flyout header exposes refresh, settings, pin and close. Settings is owned by the visible
   flyout so it stays above a pinned card. Ring captions omit the product prefix; the old
   accuracy badge is removed. Widget-only options are disabled when the widget is off.

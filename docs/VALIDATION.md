@@ -18,6 +18,8 @@
 - Read-only live App Server check returned three available credit expiry timestamps;
   the bounded client reported child-process cleanup. Only projected quota metadata was used.
 - Flyout renders reset countdowns and three credit expiry dates; exact times remain in tooltip.
+- Sliding refresh bar removed. WPF probe confirms identical 339.91 DIP height before, during
+  and after refresh for the same snapshot in dark/light and Korean/English; busy button stays disabled.
 - Runtime checks: verify actual Codex refresh, no ChatGPT HTTP/SQLite collector startup,
   no native host registration, saved window position and tray/refresh behavior.
 - A fresh PC requires installed and signed-in Codex CLI; no browser pairing is part of setup.

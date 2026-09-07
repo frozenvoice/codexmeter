@@ -11,20 +11,17 @@ public class FlyoutRefreshVisualStateTests
         Assert.False(idle.SyncingTextVisible);
         Assert.True(idle.IdleIconVisible);
         Assert.False(idle.SpinnerVisible);
-        Assert.False(idle.ProgressStripVisible);
         Assert.False(idle.RunAnimation);
     }
 
     [Fact]
-    public void RefreshingVisible_ShowsSpinnerStripAndSyncingText()
+    public void RefreshingVisible_ShowsSpinnerAndSyncingText()
     {
         var active = FlyoutRefreshVisualState.Create(true, true);
         Assert.True(active.SyncingTextVisible);
         Assert.False(active.IdleIconVisible);
         Assert.True(active.SpinnerVisible);
-        Assert.True(active.ProgressStripVisible);
         Assert.True(active.RunAnimation);
-        Assert.Equal(active.SpinnerVisible, active.ProgressStripVisible);
         Assert.Equal(active.IdleIconVisible, !active.RunAnimation);
     }
 
@@ -61,12 +58,10 @@ public class FlyoutRefreshVisualStateTests
         Assert.True(hidden.SyncingTextVisible);
         Assert.True(hidden.IdleIconVisible);
         Assert.False(hidden.SpinnerVisible);
-        Assert.False(hidden.ProgressStripVisible);
         Assert.False(hidden.RunAnimation);
 
         var shown = FlyoutRefreshVisualState.Create(true, true);
         Assert.True(shown.SpinnerVisible);
-        Assert.True(shown.ProgressStripVisible);
         Assert.True(shown.RunAnimation);
         Assert.False(shown.IdleIconVisible);
 

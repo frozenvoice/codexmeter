@@ -113,7 +113,7 @@ public class FlyoutUxAndFailureSummaryTests
     }
 
     [Fact]
-    public void FlyoutXaml_HasPinCloseStripAndNoDefaultProgressBar()
+    public void FlyoutXaml_HasPinCloseSpinnerAndNoProgressStrip()
     {
         var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "FlyoutWindow.xaml"));
         XNamespace ns = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
@@ -122,17 +122,11 @@ public class FlyoutUxAndFailureSummaryTests
         Assert.Contains("x:Name=\"TitleText\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"PinButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CloseFlyoutButton\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"SyncProgressStrip\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"SyncProgressTranslate\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Height=\"3\"", xaml, StringComparison.Ordinal);
         Assert.Contains("AccentBrush", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("ProgressBar", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("SyncProgressStrip", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("📌", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("📍", xaml, StringComparison.Ordinal);
-        var strip = document.Descendants(ns + "Grid")
-            .Single(element => (string?)element.Attribute(x + "Name") == "SyncProgressStrip");
-        Assert.Equal("Collapsed", (string?)strip.Attribute("Visibility"));
-        Assert.Equal("3", (string?)strip.Attribute("Height"));
         var spinner = document.Descendants(ns + "Viewbox")
             .Single(element => (string?)element.Attribute(x + "Name") == "RefreshSpinner");
         Assert.Equal("Collapsed", (string?)spinner.Attribute("Visibility"));
@@ -186,7 +180,7 @@ public class FlyoutUxAndFailureSummaryTests
         Assert.Contains("Topmost = FlyoutWindowState.IsTopmost(Pinned)", Slice(code, "public void ApplyWindowSettings", "public void RestorePosition"), StringComparison.Ordinal);
         Assert.Contains("BeginAnimation", code, StringComparison.Ordinal);
         Assert.Contains("RotateTransform.AngleProperty", code, StringComparison.Ordinal);
-        Assert.Contains("TranslateTransform.XProperty", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("TranslateTransform.XProperty", code, StringComparison.Ordinal);
         Assert.Contains("HandoffBehavior.SnapshotAndReplace", code, StringComparison.Ordinal);
         Assert.DoesNotContain("EnsureRefreshStoryboard", code, StringComparison.Ordinal);
         Assert.DoesNotContain("EnsureProgressStripStoryboard", code, StringComparison.Ordinal);
@@ -194,8 +188,6 @@ public class FlyoutUxAndFailureSummaryTests
         Assert.Contains("SetRefreshing", code, StringComparison.Ordinal);
         Assert.Contains("ContentRendered", code, StringComparison.Ordinal);
         Assert.Contains("IsVisibleChanged", code, StringComparison.Ordinal);
-        Assert.Contains("SyncProgressStrip.Visibility", code, StringComparison.Ordinal);
-        Assert.Contains("StripDurationSeconds", code, StringComparison.Ordinal);
         Assert.Contains("RepeatBehavior.Forever", code, StringComparison.Ordinal);
         Assert.Contains("FlyoutPinned", app, StringComparison.Ordinal);
         Assert.Contains("FlyoutPositionConfigured", app, StringComparison.Ordinal);
