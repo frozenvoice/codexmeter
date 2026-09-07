@@ -2,11 +2,12 @@
 
 ## Current release — Codex only
 
-- Release build: 0 warnings/errors; 903 tests passed, including shared-refresh ownership,
+- Release build: 0 warnings/errors; 905 tests passed, including shared-refresh ownership,
   waiter cancellation, retry after failure, unknown-vs-zero and cached identity-state tests.
 - CI artifact-path parsing covers LF, CRLF, tab and space delimiters.
 - Single-file Windows x64 self-contained publish verified: exactly `CodexMeter.exe`,
   with no browser extension, native host, WebView2 or external .NET runtime files.
+- Header logo scales a 24 DIP vector canvas into 20 DIP; WPF stroke bounds fit completely inside the canvas.
 - WPF flyout/settings rendered in dark and light themes using stored Codex quota metadata.
 - Live standalone executable: refreshed successfully at 14:48:28 KST on 2026-09-07; server weekly usage 8%, remaining 92%. Chrome/Edge/Whale old native registrations absent; only CodexMeter process remained.
 - Notification-icon replacement: production source/project guards pass and assembly reflection
@@ -24,11 +25,13 @@
   returning to the start after a drag. WPF gesture-handler tests with injected coordinates
   verify 80x40 DIP movement, one save, no accidental open, click opening and capture-loss handling.
   Physical mouse automation was unavailable: its kernel failed at sandbox ACL initialization.
-- Compact flyout renders at 440x434 DIP for the three-credit snapshot. Widget-menu callback
+- Compact flyout renders at 440x436 DIP for the three-credit snapshot. Widget-menu callback
   test confirms close fires once without exit; persistence/hide wiring has a regression test.
+- Accordion WPF checks pass: 440x436 expanded, 440x317.33 collapsed, refresh preserves collapse,
+  and 1/3/8 credit date groups keep the same expanded height. Dark/light and Korean/English render.
 - Credit help WPF button-event regression: open, refresh while open, second-click close,
   third-click reopen, and parent-hide close all pass.
-- Sliding refresh bar removed. WPF probe confirms identical 434 DIP height before, during
+- Sliding refresh bar removed. WPF probe confirms identical 436 DIP height before, during
   and after refresh for the same snapshot in dark/light and Korean/English; busy button stays disabled.
 - Runtime checks: verify actual Codex refresh, no ChatGPT HTTP/SQLite collector startup,
   no native host registration, saved window position and tray/refresh behavior.

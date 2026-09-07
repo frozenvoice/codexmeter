@@ -103,6 +103,40 @@ public class WidgetInteractionTests
         Assert.DoesNotContain("CreditHelpButton.ToolTip = MakeTooltip(", code);
     }
 
+    [Fact]
+    public void CreditCard_UsesCountBadgeAndCollapsibleBoundedList()
+    {
+        var doc = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "FlyoutWindow.xaml"));
+        XNamespace ns = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        Assert.DoesNotContain("CodexLegendPanel", doc.ToString());
+        var badge = doc.Descendants(ns + "Button").Single(e => (string?)e.Attribute(x + "Name") == "CreditHelpButton");
+        Assert.Contains("ResetCreditsCount", badge.ToString());
+        var expand = doc.Descendants(ns + "Button").Single(e => (string?)e.Attribute(x + "Name") == "CreditExpandButton");
+        Assert.Equal("OnCreditExpandClick", (string?)expand.Attribute("Click"));
+        var list = doc.Descendants(ns + "ScrollViewer").Single(e => (string?)e.Attribute(x + "Name") == "CreditExpiryScroll");
+        Assert.Equal("108", (string?)list.Attribute("Height"));
+        Assert.Equal("Auto", (string?)list.Attribute("VerticalScrollBarVisibility"));
+    }
+
+    [Fact]
+    public void HeaderLogo_ScalesItsFullDrawingWithoutClippingTheStroke()
+    {
+        var doc = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "FlyoutWindow.xaml"));
+        XNamespace ns = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var logo = doc.Descendants(ns + "Path").Single(e => (string?)e.Attribute(x + "Name") == "HeaderLogoPath");
+        var canvas = logo.Parent!;
+        var viewbox = canvas.Parent!;
+        Assert.Equal(ns + "Canvas", canvas.Name);
+        Assert.Equal(ns + "Viewbox", viewbox.Name);
+        Assert.Equal("Uniform", (string?)viewbox.Attribute("Stretch"));
+        // This arc with its 5 DIP round stroke reaches y=22.468, beyond the old 20 DIP grid.
+        Assert.True((double)canvas.Attribute("Width")! >= 24);
+        Assert.True((double)canvas.Attribute("Height")! >= 24);
+        Assert.Equal("20", (string?)viewbox.Attribute("Width"));
+        Assert.Equal("20", (string?)viewbox.Attribute("Height"));
+    }
     private static string Find(string relative)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

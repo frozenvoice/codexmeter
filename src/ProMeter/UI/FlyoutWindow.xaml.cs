@@ -15,6 +15,7 @@ public partial class FlyoutWindow : Window
     public bool Pinned { get; private set; }
     private readonly RefreshIndicatorController _refreshIndicator = new();
     private bool _refreshActive;
+    private bool _creditsExpanded = true;
     private System.Windows.Controls.ToolTip? _creditHelpTip;
 
     public FlyoutWindow()
@@ -142,6 +143,7 @@ public partial class FlyoutWindow : Window
     {
         Title = UiText.ProductName;
         ResetCreditsTitle.Text = UiText.ResetCredits;
+        ApplyCreditExpansion();
         var helpText = UiText.T("Reset credits can renew your Codex usage limits. This app only shows their availability and expiry dates.", "리셋권으로 Codex 사용 한도를 갱신할 수 있습니다. 이 앱에서는 보유 수와 만료일만 확인합니다.");
         _creditHelpTip ??= MakeTooltip(helpText);
         ((TextBlock)_creditHelpTip.Content).Text = helpText;
@@ -149,7 +151,7 @@ public partial class FlyoutWindow : Window
         _creditHelpTip.BorderBrush = (Brush)FindResource("LineBrush");
         ((TextBlock)_creditHelpTip.Content).Foreground = (Brush)FindResource("TextBrush");
         CreditHelpButton.ToolTip = _creditHelpTip;
-        System.Windows.Automation.AutomationProperties.SetName(CreditHelpButton, UiText.T("About reset credits", "리셋권 안내"));
+        System.Windows.Automation.AutomationProperties.SetName(CreditHelpButton, UiText.T("Reset credit count and help", "리셋권 보유 수와 안내"));
         SettingsButton.ToolTip = UiText.Settings;
         System.Windows.Automation.AutomationProperties.SetName(SettingsButton, UiText.Settings);
         RefreshAllButton.ToolTip = UiText.RefreshAll;
@@ -308,6 +310,22 @@ public partial class FlyoutWindow : Window
         }
     }
 
+    private void OnCreditExpandClick(object sender, RoutedEventArgs e)
+    {
+        _creditsExpanded = !_creditsExpanded;
+        ApplyCreditExpansion();
+    }
+
+    private void ApplyCreditExpansion()
+    {
+        CreditDetails.Visibility = _creditsExpanded ? Visibility.Visible : Visibility.Collapsed;
+        CreditExpandChevron.Data = Geometry.Parse(_creditsExpanded ? "M1,7 L7,1 L13,7" : "M1,1 L7,7 L13,1");
+        var label = _creditsExpanded ? UiText.T("Collapse reset credits", "리셋권 접기") : UiText.T("Expand reset credits", "리셋권 펼치기");
+        CreditExpandButton.ToolTip = label;
+        System.Windows.Automation.AutomationProperties.SetName(CreditExpandButton, label);
+        if (!_creditsExpanded && _creditHelpTip is not null) _creditHelpTip.IsOpen = false;
+    }
+
     private void FitContentToWorkArea()
     {
         var source = PresentationSource.FromVisual(this);
@@ -341,13 +359,6 @@ public partial class FlyoutWindow : Window
             CodexRingArcSegment.IsLargeArc = arc.IsLargeArc;
         }
 
-        CodexLegendPanel.Visibility = ring.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
-        if (ring.IsAvailable)
-        {
-            var usedPercent = ring.UsedPercent!.Value;
-            CodexLegendUsedText.Text = $"{UiText.CodexLegendUsed} {ring.CenterValueText}";
-            CodexLegendRemainingText.Text = $"{UiText.CodexLegendRemaining} {CodexDisplayFormatting.PercentText(Math.Clamp(100 - usedPercent, 0, 100))}";
-        }
     }
 
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
