@@ -4,6 +4,8 @@
 
 A native Windows tray app for checking Codex usage, remaining percentages, reset times, and reset credits—without opening a terminal.
 
+> **Pro subscriptions only.** This release supports Codex usage monitoring for ChatGPT Pro subscribers. **The ChatGPT Plus five-hour usage limit is not supported.**
+
 [![Windows build](https://github.com/frozenvoice/codexmeter/actions/workflows/windows.yml/badge.svg)](https://github.com/frozenvoice/codexmeter/actions/workflows/windows.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: Windows x64](https://img.shields.io/badge/Platform-Windows_x64-0078D4.svg)](#get-started)
@@ -26,7 +28,7 @@ A native Windows tray app for checking Codex usage, remaining percentages, reset
 ## At a glance
 
 - **Usage in the tray.** A Windows notification-area icon keeps the meter within reach. Click for the detailed card; pin it to keep it visible.
-- **Clear quota windows.** See used and remaining percentages, the server's reset time, and a countdown. Weekly and five-hour windows appear when provided.
+- **Clear quota windows.** See Pro account usage and remaining percentages, the server's reset time, and a countdown for the windows reported by the server.
 - **Reset credits.** View the available count and expiry dates when the server supplies them. Missing expiry information stays explicitly unknown.
 - **Optional desktop widget.** A compact, draggable meter with adjustable opacity, always-on-top, and click-through options. Off-screen positions recover automatically.
 - **Your preferred appearance.** Dark, Light, or live System theme; English and Korean; keyboard zoom from 80% to 150%.
@@ -34,7 +36,7 @@ A native Windows tray app for checking Codex usage, remaining percentages, reset
 
 ## Get started
 
-**Requirements:** Windows 10/11 on x64, an installed Codex CLI already signed in to your account, and network access for quota checks.
+**Requirements:** A ChatGPT Pro subscription, Windows 10/11 on x64, an installed Codex CLI already signed in to your account, and network access for quota checks.
 
 1. Download **`CodexMeter.exe`** from the [latest release](https://github.com/frozenvoice/codexmeter/releases/latest).
 2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.
