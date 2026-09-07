@@ -4,7 +4,7 @@ namespace ProMeter.Tests;
 
 public class DeterministicExtensionIdTests
 {
-    // The exact public key committed in extension/manifest.json's "key" field.
+    // Public-key fixture retained from the retired companion (not a secret).
     private const string CommittedManifestKey =
         "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAw6/Q09IDARmodxok17l3NIATpSqNWs8DNYfqWcz2fRkwpX4eOdZjAD/uN4HlpXKTCGJp01MY4abBjmijPxE5hKgtqvoZf1VxVMXeHPmojEVmp04bJycyRXcns2J0ebwbB+ORlEo0uHZ+0tGs2IgpIFbAqUdU3yHkdnKLmGD6oMQgEuD4weNTgNNvgfwHTZ86zrKzgKPbXANISwOsNWPJZjd5f1K4YygL4aM92HdIgEymg1SYzLPckMLGlVxMREXzIU0oBiaSJwsgO/YGQHvcCcvQfQ+81I7iJUKCvS/EDabV2VJiaGfszybAqTs5BL5DKPEH3wrBnZjdPmF0HPyFyQIDAQAB";
 
@@ -19,19 +19,6 @@ public class DeterministicExtensionIdTests
         Assert.True(ChromiumExtensionId.TryCompute(CommittedManifestKey, out var id));
         Assert.Equal(ExpectedExtensionId, id);
         Assert.Matches("^[a-p]{32}$", id);
-    }
-
-    [Fact]
-    public void RepoManifest_KeyMatchesTheCommittedExpectedId()
-    {
-        // Proves the committed extension/manifest.json actually contains the key this
-        // test suite verifies, so the constant above can't silently drift from the file.
-        var manifestPath = Path.Combine(FindRepoRoot(), "extension", "manifest.json");
-        Assert.True(CompanionExtensionManifest.TryReadPublicKey(manifestPath, out var key));
-        Assert.Equal(CommittedManifestKey, key);
-
-        Assert.True(CompanionExtensionManifest.TryReadBuiltInExtensionId(manifestPath, out var id));
-        Assert.Equal(ExpectedExtensionId, id);
     }
 
     [Fact]
@@ -88,14 +75,4 @@ public class DeterministicExtensionIdTests
         Assert.False(CompanionExtensionManifest.TryReadBuiltInExtensionId(path, out _));
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "ProMeter.sln")))
-        {
-            dir = dir.Parent;
-        }
-
-        return dir?.FullName ?? throw new DirectoryNotFoundException("Could not locate repo root from " + AppContext.BaseDirectory);
-    }
 }

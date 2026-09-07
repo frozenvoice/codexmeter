@@ -17,7 +17,15 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Existing settings/cache paths are retained; history is neither read nor deleted.
   Startup removes only known native-host registrations matching the old owned manifest path.
   The browser extension must be removed via the browser's extension manager.
-- Repository and local checkout are named `codexmeter`; internal namespaces/solution name remain ProMeter for compatibility.
+- Repository and local checkout are named `codexmeter`; internal namespaces/solution name have not yet been renamed from ProMeter.
+- The internal rename is incomplete: `src/ProMeter` is the active WPF app,
+  `src/ProMeter.Core` contains active Codex and retained legacy logic, and
+  `src/ProMeter.CompanionHost` is a retired host still built by the solution for legacy tests,
+  but never published with CodexMeter. Source/project names can be migrated independently
+  of the persisted `%LOCALAPPDATA%\ProMeter` compatibility path.
+- The retired `extension/` source and its CI validation step have been removed. Extension-only
+  file consistency tests were removed; retained .NET transport and manifest fixture tests remain.
+  Previous extension sources are available in Git history.
 - Windows owns the notification icon's allocated slot through NotifyIcon. The retired taskbar
   overlay and TaskbarWin32 are excluded from the desktop build, with no geometry/fullscreen
   polling. Its old JSON settings remain compatible but startup/save disable the overlay.
@@ -85,7 +93,7 @@ Transports are never swapped silently.
 - `ProMeter.Core` — models, ChatGPT provider abstraction, parsers, SQLite, quota, import/export
 - `ProMeter` — WPF tray app, WebView2 fallback login, companion pipe server, notifications, startup
 - `ProMeter.CompanionHost` — Chrome/Edge native messaging host (`prometer-companion-host.exe`)
-- `extension/` — Manifest V3 companion. `https://chatgpt.com/*` only. No `cookies` permission.
+- Former `extension/` (Git history only) — Manifest V3 companion. `https://chatgpt.com/*` only. No `cookies` permission.
 
 ## Provider abstraction
 

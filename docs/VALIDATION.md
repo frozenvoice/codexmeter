@@ -2,7 +2,9 @@
 
 ## Current release — Codex only
 
-- Release build: 0 warnings/errors; 905 tests passed, including shared-refresh ownership,
+- Extension cleanup: restore, Release build (0 warnings/errors), all 903 remaining tests, and win-x64 self-contained single-file publish passed. Two obsolete extension-file consistency tests were removed; retained .NET regression tests remain.
+
+- Release build: 0 warnings/errors; 903 tests passed, including shared-refresh ownership,
   waiter cancellation, retry after failure, unknown-vs-zero and cached identity-state tests.
 - CI artifact-path parsing covers LF, CRLF, tab and space delimiters.
 - Single-file Windows x64 self-contained publish verified: exactly `CodexMeter.exe`,
@@ -38,6 +40,10 @@
 - A fresh PC requires installed and signed-in Codex CLI; no browser pairing is part of setup.
 
 ## Historical ChatGPT checks (retired; do not use as CodexMeter setup)
+
+The extension source and its CI checks have been removed. Commands and extension setup
+below document historical validation only and require an old checkout from Git history.
+
 # Manual validation
 
 ProMeter reconstructs usage from ChatGPT account history. These checks require a real signed-in Pro account. Live ChatGPT compatibility is not claimed until they pass.

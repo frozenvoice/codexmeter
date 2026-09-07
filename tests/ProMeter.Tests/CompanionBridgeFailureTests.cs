@@ -158,14 +158,6 @@ public class CompanionBridgeFailureTests
         Assert.Contains("new CodexAppServerClient()", app, StringComparison.Ordinal);
     }
 
-    private static int ProMeterCanonicalPageBridgeVersion()
-    {
-        var canonical = File.ReadAllText(Find("extension/canonical.js"));
-        var match = System.Text.RegularExpressions.Regex.Match(canonical, @"PAGE_BRIDGE_VERSION\s*=\s*(\d+)");
-        Assert.True(match.Success);
-        return int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
-    }
-
     private static string Find(string relative)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

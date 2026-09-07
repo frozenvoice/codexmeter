@@ -44,7 +44,11 @@ Codex CLI 자체는 이 배포 파일에 포함하지 않습니다.
 
 ## 개발
 
-저장소 이름은 `codexmeter`입니다. 솔루션 이름 `ProMeter.sln`과 내부 네임스페이스는 호환성을 위해 유지합니다.
+저장소와 제품 이름은 `CodexMeter`로 전환했지만, 솔루션 `ProMeter.sln`, 프로젝트 파일과 내부 네임스페이스는 아직 이전 이름입니다.
+`src/ProMeter`는 현재 WPF 앱, `src/ProMeter.Core`는 Codex 로직과 남아 있는 레거시 로직,
+`src/ProMeter.CompanionHost`는 배포되지 않는 이전 Native Messaging 호스트입니다.
+소스 폴더명은 설정 호환성의 필수 조건이 아니며, 변경하려면 솔루션·프로젝트 참조·스크립트·테스트 경로를 함께 정리해야 합니다.
+기존 사용자 설정과 캐시를 찾는 `%LOCALAPPDATA%\ProMeter` 경로는 별도로 유지해야 합니다.
 
 ```powershell
 .\dev-run.ps1
@@ -65,4 +69,5 @@ Codex App Server의 계정/사용 한도 조회만 수행하며 모델 요청을
 [구조](docs/ARCHITECTURE.md) · [검증](docs/VALIDATION.md)
 
 이전 ChatGPT 수집 코드와 테스트는 이력 보존을 위해 저장소에 남아 있지만,
-브라우저 확장·보조 호스트·폐기된 화면은 배포에 포함되지 않습니다.
+보조 호스트·폐기된 화면은 배포에 포함되지 않습니다. 사용하지 않는 `extension` 소스 폴더와
+확장 전용 CI 검사는 삭제했으며, 이전 확장 소스는 Git 이력에서 확인할 수 있습니다.
