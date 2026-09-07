@@ -69,6 +69,7 @@ public partial class App : Application
             _settingsStore.Save(_settings);
         };
         _tray.ExitRequested += ExitApp;
+        _tray.CloseWidgetRequested += CloseWidget;
         _codex = new CodexQuotaService(_codexLocator, new CodexAppServerClient(),
             new CodexSnapshotStore(), Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0", _log.Info);
         _refresh = new CodexRefreshCoordinator(ct => Task.Run(() => _codex.RefreshAsync(_settings.CodexExePath, ct), ct));
@@ -178,6 +179,13 @@ public partial class App : Application
         });
     }
 
+    private void CloseWidget()
+    {
+        _settings.FloatingWidgetEnabled = false;
+        _settingsStore.Save(_settings);
+        ApplyWidget();
+    }
+
     private void ApplyWidget()
     {
         if (!_settings.FloatingWidgetEnabled)
@@ -197,7 +205,7 @@ public partial class App : Application
             };
             _widget.FlyoutRequested += ToggleFlyout;
             _widget.RefreshRequested += () => _ = RefreshCodexAsync();
-            _widget.ContextMenuRequested += () => _tray.ShowContextMenu();
+            _widget.ContextMenuRequested += () => _tray.ShowWidgetContextMenu();
         });
         _widget.Apply(_settings);
         _widget.Bind(_codex.Snapshot);

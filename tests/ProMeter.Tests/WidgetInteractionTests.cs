@@ -74,6 +74,24 @@ public class WidgetInteractionTests
         Assert.DoesNotContain("ConfirmedRequestsText", xaml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void WidgetCloseMenu_HidesAndPersistsWithoutExitingApp()
+    {
+        var tray = File.ReadAllText(Find("src/ProMeter/UI/TrayController.cs"));
+        var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
+        Assert.Contains("CloseWidgetRequested?.Invoke()", tray);
+        Assert.Contains("위젯 닫기", tray);
+        Assert.Contains("_widget.ContextMenuRequested += () => _tray.ShowWidgetContextMenu()", app);
+        Assert.Contains("_tray.CloseWidgetRequested += CloseWidget", app);
+        var start = app.IndexOf("private void CloseWidget()", StringComparison.Ordinal);
+        var close = app[start..app.IndexOf("private void ApplyWidget()", start, StringComparison.Ordinal)];
+        Assert.Contains("_settings.FloatingWidgetEnabled = false", close);
+        Assert.Contains("_settingsStore.Save(_settings)", close);
+        Assert.Contains("ApplyWidget()", close);
+        Assert.DoesNotContain("ExitApp", close);
+        Assert.DoesNotContain("Shutdown", close);
+    }
+
     private static string Find(string relative)
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

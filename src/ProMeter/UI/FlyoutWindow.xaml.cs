@@ -184,8 +184,8 @@ public partial class FlyoutWindow : Window
         Top = top;
     }
 
-    private const double CodexRingDiameter = 168;
-    private const double CodexRingStrokeThickness = 15;
+    private const double CodexRingDiameter = 112;
+    private const double CodexRingStrokeThickness = 10;
     private const double CodexRingRadius = (CodexRingDiameter - CodexRingStrokeThickness) / 2;
     private const double CodexRingCenter = CodexRingDiameter / 2;
 
@@ -198,7 +198,7 @@ public partial class FlyoutWindow : Window
         CodexRows.Items.Clear();
         foreach (var item in CodexDisplayFormatting.Rows(snapshot, includeResetCredits: false))
         {
-            var row = new Grid { Margin = new Thickness(0, 13, 0, 13), MinHeight = 20 };
+            var row = new Grid { Margin = new Thickness(0, 7, 0, 7), MinHeight = 18 };
             if (item.Tooltip is not null)
             {
                 row.ToolTip = new System.Windows.Controls.ToolTip
@@ -212,14 +212,14 @@ public partial class FlyoutWindow : Window
             row.Children.Add(new TextBlock
             {
                 Text = item.Label,
-                Margin = new Thickness(0, 0, 12, 0), FontSize = 15, VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 12, 0), FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
                 Foreground = (Brush)FindResource("MutedBrush")
             });
             var values = new StackPanel { HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
             Grid.SetColumn(values, 1);
             values.Children.Add(new TextBlock
             {
-                Text = item.Value, FontSize = 17,
+                Text = item.Value, FontSize = 14,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
                 Style = (Style)FindResource("FlyoutValueText"),
                 Foreground = item.EmphasizeDanger ? (Brush)FindResource("DangerBrush") : (Brush)FindResource("TextBrush")
@@ -228,7 +228,7 @@ public partial class FlyoutWindow : Window
             {
                 values.Children.Add(new TextBlock
                 {
-                    Text = item.Detail, FontSize = 13, Margin = new Thickness(0, 2, 0, 2),
+                    Text = item.Detail, FontSize = 11, Margin = new Thickness(0, 2, 0, 2),
                     TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Right,
                     Foreground = (Brush)FindResource("MutedBrush")
                 });
@@ -252,7 +252,7 @@ public partial class FlyoutWindow : Window
         for (var index = 0; index < credits.Rows.Count; index++)
         {
             var item = credits.Rows[index];
-            var row = new Grid { MinHeight = 50 };
+            var row = new Grid { MinHeight = 34 };
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.Children.Add(new System.Windows.Shapes.Path
@@ -264,7 +264,7 @@ public partial class FlyoutWindow : Window
             });
             var text = new TextBlock
             {
-                Text = item.Text, FontSize = 15, Margin = new Thickness(10, 10, 4, 10),
+                Text = item.Text, FontSize = 12, Margin = new Thickness(6, 6, 4, 6),
                 TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
                 Foreground = (Brush)FindResource("MutedBrush")
             };
@@ -303,7 +303,7 @@ public partial class FlyoutWindow : Window
         var cursor = System.Windows.Forms.Control.MousePosition;
         var work = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
         var size = fromDevice.Transform(new System.Windows.Vector(work.Width, work.Height));
-        Width = Math.Min(560, Math.Max(360, size.X - 24));
+        Width = Math.Min(440, Math.Max(360, size.X - 24));
         FlyoutContentScroll.MaxHeight = Math.Max(180, size.Y - 128);
     }
 

@@ -30,8 +30,10 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   The additive cache field preserves older snapshots; missing/partial expiries stay explicit.
   The separate reset-credit card shows every date group in a bounded scrolling list, with exact times in tooltips.
 - Flyout follows the supplied two-card layout: large usage ring, separated quota rows, and a
-  reset-credit list below. Its 560 DIP width and scrollable body fit the current work area.
+  reset-credit list below. Its 440 DIP width and scrollable body fit the current work area.
   Fresh/refreshing/stale/identity-failure states stay distinct; credit unknown is never zero.
+- The widget context menu includes Close widget, which saves its disabled preference and hides
+  only the widget. Settings can re-enable it; the tray and app remain running.
 - Widget drag uses captured screen-coordinate deltas, independent of the moving window.
   Crossing the movement threshold suppresses click-to-open; release or capture loss emits
   one position-save event. Click-through remains an explicit setting and disables input.

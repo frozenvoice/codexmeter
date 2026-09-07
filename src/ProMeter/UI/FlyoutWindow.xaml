@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="CodexMeter" FontFamily="Segoe UI" FontSize="14" UseLayoutRounding="True"
-        Width="560"
+        Width="440"
         SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="True"
@@ -17,8 +17,8 @@
             <Setter Property="HorizontalAlignment" Value="Right"/>
         </Style>
         <Style x:Key="FlyoutHeaderIconButton" TargetType="Button">
-            <Setter Property="MinWidth" Value="36"/>
-            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="MinWidth" Value="28"/>
+            <Setter Property="MinHeight" Value="28"/>
             <Setter Property="Padding" Value="6,2"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Background" Value="{DynamicResource GhostBrush}"/>
@@ -71,7 +71,7 @@
         <DockPanel>
             <Grid x:Name="FlyoutHeaderGrid"
                   DockPanel.Dock="Top"
-                  Margin="20,20,20,12"
+                  Margin="14,14,14,8"
                   MouseLeftButtonDown="OnHeaderMouseLeftButtonDown">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
@@ -82,13 +82,13 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,12,0">
-                    <Border Background="{DynamicResource GhostBrush}" CornerRadius="9" Width="36" Height="36" Margin="0,0,10,0">
-                        <Grid Width="24" Height="24">
+                    <Border Background="{DynamicResource GhostBrush}" CornerRadius="9" Width="28" Height="28" Margin="0,0,10,0">
+                        <Grid Width="20" Height="20">
                             <Path Stroke="{DynamicResource TextBrush}" StrokeThickness="5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M17,18 A8,8 0 1 1 12,4"/>
                             <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,0,2,0"/>
                         </Grid>
                     </Border>
-                    <TextBlock x:Name="TitleText" Text="CodexMeter" FontWeight="SemiBold" FontSize="18" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
+                    <TextBlock x:Name="TitleText" Text="CodexMeter" FontWeight="SemiBold" FontSize="16" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
                 </StackPanel>
 
                 <Grid Grid.Column="1" Margin="0,0,12,0" MinWidth="0" HorizontalAlignment="Right"><Ellipse x:Name="StatusDot" Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Center" Fill="{DynamicResource OkBrush}"/>
@@ -199,56 +199,56 @@
                           Stretch="Uniform"/>
                 </Button>
             </Grid>
-            <ScrollViewer x:Name="FlyoutContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="20,4,20,20" MaxHeight="640">
+            <ScrollViewer x:Name="FlyoutContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="14,4,14,14" MaxHeight="640">
                 <StackPanel>
-                    <Border x:Name="CodexCard" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="20">
+                    <Border x:Name="CodexCard" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="12">
                         <StackPanel>
-                            <TextBlock x:Name="CodexStatusText" Foreground="{DynamicResource MutedBrush}" FontSize="13" TextWrapping="Wrap" Margin="0,0,0,16" Visibility="Collapsed"/>
+                            <TextBlock x:Name="CodexStatusText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
                             <Grid x:Name="CodexBodyGrid">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="184"/>
+                                    <ColumnDefinition Width="140"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center">
-                                    <Grid x:Name="CodexRingHost" Width="168" Height="168">
-                                        <Ellipse x:Name="CodexRingTrack" Width="168" Height="168" StrokeThickness="15" Stroke="{DynamicResource LineBrush}"/>
-                                        <Path x:Name="CodexRingArcPath" StrokeThickness="15" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Stroke="{DynamicResource AccentBrush}" Fill="Transparent" Visibility="Collapsed">
+                                    <Grid x:Name="CodexRingHost" Width="112" Height="112">
+                                        <Ellipse x:Name="CodexRingTrack" Width="112" Height="112" StrokeThickness="10" Stroke="{DynamicResource LineBrush}"/>
+                                        <Path x:Name="CodexRingArcPath" StrokeThickness="10" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Stroke="{DynamicResource AccentBrush}" Fill="Transparent" Visibility="Collapsed">
                                             <Path.Data><PathGeometry><PathFigure x:Name="CodexRingFigure" IsClosed="False"><ArcSegment x:Name="CodexRingArcSegment" SweepDirection="Clockwise"/></PathFigure></PathGeometry></Path.Data>
                                         </Path>
-                                        <Ellipse x:Name="CodexRingFullCircle" Width="168" Height="168" StrokeThickness="15" Stroke="{DynamicResource AccentBrush}" Visibility="Collapsed"/>
+                                        <Ellipse x:Name="CodexRingFullCircle" Width="112" Height="112" StrokeThickness="10" Stroke="{DynamicResource AccentBrush}" Visibility="Collapsed"/>
                                         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <TextBlock x:Name="CodexRingValueText" FontSize="36" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
-                                            <TextBlock x:Name="CodexRingSubLabel" FontSize="13" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="124" Margin="0,4,0,0" Foreground="{DynamicResource MutedBrush}"/>
+                                            <TextBlock x:Name="CodexRingValueText" FontSize="26" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
+                                            <TextBlock x:Name="CodexRingSubLabel" FontSize="11" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="96" Margin="0,4,0,0" Foreground="{DynamicResource MutedBrush}"/>
                                         </StackPanel>
                                     </Grid>
-                                    <StackPanel x:Name="CodexLegendPanel" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0" Visibility="Collapsed">
-                                        <Ellipse Width="10" Height="10" VerticalAlignment="Center" Fill="{DynamicResource AccentBrush}"/>
-                                        <TextBlock x:Name="CodexLegendUsedText" FontSize="11" VerticalAlignment="Center" Margin="5,0,12,0" Foreground="{DynamicResource MutedBrush}"/>
-                                        <Ellipse Width="10" Height="10" VerticalAlignment="Center" Fill="{DynamicResource LineBrush}"/>
-                                        <TextBlock x:Name="CodexLegendRemainingText" FontSize="11" VerticalAlignment="Center" Margin="5,0,0,0" Foreground="{DynamicResource MutedBrush}"/>
+                                    <StackPanel x:Name="CodexLegendPanel" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0" Visibility="Collapsed">
+                                        <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource AccentBrush}"/>
+                                        <TextBlock x:Name="CodexLegendUsedText" FontSize="9" VerticalAlignment="Center" Margin="4,0,8,0" Foreground="{DynamicResource MutedBrush}"/>
+                                        <Ellipse Width="7" Height="7" VerticalAlignment="Center" Fill="{DynamicResource LineBrush}"/>
+                                        <TextBlock x:Name="CodexLegendRemainingText" FontSize="9" VerticalAlignment="Center" Margin="5,0,0,0" Foreground="{DynamicResource MutedBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
-                                <Border Grid.Column="1" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0" Padding="20,0,0,0" Margin="12,0,0,0">
+                                <Border Grid.Column="1" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1,0,0,0" Padding="12,0,0,0" Margin="4,0,0,0">
                                     <ItemsControl x:Name="CodexRows" VerticalAlignment="Center"/>
                                 </Border>
                             </Grid>
                         </StackPanel>
                     </Border>
-                    <Border x:Name="ResetCreditsCard" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,16,0,0">
+                    <Border x:Name="ResetCreditsCard" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,12,0,0">
                         <StackPanel>
-                            <Grid Margin="0,0,0,16">
+                            <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <TextBlock x:Name="ResetCreditsTitle" FontSize="18" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
+                                <TextBlock x:Name="ResetCreditsTitle" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
                                 <Button x:Name="CreditHelpButton" Grid.Column="1" Style="{StaticResource FlyoutHeaderIconButton}" Margin="8,0,0,0" Background="Transparent" Click="OnCreditHelpClick">
                                     <Grid Width="18" Height="18">
                                         <Ellipse Stroke="{DynamicResource MutedBrush}" StrokeThickness="1.3"/>
                                         <Path Stroke="{DynamicResource MutedBrush}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Data="M6.4,6 C6.4,2.8 11.7,2.8 11.7,6 C11.7,8 9,8 9,10 M9,13 L9,13.4"/>
                                     </Grid>
                                 </Button>
-                                <TextBlock x:Name="ResetCreditsCount" Grid.Column="2" FontSize="26" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
+                                <TextBlock x:Name="ResetCreditsCount" Grid.Column="2" FontSize="22" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
                             </Grid>
                             <Border x:Name="CreditListBorder" Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="8" Padding="12,0">
-                                <ScrollViewer x:Name="CreditExpiryScroll" MaxHeight="156" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
+                                <ScrollViewer x:Name="CreditExpiryScroll" MaxHeight="108" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly">
                                     <ItemsControl x:Name="CreditExpiryRows"/>
                                 </ScrollViewer>
                             </Border>

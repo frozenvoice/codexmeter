@@ -7,6 +7,8 @@ public sealed class TrayController : IDisposable
 {
     private readonly NotifyIcon _icon;
     private Icon? _current;
+    private ContextMenuStrip? _widgetMenu;
+    private bool _startWithWindows;
 
     public event Action? LeftClick;
     public event Action? OpenRequested;
@@ -16,6 +18,7 @@ public sealed class TrayController : IDisposable
     public event Action<bool>? StartupToggled;
     public event Action? AboutRequested;
     public event Action? ExitRequested;
+    public event Action? CloseWidgetRequested;
 
     public TrayController()
     {
@@ -36,20 +39,39 @@ public sealed class TrayController : IDisposable
 
     public void RebuildMenu(bool startWithWindows)
     {
+        _startWithWindows = startWithWindows;
+        var old = _icon.ContextMenuStrip;
+        _icon.ContextMenuStrip = CreateMenu(startWithWindows, false);
+        old?.Dispose();
+        _widgetMenu?.Dispose();
+        _widgetMenu = CreateMenu(startWithWindows, true);
+    }
+
+    private ContextMenuStrip CreateMenu(bool startWithWindows, bool forWidget)
+    {
         var menu = new ContextMenuStrip();
+        if (forWidget)
+        {
+            menu.Items.Add(UiText.T("Close widget", "위젯 닫기"), null, (_, _) => CloseWidgetRequested?.Invoke());
+            menu.Items.Add(new ToolStripSeparator());
+        }
         menu.Items.Add(UiText.OpenProMeter, null, (_, _) => OpenRequested?.Invoke());
         menu.Items.Add(UiText.RefreshAll, null, (_, _) => SyncRequested?.Invoke());
         menu.Items.Add(UiText.Settings, null, (_, _) => SettingsRequested?.Invoke());
         menu.Items.Add(UiText.OpenLogs, null, (_, _) => OpenLogsRequested?.Invoke());
         var startup = new ToolStripMenuItem(UiText.StartWithWindows) { Checked = startWithWindows, CheckOnClick = true };
-        startup.CheckedChanged += (_, _) => StartupToggled?.Invoke(startup.Checked);
+        menu.Opening += (_, _) => startup.Checked = _startWithWindows;
+        startup.CheckedChanged += (_, _) =>
+        {
+            if (_startWithWindows == startup.Checked) return;
+            _startWithWindows = startup.Checked;
+            StartupToggled?.Invoke(startup.Checked);
+        };
         menu.Items.Add(startup);
         menu.Items.Add(UiText.About, null, (_, _) => AboutRequested?.Invoke());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(UiText.Exit, null, (_, _) => ExitRequested?.Invoke());
-        var old = _icon.ContextMenuStrip;
-        _icon.ContextMenuStrip = menu;
-        old?.Dispose();
+        return menu;
     }
 
     public void Update(CodexQuotaSnapshot snapshot, TrayIconStyle style)
@@ -63,6 +85,8 @@ public sealed class TrayController : IDisposable
             _current = next;
         });
     }
+
+    public void ShowWidgetContextMenu() => _widgetMenu?.Show(System.Windows.Forms.Control.MousePosition);
 
     public void ShowContextMenu()
     {
@@ -85,6 +109,8 @@ public sealed class TrayController : IDisposable
     public void Dispose()
     {
         _icon.Visible = false;
+        _icon.ContextMenuStrip?.Dispose();
+        _widgetMenu?.Dispose();
         _icon.Dispose();
         _current?.Dispose();
     }
