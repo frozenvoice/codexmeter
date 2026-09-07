@@ -122,6 +122,7 @@ public partial class App : Application
         _flyout.SyncRequested += () => _ = RefreshCodexAsync();
         _flyout.SettingsRequested += ShowSettings;
         _flyout.PinChanged += pinned => { _settings.FlyoutPinned = pinned; _settingsStore.Save(_settings); };
+        _flyout.ZoomChanged += percent => { _settings.FlyoutZoomPercent = percent; _settingsStore.Save(_settings); };
         _flyout.PositionChanged += (left, top) =>
         {
             _settings.FlyoutLeft = left;

@@ -38,6 +38,10 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Last checked combines the local successful-refresh time with elapsed minutes/hours/days.
   The same display timer updates it without a request. Failed attempts do not reset its age;
   missing or future timestamps never produce an invented elapsed value.
+- The detail popup supports Ctrl +/- and Ctrl 0, including keypad keys. A persisted
+  80–150% scale in 10% steps scales the complete layout so fixed-size text does not overlap.
+  Work-area bounds cap effective width, and the body scroll limit accounts for the scale.
+  Loading settings and repeated keys at a limit do not trigger redundant saves.
 - Root reset-credit metadata takes precedence as one container. Available Codex reset credits
   are deduplicated transiently by ID and projected to nullable expiry timestamps only.
   The additive cache field preserves older snapshots; missing/partial expiries stay explicit.

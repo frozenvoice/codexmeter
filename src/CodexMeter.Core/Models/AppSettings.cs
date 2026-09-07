@@ -41,6 +41,7 @@ public sealed class AppSettings
     // Deprecated: retained only for settings JSON compatibility. Detail Flyout no longer auto-hides on focus loss.
     public bool FlyoutCloseOnDeactivate { get; set; } = true;
     public bool FlyoutPinned { get; set; }
+    public int FlyoutZoomPercent { get; set; } = 100;
     public double FlyoutLeft { get; set; }
     public double FlyoutTop { get; set; }
     public bool FlyoutPositionConfigured { get; set; }

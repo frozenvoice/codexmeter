@@ -12,6 +12,8 @@ public partial class FlyoutWindow : Window
     public event Action? SettingsRequested;
     public event Action<bool>? PinChanged;
     public event Action<double, double>? PositionChanged;
+    public event Action<int>? ZoomChanged;
+    public int ZoomPercent { get; private set; } = FlyoutZoom.DefaultPercent;
     public bool Pinned { get; private set; }
     private readonly RefreshIndicatorController _refreshIndicator = new();
     private bool _refreshActive;
@@ -40,6 +42,7 @@ public partial class FlyoutWindow : Window
 
     public void ApplyWindowSettings(AppSettings settings)
     {
+        SetZoom(settings.FlyoutZoomPercent, notify: false);
         Pinned = settings.FlyoutPinned;
         Topmost = FlyoutWindowState.IsTopmost(Pinned);
         ApplyPinGlyph();
@@ -331,10 +334,43 @@ public partial class FlyoutWindow : Window
         var source = PresentationSource.FromVisual(this);
         var fromDevice = source?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
         var cursor = System.Windows.Forms.Control.MousePosition;
-        var work = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
+        var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        var screen = handle == IntPtr.Zero ? System.Windows.Forms.Screen.FromPoint(cursor)
+            : System.Windows.Forms.Screen.FromHandle(handle);
+        var work = screen.WorkingArea;
         var size = fromDevice.Transform(new System.Windows.Vector(work.Width, work.Height));
-        Width = Math.Min(440, Math.Max(360, size.X - 24));
-        FlyoutContentScroll.MaxHeight = Math.Max(180, size.Y - 128);
+        var scale = Math.Min(ZoomPercent / 100d, Math.Max(1, size.X - 24) / 440d);
+        FlyoutScale.ScaleX = FlyoutScale.ScaleY = scale;
+        Width = 440 * scale;
+        FlyoutContentScroll.MaxHeight = Math.Max(0, (size.Y - 24) / scale - 104);
+    }
+
+    private void SetZoom(int percent, bool notify)
+    {
+        var next = FlyoutZoom.Normalize(percent);
+        var changed = next != ZoomPercent;
+        ZoomPercent = next;
+        FitContentToWorkArea();
+        TitleText.ToolTip = UiText.T($"Size {ZoomPercent}% · Ctrl + / Ctrl - · Ctrl 0 to reset",
+            $"크기 {ZoomPercent}% · Ctrl + / Ctrl - · Ctrl 0으로 초기화");
+        if (IsVisible) RestorePosition(Left, Top);
+        if (changed && notify) ZoomChanged?.Invoke(ZoomPercent);
+    }
+
+    public bool TryHandleZoomShortcut(Key key, ModifierKeys modifiers)
+    {
+        if ((modifiers & ModifierKeys.Control) == 0
+            || (modifiers & (ModifierKeys.Alt | ModifierKeys.Windows)) != 0) return false;
+        var next = key switch
+        {
+            Key.OemPlus or Key.Add => FlyoutZoom.Adjust(ZoomPercent, increase: true),
+            Key.OemMinus or Key.Subtract => FlyoutZoom.Adjust(ZoomPercent, increase: false),
+            Key.D0 or Key.NumPad0 => FlyoutZoom.DefaultPercent,
+            _ => (int?)null
+        };
+        if (next is null) return false;
+        SetZoom(next.Value, notify: true);
+        return true;
     }
 
     private void ApplyCodexRing(CodexQuotaSnapshot snapshot)
@@ -363,6 +399,11 @@ public partial class FlyoutWindow : Window
 
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (TryHandleZoomShortcut(e.Key, Keyboard.Modifiers))
+        {
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape)
         {
             Hide();

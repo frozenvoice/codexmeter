@@ -62,12 +62,15 @@
             </ControlTemplate></Setter.Value></Setter>
         </Style>
     </Window.Resources>
-    <Border Background="{DynamicResource CardBrush}"
+    <Border x:Name="FlyoutSurface" Width="440" Background="{DynamicResource CardBrush}"
             BorderBrush="{DynamicResource LineBrush}"
             BorderThickness="1"
             CornerRadius="14"
             Padding="0"
             ClipToBounds="True">
+        <Border.LayoutTransform>
+            <ScaleTransform x:Name="FlyoutScale" ScaleX="1" ScaleY="1"/>
+        </Border.LayoutTransform>
         <DockPanel>
             <Grid x:Name="FlyoutHeaderGrid"
                   DockPanel.Dock="Top"

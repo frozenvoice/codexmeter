@@ -2,6 +2,13 @@
 
 ## Current release — Codex only
 
+- Popup zoom: restore, Release build (0 warnings/errors), 934 tests and 36 WPF renders
+  passed. Shortcut logic covers Ctrl +/-/0, shifted plus and keypad keys; normal keys
+  and Ctrl+Alt are ignored. Settings default/round-trip/bounds and refresh preservation
+  are checked. Popup rows render without overlap at 80/100/150% in both languages and
+  three themes. Single-file publish and local replacement/startup passed after retrying
+  the known transient directory lock. Physical keyboard input was not automated.
+
 - Widget normal-state notice is collapsed, including its margin. All quota statuses
   and recovery to normal are checked in the WPF smoke suite across both languages and
   three themes. Restore, Release build (0 warnings/errors), 925 unit tests and 24 renders passed.

@@ -32,6 +32,7 @@ public static class SettingsMigration
         }
 
         settings.Version = AppSettings.CurrentVersion;
+        settings.FlyoutZoomPercent = Codex.FlyoutZoom.Normalize(settings.FlyoutZoomPercent);
         return settings;
     }
 
