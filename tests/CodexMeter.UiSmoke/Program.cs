@@ -13,7 +13,7 @@ namespace CodexMeter.UiSmoke;
 internal static class Program
 {
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
         // Load the production App/XAML without Run: no startup, account access,
         // settings writes, tray registration or background refresh occurs.
@@ -21,6 +21,11 @@ internal static class Program
         try
         {
             app.InitializeComponent();
+            if (args is ["--screenshots", var directory])
+            {
+                DocumentationScreenshots.Export(directory);
+                return 0;
+            }
             CheckEnvironmentCallbacks(app);
             CheckWidgetRecovery();
             CheckPositionReset();

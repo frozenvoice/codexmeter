@@ -1,84 +1,121 @@
 # CodexMeter
 
-Windows 트레이에서 **Codex 계정 사용률, 남은 비율, 리셋 시각**을 확인하는 앱입니다.
+**Your Codex limits, one click away.**
 
-ChatGPT Pro/Sol 기록 추정 기능은 종료했습니다. Edge/Chrome 확장, ChatGPT 로그인,
-대화 기록 동기화, SQLite 기록 집계, WebView2는 현재 앱에서 사용하지 않습니다.
+A native Windows tray app for checking Codex usage, remaining percentages, reset times, and reset credits—without opening a terminal.
 
-## 실행
+[![Windows build](https://github.com/frozenvoice/codexmeter/actions/workflows/windows.yml/badge.svg)](https://github.com/frozenvoice/codexmeter/actions/workflows/windows.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform: Windows x64](https://img.shields.io/badge/Platform-Windows_x64-0078D4.svg)](#get-started)
 
-배포 파일은 **`CodexMeter.exe` 하나**입니다. .NET 런타임이 포함되어 별도 .NET 설치가 필요 없습니다.
+[Download for Windows](https://github.com/frozenvoice/codexmeter/releases/latest) · [한국어](docs/README.ko.md) · [Report an issue](https://github.com/frozenvoice/codexmeter/issues)
 
-사용량 조회에는 이 PC에 설치되어 있고 계정에 로그인된 **Codex CLI**와 네트워크 연결이 필요합니다.
-앱은 `codex.exe` 또는 `codex.cmd`를 PATH와 일반 설치 위치에서 찾습니다.
-자동으로 찾지 못하면 트레이 메뉴 → 설정에서 실행 파일의 절대 경로를 지정하세요.
-Codex CLI 자체는 이 배포 파일에 포함하지 않습니다.
+<table>
+  <tr>
+    <td align="center"><strong>Dark</strong></td>
+    <td align="center"><strong>Light</strong></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/overview-dark.png" alt="English dark view showing weekly usage, remaining percentage, reset countdown, and reset credits" width="440"></td>
+    <td><img src="docs/images/overview-light.png" alt="The same Codex usage view in the light theme" width="440"></td>
+  </tr>
+</table>
 
-- 트레이 아이콘 클릭: 사용량 화면 열기/닫기
-- 새로고침: Codex App Server를 통해 계정 한도 조회
-- 카드 상단 톱니바퀴: 설정 열기
-- 작업표시줄: Windows 알림 영역의 사용률 아이콘을 사용하며 다른 앱 아이콘 위에 겹치지 않습니다
-- 자동 확인: 5분 간격
-- 선택 기능: 플로팅 위젯, Windows 시작 시 실행
-- 첫 실행은 화면을 표시하고 이후에는 트레이로 시작합니다. `--show`로 화면을 열며 시작할 수 있습니다.
+*English previews rendered from the production WPF views using sample quota data. Available windows and reset-credit details depend on what your account reports.*
 
-서버가 제공하는 기간만 표시합니다. 주간/5시간 구분은 기간 길이에 따르며,
-없는 값을 0으로 표시하거나 남은 요청 횟수로 환산하지 않습니다.
-일시적인 조회 실패는 마지막 정상 데이터를 이전 데이터로 표시합니다.
-실패 직후 팝업을 다시 열어도 2분 동안 자동 재시도를 억제하며, 수동 새로고침은 즉시 사용할 수 있습니다.
-큰 사용량 링과 수치 목록 아래에 리셋권 카드를 따로 표시합니다. 제목 옆 보유 수 배지를 누르면 안내가 열리고, 오른쪽 화살표로 목록을 접거나 펼칠 수 있습니다.
-리셋 시각 아래에는 남은 일·시간을 표시하고, 서버가 제공하면 리셋권 만료일을 스크롤 목록으로 표시합니다.
-일부 만료일만 제공된 경우 그 사실을 표시하며, 정확한 시각은 툴팁에서 확인할 수 있습니다.
-남은 시간 표시는 1분마다 갱신되며 추가 서버 요청은 하지 않습니다.
-마지막 확인에는 `21:05 · 3분 전`처럼 마지막 성공 이후 경과 시간도 표시하며, 같은 1분 타이머로 갱신합니다.
-사용량과 남은 비율은 `주간 사용량 / 남음 — 29% / 71%`처럼 한 행에 표시합니다.
-상세 팝업에서 `Ctrl + +` / `Ctrl + -`로 표시 크기를 10%씩 조절합니다(80~150%).
-`Ctrl + 0`은 기본 크기로 복원하며 숫자패드도 지원합니다. 선택한 크기는 저장됩니다.
-글자가 겹치지 않도록 팝업 전체가 함께 확대·축소되며, 화면보다 커지지 않게 제한됩니다.
+## At a glance
 
-위젯을 드래그하면 위치가 저장되고, 짧게 클릭하면 상세 카드가 열립니다. 우클릭 → 위젯 닫기로 숨기고 설정에서 다시 켤 수 있습니다. 클릭 통과를 켜면 위젯은 마우스 입력을 받지 않습니다.
-위젯은 정상 상태 문구를 숨기고, 조회 실패·로그인 필요·이전 데이터처럼 확인이 필요한 상태만 별도 줄로 표시합니다.
-설정은 일반·위젯·연결 탭으로 나뉩니다. 기존 작업표시줄 오버레이 설정은 해제됩니다.
-시스템 테마를 선택하면 Windows 테마 변경을 바로 반영합니다.
-화면 밖으로 벗어난 위젯은 연결된 화면 안으로 복구하며, 설정 → 위젯 → 위치 초기화 후 저장하면 기본 화면으로 이동합니다.
-설정은 원자적으로 저장하고 이전 정상 파일을 백업하여 파일 손상 시 자동 복구합니다.
-트레이 아이콘이 숨겨져 있으면 Windows 알림 영역의 펼치기 메뉴에서 꺼내 배치할 수 있습니다.
+- **Usage in the tray.** A Windows notification-area icon keeps the meter within reach. Click for the detailed card; pin it to keep it visible.
+- **Clear quota windows.** See used and remaining percentages, the server's reset time, and a countdown. Weekly and five-hour windows appear when provided.
+- **Reset credits.** View the available count and expiry dates when the server supplies them. Missing expiry information stays explicitly unknown.
+- **Optional desktop widget.** A compact, draggable meter with adjustable opacity, always-on-top, and click-through options. Off-screen positions recover automatically.
+- **Your preferred appearance.** Dark, Light, or live System theme; English and Korean; keyboard zoom from 80% to 150%.
+- **Honest refresh states.** Automatic checks every five minutes, visible manual-refresh progress, and distinct fresh, stale, signed-out, and unavailable states.
 
-## 이전 ProMeter에서 전환
+## Get started
 
-- 기존 설정과 캐시는 호환성을 위해 `%LOCALAPPDATA%\ProMeter`에 그대로 보관합니다.
-- 이전 대화 기록 DB는 삭제하거나 열지 않습니다. 기록 동기화는 실행하지 않습니다.
-- 앱 시작 시 이 사용자 데이터 폴더의 manifest를 가리키는 기존 Native Messaging 등록만 해제합니다.
-- 브라우저의 **ProMeter ChatGPT Companion** 확장은 더 이상 필요 없습니다. 브라우저 확장 관리 화면에서 제거하세요.
-- 기존 `prometer.exe` 대신 `CodexMeter.exe`를 실행하세요.
+**Requirements:** Windows 10/11 on x64, an installed Codex CLI already signed in to your account, and network access for quota checks.
 
-## 개발
+1. Download **`CodexMeter.exe`** from the [latest release](https://github.com/frozenvoice/codexmeter/releases/latest).
+2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.
+3. Open the tray icon to inspect your limits. If Codex cannot be found, open **Settings → Connection** and select its executable path.
 
-솔루션은 `CodexMeter.sln`이며 프로젝트·폴더·네임스페이스도 `CodexMeter`로 통일했습니다.
-`src/CodexMeter`는 현재 WPF 앱, `src/CodexMeter.Core`는 Codex 로직과 남아 있는 레거시 로직,
-`tests/CodexMeter.Tests`는 회귀 테스트입니다. `src/CodexMeter.CompanionHost`는 배포되지 않는 이전 Native Messaging 호스트입니다.
-이전 설치의 데이터 경로와 레지스트리·프로세스 식별자는 `LegacyInstallation`에 모아 유지합니다.
-이 값은 현재 제품명이 아니라 기존 데이터 접근과 이전 설치 정리를 위한 호환성 키입니다.
+CodexMeter discovers `codex.exe` or `codex.cmd` through PATH and supported installation locations. The Codex CLI itself is not bundled. Sign-in remains managed by Codex.
+
+The first launch opens the detail card. Later launches start in the tray; `CodexMeter.exe --show` opens the card at startup. If Windows hides the tray icon, move it out of the notification-area overflow. Starting with Windows and showing the desktop widget are optional settings.
+
+### Controls
+
+| Action | Result |
+| --- | --- |
+| Click the tray icon | Open or hide the detail card |
+| Refresh button | Check account limits immediately |
+| Pin button | Keep the detail card on top |
+| `Ctrl` + `+` / `Ctrl` + `-` | Enlarge or reduce the detail card |
+| `Ctrl` + `0` | Restore 100% zoom |
+| Drag the widget | Move it and save its position |
+| Right-click the widget | Open its menu, including Close widget |
+
+The zoom shortcuts also support the numeric keypad. Widget position can be reset from **Settings → Widget**; the reset takes effect when you save.
+
+<details>
+<summary><strong>Settings and compact widget</strong></summary>
+
+<p><img src="docs/images/settings.png" alt="English settings with theme, language, tray style, and optional Windows startup" width="640"></p>
+<p><img src="docs/images/widget.png" alt="Compact desktop widget showing sample weekly usage" width="220"></p>
+
+</details>
+
+## How it works
+
+CodexMeter starts a bounded, short-lived **Codex App Server** process and requests account/rate-limit metadata. Every UI entry point shares the same refresh operation. It does not run a model turn to measure usage.
+
+Percentages come from the reported limit windows. CodexMeter does **not** turn them into invented request counts or combine unrelated reset periods. When a refresh fails, the last valid snapshot may remain visible with a stale label. Opening the card immediately after a failed check does not trigger repeated automatic retries; manual refresh remains available.
+
+Countdowns and “last checked” ages update locally once a minute without another server request.
+
+### Privacy
+
+- No prompt, response, conversation, project, or rollout collection.
+- No direct reading or copying of Codex authentication files, tokens, browser cookies, or credentials.
+- No external telemetry or analytics.
+- Only local preferences, projected quota metadata, and safe diagnostic logs are retained. Authentication is handled by the installed Codex process.
+
+Settings and quota cache remain under `%LOCALAPPDATA%\ProMeter` for upgrade compatibility. Settings use atomic replacement with a previous-good backup and recovery if the primary file is damaged.
+
+CodexMeter is an independent project and is not affiliated with or endorsed by OpenAI. Compatibility depends on the installed Codex App Server protocol and the metadata available to your account.
+
+## Build from source
+
+Requires Windows, PowerShell 7, and the .NET 8 SDK.
 
 ```powershell
+git clone https://github.com/frozenvoice/codexmeter.git
+cd codexmeter
 .\dev-run.ps1
 ```
 
-Release 빌드, 전체 테스트, Windows x64 단일 파일 publish, 기존 로컬 앱 교체와 실행을 수행합니다.
-설치 파일 잠금은 최대 30회 재시도하며, 교체나 시작 실패 시 이전 설치를 복원하고 다시 실행합니다.
-`-NoLaunch`는 검증된 파일을 staging에만 만들고 실행 중인 앱을 건드리지 않습니다.
-`-Fast`는 같은 변경에 대한 전체 테스트를 이미 통과했을 때만 사용하세요.
+The launcher restores dependencies, builds Release, runs the tests and WPF checks, then publishes and launches **one self-contained `CodexMeter.exe`**. It retries transient deployment locks and restores the previous local build if replacement or startup fails.
 
-GitHub Actions 배포물은 `CodexMeter-win-x64`이며 `CodexMeter.exe`만 포함합니다.
+- `-NoLaunch`: validate the staged executable without replacing the running local app.
+- `-Fast`: skip the unit suite only when it has already passed for the same changes.
+- CI also publishes the single executable as the `CodexMeter-win-x64` artifact.
 
-## 데이터와 구현
+| Path | Purpose |
+| --- | --- |
+| `src/CodexMeter` | Active WPF tray application |
+| `src/CodexMeter.Core` | Quota protocol, presentation logic, persistence, and retained legacy logic |
+| `tests/CodexMeter.Tests` | Unit and regression tests |
+| `tests/CodexMeter.UiSmoke` | Production WPF layout checks and documentation previews |
 
-Codex App Server의 계정/사용 한도 조회만 수행하며 모델 요청을 실행하지 않습니다.
-인증 파일·토큰·쿠키·프롬프트·응답·대화 기록은 읽거나 저장하지 않습니다.
-설정과 사용 한도 메타데이터 캐시만 로컬에 저장하며 외부 텔레메트리는 없습니다.
+See [Architecture](docs/ARCHITECTURE.md), [Validation](docs/VALIDATION.md), and [preview generation](docs/images/README.md) for implementation and verification details.
 
-[구조](docs/ARCHITECTURE.md) · [검증](docs/VALIDATION.md)
+## Upgrading from ProMeter
 
-이전 ChatGPT 수집 코드와 테스트는 이력 보존을 위해 저장소에 남아 있지만,
-보조 호스트·폐기된 화면은 배포에 포함되지 않습니다. 사용하지 않는 `extension` 소스 폴더와
-확장 전용 CI 검사는 삭제했으며, 이전 확장 소스는 Git 이력에서 확인할 수 있습니다.
+Run `CodexMeter.exe` instead of `prometer.exe`. Existing preferences and quota-cache paths remain compatible. The former ChatGPT history reconstruction, browser companion, and WebView2 features are retired; old history data is neither read nor deleted by the active app. The old browser extension can be removed through your browser's extension manager.
+
+Retained legacy source and tests are identified in the architecture document. The companion host and retired screens are excluded from the shipped executable.
+
+## License
+
+[MIT](LICENSE). Contributions and reproducible bug reports are welcome. Please omit account credentials and conversation content from issues and attachments.

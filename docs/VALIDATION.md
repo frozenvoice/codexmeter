@@ -2,6 +2,15 @@
 
 ## Current release — Codex only
 
+- Public documentation: English README, Korean companion guide and four production WPF
+  previews were prepared with synthetic quota data. The PNGs were visually inspected in
+  dark/light themes; README relative links resolve. The exporter does not start the app
+  or access accounts/settings. Restore, Release build (0 warnings/errors), 955 tests,
+  36 WPF renders, five installer scenarios and the single-file publish passed.
+  A targeted scan of 1,424 Git-history blobs found no matches for the checked private-key,
+  GitHub/OpenAI/AWS-key or JWT patterns and no tracked sensitive data-file paths.
+  This is a targeted check, not a guarantee that arbitrary secrets cannot exist.
+
 - Reliability improvements: restore, Release build (0 warnings/errors), 955 tests,
   36 WPF renders and five isolated PowerShell installer scenarios passed. Completion timestamps,
   recent-failure cooldown boundaries, invalid/off-screen widget positions, atomic settings writes,
