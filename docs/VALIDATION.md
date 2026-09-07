@@ -2,6 +2,10 @@
 
 ## Current release — Codex only
 
+- Combined used/remaining row: restore, Release build (0 warnings/errors), 925 tests,
+  24 WPF renders with row-overlap checks, single-file publish and local app startup passed.
+  Korean/English weekly and five-hour labels, 0/100% and unknown percentages are covered.
+
 - Last-checked elapsed time: Release build (0 warnings/errors), 918 tests and 24 WPF
   renders passed. Unit tests cover minute/hour/day boundaries, Korean/English, future
   timestamps and last-success vs failed-attempt timing. WPF checks use the real card

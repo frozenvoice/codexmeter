@@ -48,14 +48,16 @@ internal static class Program
                         if (window is FlyoutWindow)
                         {
                             var rows = (System.Windows.Controls.ItemsControl)window.FindName("CodexRows");
-                            var last = (System.Windows.Controls.Border)rows.Items[rows.Items.Count - 1];
-                            var grid = (System.Windows.Controls.Grid)last.Child;
-                            var label = (FrameworkElement)grid.Children[0];
-                            var value = (FrameworkElement)grid.Children[1];
-                            var labelRight = label.TranslatePoint(new Point(label.ActualWidth, 0), grid).X;
-                            var valueLeft = value.TranslatePoint(new Point(), grid).X;
-                            if (valueLeft < labelRight || valueLeft + value.ActualWidth > grid.ActualWidth + 1)
-                                throw new InvalidOperationException("Last checked text overlaps or overflows.");
+                            foreach (System.Windows.Controls.Border row in rows.Items)
+                            {
+                                var grid = (System.Windows.Controls.Grid)row.Child;
+                                var label = (FrameworkElement)grid.Children[0];
+                                var value = (FrameworkElement)grid.Children[1];
+                                var labelRight = label.TranslatePoint(new Point(label.ActualWidth, 0), grid).X;
+                                var valueLeft = value.TranslatePoint(new Point(), grid).X;
+                                if (valueLeft < labelRight || valueLeft + value.ActualWidth > grid.ActualWidth + 1)
+                                    throw new InvalidOperationException("Quota row text overlaps or overflows.");
+                            }
                         }
                         if (content.ActualWidth <= 0 || content.ActualHeight <= 0)
                             throw new InvalidOperationException($"Empty layout: {window.GetType().Name}");

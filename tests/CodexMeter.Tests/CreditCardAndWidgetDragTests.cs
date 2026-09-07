@@ -99,7 +99,7 @@ public class CreditCardAndWidgetDragTests
             Windows = [new("codex", 15, 10080, Now.AddDays(7), CodexWindowKind.Weekly)]
         };
         var rows = CodexDisplayFormatting.Rows(snapshot, Now, includeResetCredits: false);
-        Assert.Equal(4, rows.Count);
+        Assert.Equal(3, rows.Count);
         Assert.DoesNotContain(rows, row => row.Label == UiText.ResetCredits);
         Assert.Equal(UiText.LastChecked, rows[^1].Label);
     }

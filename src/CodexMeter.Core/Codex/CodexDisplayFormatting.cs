@@ -78,12 +78,12 @@ public static class CodexDisplayFormatting
         foreach (var window in snapshot.Windows)
         {
             var usedLabel = UsedLabel(window);
-            var remainingLabel = RemainingLabel(window);
-            rows.Add(new CodexDisplayRow(usedLabel, PercentText(window.UsedPercent), window.UsedPercent >= 100));
-            if (window.RemainingPercent is not null)
-            {
-                rows.Add(new CodexDisplayRow(remainingLabel, PercentText(window.RemainingPercent), false));
-            }
+            var hasRemaining = window.RemainingPercent is not null;
+            var label = hasRemaining ? $"{usedLabel} / {UiText.T("left", "남음")}" : usedLabel;
+            var value = hasRemaining
+                ? $"{PercentText(window.UsedPercent)} / {PercentText(window.RemainingPercent)}"
+                : PercentText(window.UsedPercent);
+            rows.Add(new CodexDisplayRow(label, value, window.UsedPercent >= 100));
 
             rows.Add(new CodexDisplayRow(UiText.Reset, ResetStamp(window.ResetsAt), false,
                 CodexDeadlineFormatting.Remaining(window.ResetsAt, at)));
@@ -210,13 +210,6 @@ public static class CodexDisplayFormatting
         CodexWindowKind.FiveHour => UiText.FiveHourUsed,
         CodexWindowKind.Weekly => UiText.WeeklyUsed,
         _ => UiText.T($"{DurationLabel(window.WindowDurationMinutes)} used", $"{DurationLabel(window.WindowDurationMinutes)} 사용량")
-    };
-
-    private static string RemainingLabel(CodexQuotaWindow window) => window.Kind switch
-    {
-        CodexWindowKind.FiveHour => UiText.FiveHourRemaining,
-        CodexWindowKind.Weekly => UiText.WeeklyRemaining,
-        _ => UiText.T($"{DurationLabel(window.WindowDurationMinutes)} remaining", $"{DurationLabel(window.WindowDurationMinutes)} 남음")
     };
 
     private static string SignInLabel(CodexQuotaSnapshot snapshot) => snapshot.Status switch
