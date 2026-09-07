@@ -3,7 +3,7 @@ using ProMeter.Services;
 
 namespace ProMeter.Codex;
 
-public sealed record CodexDisplayRow(string Label, string Value, bool EmphasizeDanger);
+public sealed record CodexDisplayRow(string Label, string Value, bool EmphasizeDanger, string? Detail = null, string? Tooltip = null);
 
 public static class CodexDisplayFormatting
 {
@@ -60,7 +60,7 @@ public static class CodexDisplayFormatting
         _ => UiText.CodexUnavailable
     };
 
-    public static IReadOnlyList<CodexDisplayRow> Rows(CodexQuotaSnapshot snapshot)
+    public static IReadOnlyList<CodexDisplayRow> Rows(CodexQuotaSnapshot snapshot, DateTimeOffset? now = null)
     {
         if (snapshot.Status is CodexQuotaStatus.CodexNotFound or CodexQuotaStatus.SignedOut
             || (!snapshot.HasUsablePercentages
@@ -73,6 +73,7 @@ public static class CodexDisplayFormatting
             return [];
         }
 
+        var at = now ?? DateTimeOffset.Now;
         var rows = new List<CodexDisplayRow>();
         foreach (var window in snapshot.Windows)
         {
@@ -84,12 +85,14 @@ public static class CodexDisplayFormatting
                 rows.Add(new CodexDisplayRow(remainingLabel, PercentText(window.RemainingPercent), false));
             }
 
-            rows.Add(new CodexDisplayRow(UiText.Reset, ResetStamp(window.ResetsAt), false));
+            rows.Add(new CodexDisplayRow(UiText.Reset, ResetStamp(window.ResetsAt), false,
+                CodexDeadlineFormatting.Remaining(window.ResetsAt, at)));
         }
 
         if (snapshot.ResetCreditsAvailable is int credits)
         {
-            rows.Add(new CodexDisplayRow(UiText.ResetCredits, credits.ToString(CultureInfo.InvariantCulture), false));
+            var expiry = CodexDeadlineFormatting.CreditExpiry(snapshot, at);
+            rows.Add(new CodexDisplayRow(UiText.ResetCredits, credits.ToString(CultureInfo.InvariantCulture), false, expiry.Detail, expiry.Tooltip));
         }
 
         if (snapshot.LastSuccessfulRefresh is { } checkedAt)

@@ -42,7 +42,8 @@ public sealed record CodexQuotaSnapshot(
     string? RateLimitReachedType,
     int? ResetCreditsAvailable,
     IReadOnlyList<CodexQuotaWindow> Windows,
-    string? TechnicalDetail)
+    string? TechnicalDetail,
+    IReadOnlyList<DateTimeOffset?>? ResetCreditExpirations = null)
 {
     public static CodexQuotaSnapshot Empty(CodexQuotaStatus status, string? detail = null) =>
         new(status, null, null, null, null, null, null, [], detail);

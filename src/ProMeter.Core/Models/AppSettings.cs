@@ -28,6 +28,7 @@ public sealed class AppSettings
     public int BodyFetchDelayMilliseconds { get; set; } = 250;
     public bool StartWithWindows { get; set; }
     public bool FloatingWidgetEnabled { get; set; }
+    // Deprecated JSON compatibility only; unsafe taskbar overlays are never created.
     public bool TaskbarStatusEnabled { get; set; }
     public string? CodexExePath { get; set; }
     public double WidgetLeft { get; set; } = 40;

@@ -79,6 +79,7 @@ public sealed class CodexSnapshotStore
         public bool? OrdinaryUsageAllowed { get; set; }
         public string? RateLimitReachedType { get; set; }
         public int? ResetCreditsAvailable { get; set; }
+        public List<DateTimeOffset?>? ResetCreditExpirations { get; set; }
         public List<PersistedWindow> Windows { get; set; } = [];
         public string? TechnicalDetail { get; set; }
 
@@ -91,6 +92,7 @@ public sealed class CodexSnapshotStore
             OrdinaryUsageAllowed = snapshot.OrdinaryUsageAllowed,
             RateLimitReachedType = snapshot.RateLimitReachedType,
             ResetCreditsAvailable = snapshot.ResetCreditsAvailable,
+            ResetCreditExpirations = snapshot.ResetCreditExpirations?.ToList(),
             Windows = snapshot.Windows.Select(PersistedWindow.From).ToList(),
             TechnicalDetail = snapshot.TechnicalDetail
         };
@@ -107,7 +109,8 @@ public sealed class CodexSnapshotStore
                 RateLimitReachedType,
                 ResetCreditsAvailable,
                 Windows.Select(window => window.ToWindow()).ToList(),
-                TechnicalDetail);
+                TechnicalDetail,
+                ResetCreditExpirations);
         }
     }
 

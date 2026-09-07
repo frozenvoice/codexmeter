@@ -8,7 +8,7 @@ Windows-only .NET 8 WPF tray app, distributed as one `CodexMeter.exe`.
 - Monitor Codex account limits through the installed, signed-in Codex App Server protocol.
 - No ChatGPT Pro/Sol counters, browser extension, WebView2, conversation sync or active SQLite collector.
 - Keep Codex unavailable/stale/fresh states truthful; never fabricate counts from percentages.
-- Keep the tray, optional widget/taskbar, theme/language settings, bounded shared refresh,
+- Keep the native notification icon, optional widget, theme/language settings, bounded shared refresh,
   existing user preferences and quota-cache compatibility.
 - Publish exactly one self-contained `CodexMeter.exe`; do not ship a companion host or extension.
 - Read `README.md` and the active sections of `docs/ARCHITECTURE.md` / `docs/VALIDATION.md`.
@@ -195,11 +195,11 @@ Windows-only .NET 8 WPF tray app, distributed as one `CodexMeter.exe`.
 - Preserve the last valid Codex snapshot on transient failure and mark it stale.
 - Every spawned Codex App Server process must have bounded startup, request, shutdown, and cancellation behavior.
 - Child processes must not be leaked after refresh, cancellation, app exit, or protocol failure.
-- The taskbar status strip must not inject code or DLLs into explorer.exe.
-- The taskbar status strip must not replace, subclass, or parent itself into an undocumented Explorer taskbar window.
-- The taskbar status strip must never cover the clock or notification icons.
-- If there is insufficient horizontal space, automatically use a more compact layout or place the strip immediately above the taskbar.
-- Taskbar, DPI, display, Explorer restart, auto-hide and fullscreen changes must not leave the strip stranded or permanently visible in the wrong location.
+- Taskbar status uses the Windows-owned NotifyIcon slot only. Do not re-enable the retired
+  overlay, Explorer window parenting/subclassing, injection, or taskbar geometry polling.
+- Other running-app icons, notification icons and the clock must remain unobstructed.
+- Reset countdowns use server timestamps; unavailable credit expiries remain unknown.
+- Persist only projected credit expiry timestamps, never raw credit IDs or descriptions.
 - User-visible status must distinguish fresh, stale, unavailable, refreshing and failed data.
 - A click intended to inspect status must not accidentally begin a long sync.
 - All new UI strings must use the existing Korean/English localization system.

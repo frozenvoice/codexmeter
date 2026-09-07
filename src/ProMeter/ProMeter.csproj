@@ -23,7 +23,7 @@
     <Resource Include="Assets\prometer.ico" Condition="Exists('Assets\prometer.ico')" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Remove="Services\ToastNotificationService.cs;WebView\**\*.cs;Companion\**\*.cs;UI\WelcomeWindow.xaml.cs;UI\MainWindow.xaml.cs;UI\CoverageWindow.xaml.cs" />
-    <Page Remove="UI\WelcomeWindow.xaml;UI\MainWindow.xaml;UI\CoverageWindow.xaml" />
+    <Compile Remove="Services\ToastNotificationService.cs;WebView\**\*.cs;Companion\**\*.cs;UI\WelcomeWindow.xaml.cs;UI\MainWindow.xaml.cs;UI\CoverageWindow.xaml.cs;UI\TaskbarStatusStripWindow.xaml.cs;UI\TaskbarWin32.cs" />
+    <Page Remove="UI\WelcomeWindow.xaml;UI\MainWindow.xaml;UI\CoverageWindow.xaml;UI\TaskbarStatusStripWindow.xaml" />
   </ItemGroup>
 </Project>

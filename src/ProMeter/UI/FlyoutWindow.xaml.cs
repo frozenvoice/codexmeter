@@ -222,23 +222,42 @@ public partial class FlyoutWindow : Window
         CodexRows.Items.Clear();
         foreach (var item in CodexDisplayFormatting.Rows(snapshot))
         {
-            var row = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
+            var row = new Grid { Margin = new Thickness(0, 5, 0, 0) };
+            if (item.Tooltip is not null)
+            {
+                row.ToolTip = new System.Windows.Controls.ToolTip
+                {
+                    Background = (Brush)FindResource("CardBrush"), BorderBrush = (Brush)FindResource("LineBrush"),
+                    Content = new TextBlock { Text = item.Tooltip, Foreground = (Brush)FindResource("TextBrush") }
+                };
+            }
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.Children.Add(new TextBlock
             {
                 Text = item.Label,
+                Margin = new Thickness(0, 0, 8, 0),
                 Foreground = (Brush)FindResource("MutedBrush")
             });
-            var value = new TextBlock
+            var values = new StackPanel { HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
+            Grid.SetColumn(values, 1);
+            values.Children.Add(new TextBlock
             {
                 Text = item.Value,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
                 Style = (Style)FindResource("FlyoutValueText"),
-                Foreground = item.EmphasizeDanger
-                    ? (Brush)FindResource("DangerBrush")
-                    : (Brush)FindResource("TextBrush")
-            };
-            DockPanel.SetDock(value, Dock.Right);
-            row.Children.Add(value);
+                Foreground = item.EmphasizeDanger ? (Brush)FindResource("DangerBrush") : (Brush)FindResource("TextBrush")
+            });
+            if (!string.IsNullOrWhiteSpace(item.Detail))
+            {
+                values.Children.Add(new TextBlock
+                {
+                    Text = item.Detail, FontSize = 11, Margin = new Thickness(0, 2, 0, 2),
+                    TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Right,
+                    Foreground = (Brush)FindResource("MutedBrush")
+                });
+            }
+            row.Children.Add(values);
             CodexRows.Items.Add(row);
         }
 

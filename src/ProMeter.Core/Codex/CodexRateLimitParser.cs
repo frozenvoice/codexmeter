@@ -39,8 +39,8 @@ public static class CodexRateLimitParser
         var ordinary = (root is null ? null : ReadBool(root, "ordinaryUsageAllowed", "ordinary_usage_allowed"))
                        ?? ReadBool(bucket, "ordinaryUsageAllowed", "ordinary_usage_allowed");
         var reached = ReadString(bucket, "rateLimitReachedType", "rate_limit_reached_type");
-        var credits = (root is null ? null : ReadResetCredits(root))
-                      ?? ReadResetCredits(bucket);
+        var creditContainer = ResetCreditContainer(root) ?? ResetCreditContainer(bucket);
+        var credits = ReadResetCredits(creditContainer);
         var plan = SafePlanType(accountResult) ?? SafePlanTypeFromNode(bucket);
         return new CodexParseResult(
             CodexQuotaStatus.Available,
@@ -49,7 +49,8 @@ public static class CodexRateLimitParser
             reached,
             credits,
             windows,
-            null);
+            null,
+            ReadCreditExpirations(creditContainer));
     }
 
     public static JsonNode? SelectBucket(JsonNode? result)
@@ -215,21 +216,31 @@ public static class CodexRateLimitParser
         return null;
     }
 
-    private static int? ReadResetCredits(JsonNode bucket)
+    private static JsonObject? ResetCreditContainer(JsonNode? node) => node is JsonObject obj
+        ? (obj["rateLimitResetCredits"] ?? obj["rate_limit_reset_credits"]) as JsonObject : null;
+
+    private static int? ReadResetCredits(JsonObject? credits)
     {
-        var credits = bucket["rateLimitResetCredits"] ?? bucket["rate_limit_reset_credits"];
-        if (credits is null)
-        {
-            return null;
-        }
+        var count = credits?["availableCount"] ?? credits?["available_count"];
+        return count is not null && TryReadDouble(count, out var value) && double.IsFinite(value)
+            && value >= 0 && value <= int.MaxValue && value == Math.Truncate(value) ? (int)value : null;
+    }
 
-        var count = credits["availableCount"] ?? credits["available_count"];
-        if (count is null || !TryReadDouble(count, out var number) || !double.IsFinite(number))
+    private static IReadOnlyList<DateTimeOffset?>? ReadCreditExpirations(JsonObject? container)
+    {
+        if (container?["credits"] is not JsonArray credits) return null;
+        var dates = new List<DateTimeOffset?>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var credit in credits.OfType<JsonObject>())
         {
-            return null;
+            // IDs are used only to deduplicate this response, never retained in the cache.
+            var id = ReadString(credit, "id");
+            if (id is null || !seen.Add(id)
+                || ReadString(credit, "status") != "available"
+                || ReadString(credit, "resetType", "reset_type") != "codexRateLimits") continue;
+            dates.Add(ReadUnixSeconds(credit, "expiresAt", "expires_at"));
         }
-
-        return (int)number;
+        return dates;
     }
 
     private static bool? ReadBool(JsonNode node, params string[] names)
@@ -414,4 +425,5 @@ public sealed record CodexParseResult(
     string? RateLimitReachedType,
     int? ResetCreditsAvailable,
     IReadOnlyList<CodexQuotaWindow> Windows,
-    string? Detail);
+    string? Detail,
+    IReadOnlyList<DateTimeOffset?>? ResetCreditExpirations = null);

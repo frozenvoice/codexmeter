@@ -2,20 +2,22 @@
 
 ## Current release — Codex only
 
-- Release build: 0 warnings/errors; 869 tests passed, including shared-refresh ownership,
+- Release build: 0 warnings/errors; 890 tests passed, including shared-refresh ownership,
   waiter cancellation, retry after failure, unknown-vs-zero and cached identity-state tests.
 - CI artifact-path parsing covers LF, CRLF, tab and space delimiters.
 - Single-file Windows x64 self-contained publish verified: exactly `CodexMeter.exe`,
   with no browser extension, native host, WebView2 or external .NET runtime files.
 - WPF flyout/settings rendered in dark and light themes using stored Codex quota metadata.
 - Live standalone executable: refreshed successfully at 14:48:28 KST on 2026-09-07; server weekly usage 8%, remaining 92%. Chrome/Edge/Whale old native registrations absent; only CodexMeter process remained.
-- Taskbar recovery regression: a separate-process borderless window covering the primary
-  monitor kept a newly constructed strip hidden before its first HWND existed. Polling was
-  already active; after that window closed, four confirmed exit samples restored the strip.
-  Closing the strip stopped its timer. Actual YouTube/Netflix playback was not exercised.
-- Header setting action/localization, simplified captions and removed badge checked; updated
-  flyout/settings rendered in both themes. Legacy companion Node regressions pass.
-- Updated executable deployed successfully; local taskbar preference re-enabled at user request.
+- Notification-icon replacement: production source/project guards pass and assembly reflection
+  confirms retired taskbar strip/Win32 types are absent. No overlay is instantiated.
+- Settings General/Widget/Connection pages rendered in Korean/English, dark/light, and compact
+  sizing. Save/Cancel and disabled widget options checked through the WPF probe.
+- Reset countdown boundaries, unknown/partial expiries, duplicate credit IDs, malformed
+  counts, root-container precedence and old-cache loading covered by regression tests.
+- Read-only live App Server check returned three available credit expiry timestamps;
+  the bounded client reported child-process cleanup. Only projected quota metadata was used.
+- Flyout renders reset countdowns and three credit expiry dates; exact times remain in tooltip.
 - Runtime checks: verify actual Codex refresh, no ChatGPT HTTP/SQLite collector startup,
   no native host registration, saved window position and tray/refresh behavior.
 - A fresh PC requires installed and signed-in Codex CLI; no browser pairing is part of setup.

@@ -28,11 +28,14 @@ public static class TrayIconRenderer
         var ratio = (ring.UsedPercent ?? 0) / 100;
         var fill = !exact || snapshot.Status != CodexQuotaStatus.Available
             ? DrawingColor.FromArgb(251, 191, 36)
-            : ring.IsDangerLevel ? DrawingColor.FromArgb(248, 113, 113) : DrawingColor.FromArgb(59, 130, 246);
+            : ring.IsDangerLevel ? DrawingColor.FromArgb(248, 113, 113) : DrawingColor.FromArgb(37, 99, 235);
         var text = exact ? CodexDisplayFormatting.PercentText(ring.UsedPercent).TrimEnd('%') : "?";
 
         if (style == TrayIconStyle.ProgressRing)
         {
+            // An opaque center keeps the number legible on light and dark Windows taskbars.
+            using var center = new SolidBrush(DrawingColor.FromArgb(27, 31, 39));
+            graphics.FillEllipse(center, 1, 1, size - 2, size - 2);
             using var bg = new Pen(DrawingColor.FromArgb(60, 255, 255, 255), Math.Max(2f, size / 8f));
             using var fg = new Pen(fill, Math.Max(2f, size / 8f)) { StartCap = LineCap.Round, EndCap = LineCap.Round };
             var pad = size / 8f;
@@ -50,7 +53,8 @@ public static class TrayIconRenderer
         {
             using var brush = new SolidBrush(fill);
             graphics.FillEllipse(brush, 1, 1, size - 2, size - 2);
-            DrawGlyph(graphics, text, size, DrawingColor.White);
+            DrawGlyph(graphics, text, size, !exact || snapshot.Status != CodexQuotaStatus.Available || ring.IsDangerLevel
+                ? DrawingColor.FromArgb(23, 27, 34) : DrawingColor.White);
         }
 
         var handle = bitmap.GetHicon();

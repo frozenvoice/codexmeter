@@ -21,10 +21,10 @@ public partial class App : Application
     private readonly CodexExecutableLocator _codexLocator = new(new WindowsCodexFileSystem());
     private readonly CancellationTokenSource _lifetime = new();
     private readonly DispatcherTimer _codexTimer = new();
+    private readonly DispatcherTimer _displayTimer = new() { Interval = TimeSpan.FromMinutes(1) };
     private readonly OnceEventSubscription _widgetEvents = new();
     private FlyoutWindow? _flyout;
     private FloatingWidget? _widget;
-    private TaskbarStatusStripWindow? _taskbarStrip;
     public bool IsExiting { get; private set; }
 
     protected override void OnStartup(StartupEventArgs e)
@@ -44,6 +44,7 @@ public partial class App : Application
             args.Handled = true;
         };
         // Retain existing preferences and history files, but never start retired collectors.
+        _settings.TaskbarStatusEnabled = false; // Retired overlay: Windows owns notification icon placement.
         _settings.AutoSync = false;
         _settings.CompanionConnectOptIn = false;
         _settings.FirstRunCompleted = true;
@@ -76,9 +77,10 @@ public partial class App : Application
         _codexTimer.Interval = CodexQuotaService.TaskbarRefreshInterval;
         _codexTimer.Tick += async (_, _) => await RefreshCodexAsync();
         _codexTimer.Start();
+        _displayTimer.Tick += (_, _) => RefreshSnapshot();
+        _displayTimer.Start();
         RefreshSnapshot();
         ApplyWidget();
-        ApplyTaskbarStrip();
         if (firstUse || e.Args.Contains("--show", StringComparer.Ordinal)) ShowMain();
         _ = RefreshCodexAsync();
     }
@@ -97,19 +99,16 @@ public partial class App : Application
         _tray.Update(_codex.Snapshot, _settings.TrayIconStyle);
         _flyout?.Bind(_codex.Snapshot, _refresh.IsRefreshing);
         _widget?.Bind(_codex.Snapshot);
-        _taskbarStrip?.Bind(_codex.Snapshot);
     }
 
-    private void ToggleFlyout() => ToggleFlyout(FlyoutOpenSource.Tray, null, null);
-
-    private void ToggleFlyout(FlyoutOpenSource source, Rect? anchor, TaskbarEdge? edge)
+    private void ToggleFlyout()
     {
         EnsureFlyout();
         if (_flyout!.IsVisible) { _flyout.Hide(); return; }
         _flyout.ApplyWindowSettings(_settings);
         RefreshSnapshot();
         _flyout.Show();
-        PlaceFlyout(_flyout, source, anchor, edge);
+        PlaceFlyout(_flyout);
         _flyout.Activate();
         if (CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now))
             _ = RefreshCodexAsync();
@@ -152,7 +151,6 @@ public partial class App : Application
             _tray.RebuildMenu(settings.StartWithWindows);
             _flyout?.ApplyWindowSettings(settings);
             ApplyWidget();
-            ApplyTaskbarStrip();
             RefreshSnapshot();
             _ = RefreshCodexAsync();
         };
@@ -160,17 +158,11 @@ public partial class App : Application
         window.ShowDialog();
     }
 
-    private void PlaceFlyout(FlyoutWindow flyout, FlyoutOpenSource source, Rect? anchor, TaskbarEdge? edge)
+    private void PlaceFlyout(FlyoutWindow flyout)
     {
         if (FlyoutWindowState.UseSavedPosition(_settings.FlyoutPositionConfigured))
         {
             flyout.RestorePosition(_settings.FlyoutLeft, _settings.FlyoutTop);
-            return;
-        }
-
-        if (source == FlyoutOpenSource.TaskbarStrip && anchor is { } strip)
-        {
-            flyout.PlaceNear(strip, edge ?? TaskbarEdge.Bottom);
             return;
         }
 
@@ -184,35 +176,6 @@ public partial class App : Application
             FileName = _log.DirectoryPath,
             UseShellExecute = true
         });
-    }
-
-    private void ApplyTaskbarStrip()
-    {
-        if (!_settings.TaskbarStatusEnabled)
-        {
-            if (_taskbarStrip is not null)
-            {
-                _taskbarStrip.Close();
-                _taskbarStrip = null;
-            }
-
-            return;
-        }
-
-        if (_taskbarStrip is null)
-        {
-            _taskbarStrip = new TaskbarStatusStripWindow
-            {
-                VisibilityLog = message => _log.Info(message)
-            };
-            _taskbarStrip.FlyoutRequested += () =>
-                ToggleFlyout(FlyoutOpenSource.TaskbarStrip, _taskbarStrip.LastBounds, _taskbarStrip.LastEdge);
-            _taskbarStrip.RefreshRequested += () => _ = RefreshCodexAsync();
-            _taskbarStrip.ContextMenuRequested += () => _tray.ShowContextMenu();
-        }
-
-        _taskbarStrip.Bind(_codex.Snapshot);
-        _taskbarStrip.Reposition();
     }
 
     private void ApplyWidget()
@@ -281,10 +244,10 @@ public partial class App : Application
         if (IsExiting) return;
         IsExiting = true;
         _codexTimer.Stop();
+        _displayTimer.Stop();
         _lifetime.Cancel();
         _flyout?.Hide();
         _widget?.Hide();
-        _taskbarStrip?.Close();
         // Let the existing bounded client stop and reap its app-server process.
         try { await _refresh.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(15)); }
         catch (OperationCanceledException) { }

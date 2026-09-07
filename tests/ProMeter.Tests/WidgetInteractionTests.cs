@@ -56,7 +56,8 @@ public class WidgetInteractionTests
         var xaml = document.ToString();
         Assert.DoesNotContain("RECONSTRUCTION WINDOW", xaml, StringComparison.Ordinal);
         Assert.Contains("WidgetBox", xaml, StringComparison.Ordinal);
-        Assert.Contains("TaskbarStatusBox", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("TaskbarStatusBox", xaml, StringComparison.Ordinal);
+        Assert.Contains("TrayHint", xaml, StringComparison.Ordinal);
         Assert.Contains("WidgetOpacityBox", xaml, StringComparison.Ordinal);
         Assert.Contains("WidgetClickThroughBox", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("RESET ANCHOR", xaml, StringComparison.Ordinal);

@@ -78,7 +78,8 @@ public sealed class CodexQuotaService
                         parsed.RateLimitReachedType,
                         parsed.ResetCreditsAvailable,
                         parsed.Windows,
-                        SafeDetail(session, parsed.Detail));
+                        SafeDetail(session, parsed.Detail),
+                        parsed.ResetCreditExpirations);
                     _store.Save(success);
                     Publish(success);
                     _lastFailureSignature = null;
@@ -137,7 +138,8 @@ public sealed class CodexQuotaService
                 cached.RateLimitReachedType,
                 cached.ResetCreditsAvailable,
                 cached.HasUsablePercentages ? cached.Windows : [],
-                detail);
+                detail,
+                cached.ResetCreditExpirations);
         }
         else
         {
@@ -150,7 +152,8 @@ public sealed class CodexQuotaService
                 null,
                 cached.ResetCreditsAvailable,
                 cached.HasUsablePercentages ? cached.Windows : [],
-                detail);
+                detail,
+                cached.ResetCreditExpirations);
         }
 
         if (next.HasUsablePercentages || next.LastSuccessfulRefresh is not null)

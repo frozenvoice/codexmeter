@@ -33,9 +33,10 @@ public class ManualIncrementalSyncTests
         Assert.DoesNotContain("new SyncEngine", app, StringComparison.Ordinal);
         Assert.DoesNotContain("SyncRunOptions", app, StringComparison.Ordinal);
         Assert.Contains("new CodexRefreshCoordinator", app, StringComparison.Ordinal);
-        foreach (var surface in new[] { "_tray.SyncRequested", "_flyout.SyncRequested", "_widget.RefreshRequested", "_taskbarStrip.RefreshRequested" })
+        foreach (var surface in new[] { "_tray.SyncRequested", "_flyout.SyncRequested", "_widget.RefreshRequested" })
             Assert.Contains(surface, app, StringComparison.Ordinal);
         Assert.Contains("RefreshCodexAsync()", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("_taskbarStrip", app, StringComparison.Ordinal);
     }
 
     private static (SyncEngine Engine, IncrementalSyncTests.CountingProvider Provider, AppSettings Settings, List<ConversationIndexItem> Items)

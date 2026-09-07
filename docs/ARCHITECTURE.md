@@ -5,7 +5,7 @@
 `CodexMeter.exe` → shared `CodexRefreshCoordinator` → `CodexQuotaService` →
 installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit metadata.
 
-- Tray, flyout, widget, taskbar and timer all share one bounded refresh. Cancelling a
+- Tray, flyout, widget and timer all share one bounded refresh. Cancelling a
   waiting caller does not cancel the active owner's work. File/process work runs off the UI thread.
 - Only Codex is visible: actual provided periods, used/remaining percentages, reset times,
   reset-credit metadata and last refresh. Signed-out/missing CLI states do not display cached
@@ -18,9 +18,17 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   Startup removes only known native-host registrations matching the old owned manifest path.
   The browser extension must be removed via the browser's extension manager.
 - Internal namespaces/solution name remain ProMeter for compatibility.
-- Taskbar polling begins at construction, before HWND creation. Starting during fullscreen,
-  auto-hide or missing Explorer geometry cannot prevent future recovery. Fullscreen on the
-  target monitor hides immediately; four confirmed exit samples restore the strip.
+- Windows owns the notification icon's allocated slot through NotifyIcon. The retired taskbar
+  overlay and TaskbarWin32 are excluded from the desktop build, with no geometry/fullscreen
+  polling. Its old JSON settings remain compatible but startup/save disable the overlay.
+- Settings has General, Widget and Connection tabs with themed switches, sliders and explicit
+  Save/Cancel behavior. Korean/English and dark/light themes use the existing resources.
+- Reset rows show server reset time plus remaining days/hours. A one-minute UI-only timer
+  refreshes countdowns; account refresh remains every five minutes.
+- Root reset-credit metadata takes precedence as one container. Available Codex reset credits
+  are deduplicated transiently by ID and projected to nullable expiry timestamps only.
+  The additive cache field preserves older snapshots; missing/partial expiries stay explicit.
+  Credit rows show up to three date groups with full timestamp detail in the tooltip.
 - Flyout header exposes refresh, settings, pin and close. Settings is owned by the visible
   flyout so it stays above a pinned card. Ring captions omit the product prefix; the old
   accuracy badge is removed. Widget-only options are disabled when the widget is off.
