@@ -169,7 +169,7 @@ public class ReconstructionRevalidationTests
             var store = new SqliteStore(Path.Combine(dir, "reval.db"), pooling: false);
             var models = new ModelNormalizer();
             var clock = new MutableClock(Now);
-            var engine = new SyncEngine(store, new ConversationParser(models), models, new AppLog(Path.Combine(dir, "logs")), clock);
+            var engine = new SyncEngine(store, new ConversationParser(models, clock), models, new AppLog(Path.Combine(dir, "logs")), clock);
             var fixture = new FixtureChatGptProvider();
             var items = new List<ConversationIndexItem>();
             var baseTime = Now.AddDays(-1).ToUnixTimeSeconds();
