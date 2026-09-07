@@ -52,16 +52,16 @@ public class CodexRingPresentationTests
     }
 
     [Fact]
-    public void BadgeText_IsServerBasedAccurate()
+    public void RingCaption_OmitsProductNameInBothLanguages()
     {
         UiText.SetLanguage(UiLanguage.English);
         try
         {
             var presentation = CodexRingPresentation.From(Available(10));
-            Assert.Equal("Server-based · accurate", presentation.BadgeText);
+            Assert.Equal("Weekly used", presentation.CenterSubLabel);
             UiText.SetLanguage(UiLanguage.Korean);
             var korean = CodexRingPresentation.From(Available(10));
-            Assert.Equal("서버 기반 정확", korean.BadgeText);
+            Assert.Equal("주간 사용", korean.CenterSubLabel);
         }
         finally
         {

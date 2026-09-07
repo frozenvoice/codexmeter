@@ -21,18 +21,12 @@ public partial class FloatingWidget : Window
         InitializeComponent();
     }
 
-    public void Bind(QuotaSnapshot snapshot, CodexQuotaSnapshot? codex = null)
+    public void Bind(CodexQuotaSnapshot snapshot)
     {
-        var presentation = ProStatusPresentation.From(snapshot);
-        ProLabel.Text = UiText.GptPro;
-        ProStateValue.Text = presentation.ProStateText;
-        var reset = WidgetStatusFormatter.ResetLine(presentation);
-        ResetValue.Text = reset;
-        ResetValue.Visibility = string.IsNullOrWhiteSpace(reset) ? Visibility.Collapsed : Visibility.Visible;
-        var codexSnapshot = codex ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
-        CodexLabel.Text = "Codex";
-        CodexValue.Text = WidgetStatusFormatter.CodexLine(codexSnapshot).Replace("Codex ", "", StringComparison.Ordinal);
-        HistoryValue.Text = WidgetStatusFormatter.HistoryLine(presentation, snapshot);
+        CodexLabel.Text = CodexDisplayFormatting.CompactWindowKindLabel(snapshot.CompactWindow);
+        CodexValue.Text = CodexMeterPresentation.CompactText(snapshot).Replace("Codex ", "", StringComparison.Ordinal);
+        HistoryValue.Text = CodexMeterPresentation.StatusLabel(snapshot);
+        ToolTip = CodexMeterPresentation.Tooltip(snapshot);
     }
 
     public void Apply(AppSettings settings)

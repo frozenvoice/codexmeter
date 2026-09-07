@@ -407,6 +407,18 @@ public class TaskbarStatusLayoutTests
         Assert.Equal(4, TaskbarVisibilityDetector.FullscreenTolerancePx);
     }
 
+    [Fact]
+    public void HiddenStartup_PollsBeforeHwndCreationAndStopsOnClose()
+    {
+        var source = File.ReadAllText(FindStripWindow());
+        var constructor = source[source.IndexOf("public TaskbarStatusStripWindow()", StringComparison.Ordinal)..source.IndexOf("public void Bind(", StringComparison.Ordinal)];
+        Assert.Contains("_fullscreenTimer.Start();", constructor, StringComparison.Ordinal);
+        Assert.Contains("_fullscreenTimer.Tick +=", constructor, StringComparison.Ordinal);
+        var closed = source[source.IndexOf("protected override void OnClosed", StringComparison.Ordinal)..];
+        Assert.Contains("_fullscreenTimer.Stop();", closed, StringComparison.Ordinal);
+        Assert.Contains("if (_closed) return;", source, StringComparison.Ordinal);
+    }
+
     private static string FindStripWindow() => Find("src/ProMeter/UI/TaskbarStatusStripWindow.xaml.cs");
 
     private static string Find(string relative)

@@ -1,136 +1,66 @@
 using System.Diagnostics;
-using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using ProMeter.Codex;
-using ProMeter.Companion;
-using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
-using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 
 namespace ProMeter;
 
 public partial class App : Application
 {
     private Mutex? _mutex;
+    private bool _ownsMutex;
     private AppSettings _settings = AppSettings.CreateDefaults();
     private SettingsStore _settingsStore = null!;
-    private SqliteStore _store = null!;
     private AppLog _log = null!;
-    private ModelNormalizer _models = null!;
-    private ConversationParser _parser = null!;
-    private QuotaEngine _quota = null!;
-    private SyncEngine _sync = null!;
-    private ConversationExportImporter _importer = null!;
-    private WebViewTransport _webViewTransport = null!;
-    private IChatGptTransport _transport = null!;
-    private ChatGptProvider _provider = null!;
-    private CompanionRequestHub _companionHub = null!;
-    private CompanionPipeServer? _companionServer;
     private TrayController _tray = null!;
-    private ToastNotificationService _toasts = null!;
-    private readonly DispatcherTimer _timer = new();
-    private readonly DispatcherTimer _codexTimer = new();
-    private readonly DispatcherTimer _proStatusTimer = new();
-    private readonly DispatcherTimer _proResetRecheckTimer = new() { Interval = TimeSpan.FromSeconds(8) };
-    private FlyoutWindow? _flyout;
-    private MainWindow? _main;
-    private FloatingWidget? _widget;
-    private TaskbarStatusStripWindow? _taskbarStrip;
-    private QuotaSnapshot _snapshot = new();
-    private bool _syncing;
     private CodexQuotaService _codex = null!;
-    private CombinedRefreshCoordinator _refresh = null!;
-    private ProServerStatusService _proStatus = null!;
-    private readonly OnceEventSubscription _widgetEvents = new();
+    private CodexRefreshCoordinator _refresh = null!;
     private readonly CodexExecutableLocator _codexLocator = new(new WindowsCodexFileSystem());
     private readonly CancellationTokenSource _lifetime = new();
-
+    private readonly DispatcherTimer _codexTimer = new();
+    private readonly OnceEventSubscription _widgetEvents = new();
+    private FlyoutWindow? _flyout;
+    private FloatingWidget? _widget;
+    private TaskbarStatusStripWindow? _taskbarStrip;
     public bool IsExiting { get; private set; }
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
-        _mutex = new Mutex(true, @"Local\ProMeter.SingleInstance", out var created);
-        if (!created)
-        {
-            Shutdown();
-            return;
-        }
-
-        DispatcherUnhandledException += (_, args) =>
-        {
-            _log?.Error("unhandled UI exception", args.Exception);
-            args.Handled = true;
-        };
-
+        // Keep the legacy mutex name so an older executable cannot run beside this one.
+        _mutex = new Mutex(true, @"Local\ProMeter.SingleInstance", out _ownsMutex);
+        if (!_ownsMutex) { Shutdown(); return; }
         _settingsStore = new SettingsStore();
         _settings = _settingsStore.Load();
+        var firstUse = !_settings.FirstRunCompleted;
         UiText.SetLanguage(_settings.UiLanguage);
         _log = new AppLog();
-
-        // A reconstruction-semantics migration rewrites derived usage rows, so the rollback point
-        // must exist before the auto-migrating store is ever opened.
-        var migration = DatabaseMigrationBootstrap.Prepare(log: _log.Info);
-        if (!migration.CanProceed)
+        DispatcherUnhandledException += (_, args) =>
         {
-            _log.Error("metering db bootstrap refused migration: " + migration.FailureReason);
-            MessageBox.Show(
-                UiText.MigrationBackupFailed,
-                UiText.ProductName,
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            Shutdown();
-            return;
-        }
-
-        _store = new SqliteStore();
-        _models = new ModelNormalizer();
-        _models.Hydrate(_store.GetObservedModels());
-        _parser = new ConversationParser(_models);
-        _quota = new QuotaEngine();
-        _sync = new SyncEngine(_store, _parser, _models, _log);
-        _sync.ProgressChanged += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
-        _importer = new ConversationExportImporter(_parser, _models);
-        _companionHub = new CompanionRequestHub { DiagnosticLog = _log.Info };
-        _webViewTransport = new WebViewTransport(_log);
-        var pairing = CompanionPairingStore.LoadOrCreate();
-        _companionServer = new CompanionPipeServer(_companionHub, pairing, _log);
-        EnsureCompanionHostRegistration();
-        _companionServer.Start();
-        ApplyTransport();
-        _toasts = new ToastNotificationService(_settingsStore, _log);
+            _log.Error("unhandled UI exception", args.Exception);
+            args.Handled = true;
+        };
+        // Retain existing preferences and history files, but never start retired collectors.
+        _settings.AutoSync = false;
+        _settings.CompanionConnectOptIn = false;
+        _settings.FirstRunCompleted = true;
+        _settingsStore.Save(_settings);
+        LegacyCompanionCleanup.Unregister(_log.Warn);
         StartupConsent.ApplyIfPermitted(new WindowsStartupService(), _settings);
         ApplyTheme(_settings.Theme);
-
         _tray = new TrayController();
-        ToastNotificationService.Fallback = (title, body) => _tray.Balloon(title, body);
         _tray.RebuildMenu(_settings.StartWithWindows);
         _tray.LeftClick += ToggleFlyout;
         _tray.OpenRequested += ShowMain;
-        _tray.StatisticsRequested += ShowMain;
-        _tray.SyncRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
-        _codex = new CodexQuotaService(
-            _codexLocator,
-            new CodexAppServerClient(),
-            new CodexSnapshotStore(),
-            version,
-            message => _log.Info(message));
-        _codex.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
-        _refresh = new CombinedRefreshCoordinator(
-            (bypassPause, _) => SyncAsync(SyncRunOptions.Manual(bypassPause)),
-            ct => _codex.RefreshAsync(_settings.CodexExePath, ct));
-        _refresh.StateChanged += () => Dispatcher.BeginInvoke(RefreshSnapshot);
-        _proStatus = new ProServerStatusService();
-        _proStatus.RecoverLastConfirmedFromSettings(_settings);
-        _proStatus.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
-        _tray.LoginRequested += () => _ = SignInAsync();
+        _tray.SyncRequested += () => _ = RefreshCodexAsync();
         _tray.SettingsRequested += ShowSettings;
         _tray.OpenLogsRequested += OpenLogs;
-        _tray.AboutRequested += ShowAbout;
+        _tray.AboutRequested += () => new AboutWindow(
+            Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0",
+            UiText.T("Codex App Server", "Codex App Server")).Show();
         _tray.StartupToggled += enabled =>
         {
             _settings.StartWithWindows = enabled;
@@ -138,282 +68,36 @@ public partial class App : Application
             _settingsStore.Save(_settings);
         };
         _tray.ExitRequested += ExitApp;
-
-        RefreshSnapshot();
-        _timer.Interval = TimeSpan.FromMinutes(Math.Clamp(_settings.SyncIntervalMinutes, 5, 180));
-        _timer.Tick += async (_, _) =>
-        {
-            if (_settings.AutoSync)
-            {
-                await SyncAsync(SyncRunOptions.Auto);
-            }
-        };
-        _timer.Start();
+        _codex = new CodexQuotaService(_codexLocator, new CodexAppServerClient(),
+            new CodexSnapshotStore(), Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0", _log.Info);
+        _refresh = new CodexRefreshCoordinator(ct => Task.Run(() => _codex.RefreshAsync(_settings.CodexExePath, ct), ct));
+        _codex.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
+        _refresh.StateChanged += () => Dispatcher.BeginInvoke(RefreshSnapshot);
         _codexTimer.Interval = CodexQuotaService.TaskbarRefreshInterval;
-        _codexTimer.Tick += async (_, _) =>
-        {
-            if (_settings.TaskbarStatusEnabled)
-            {
-                await _codex.RefreshAsync(_settings.CodexExePath, _lifetime.Token);
-            }
-        };
-        _proStatusTimer.Interval = ProServerStatusService.RefreshInterval;
-        _proStatusTimer.Tick += async (_, _) =>
-        {
-            if (ProServerStatusService.ShouldPeriodicRefresh(_settings)
-                && _settings.AuthTransport == AuthTransportKind.BrowserCompanion)
-            {
-                await RefreshProStatusAsync(notifyFailure: false);
-            }
-        };
-        _proResetRecheckTimer.Tick += async (_, _) =>
-        {
-            _proResetRecheckTimer.Stop();
-            if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion)
-            {
-                await RefreshProStatusAsync(notifyFailure: false);
-            }
-        };
-        ApplyCodexTimer();
-        ApplyProStatusTimer();
-
-        if (!_settings.FirstRunCompleted)
-        {
-            RunWelcome();
-        }
-        else if (_settings.AutoSync)
-        {
-            _ = SyncAsync(SyncRunOptions.StartupIncremental);
-        }
-
+        _codexTimer.Tick += async (_, _) => await RefreshCodexAsync();
+        _codexTimer.Start();
+        RefreshSnapshot();
         ApplyWidget();
         ApplyTaskbarStrip();
-        var startupCodex = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        startupCodex.Tick += async (_, _) =>
-        {
-            startupCodex.Stop();
-            await _codex.RefreshAsync(_settings.CodexExePath, _lifetime.Token);
-        };
-        startupCodex.Start();
-        if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion)
-        {
-            var startupStatus = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-            startupStatus.Tick += async (_, _) =>
-            {
-                startupStatus.Stop();
-                await RefreshProStatusAsync(notifyFailure: false);
-            };
-            startupStatus.Start();
-        }
+        if (firstUse || e.Args.Contains("--show", StringComparer.Ordinal)) ShowMain();
+        _ = RefreshCodexAsync();
     }
 
-    private void RunWelcome()
+    private async Task RefreshCodexAsync()
     {
-        var welcome = new WelcomeWindow();
-        var adapter = new WelcomeCompanionConnectionAdapter(
-            new DispatcherUiMarshal(welcome.Dispatcher),
-            () => welcome.CompanionRegistered,
-            welcome.SetCompanionState);
-        void OnCompanionConnectionChanged() => adapter.HandleConnectionChanged(_companionHub.IsConnected);
-        _companionHub.ConnectionChanged += OnCompanionConnectionChanged;
-        welcome.Closed += (_, _) =>
-        {
-            adapter.Detach();
-            _companionHub.ConnectionChanged -= OnCompanionConnectionChanged;
-        };
-        welcome.OpenExtensionFolderRequested += () =>
-        {
-            var folder = Path.Combine(AppContext.BaseDirectory, "extension");
-            if (!Directory.Exists(folder))
-            {
-                folder = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "extension"));
-            }
-
-            if (Directory.Exists(folder))
-            {
-                Process.Start(new ProcessStartInfo { FileName = folder, UseShellExecute = true });
-            }
-        };
-        welcome.RegisterCompanionRequested += (chromeId, edgeId) =>
-        {
-            ApplyWelcomeChoices(welcome);
-            var error = RegisterCompanionHost(chromeId, edgeId);
-            if (error is not null)
-            {
-                welcome.SetCompanionState(UiText.CompanionNotInstalledPrefix + error, registered: false, connected: false);
-                return;
-            }
-
-            welcome.SetCompanionState(
-                _companionHub.IsConnected ? UiText.CompanionConnected : UiText.CompanionRegisteredWaiting,
-                registered: true,
-                connected: _companionHub.IsConnected);
-        };
-        welcome.OpenChatGptRequested += () => Process.Start(new ProcessStartInfo
-        {
-            FileName = ChatGptEndpoints.LoginUrl,
-            UseShellExecute = true
-        });
-        welcome.SignInRequested += async () =>
-        {
-            ApplyWelcomeChoices(welcome);
-            _settingsStore.Save(_settings);
-            ApplyTransport();
-            if (_settings.AuthTransport == AuthTransportKind.DataExport)
-            {
-                welcome.MarkSignedIn(UiText.DataExportSelected);
-                return;
-            }
-
-            if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion)
-            {
-                Process.Start(new ProcessStartInfo { FileName = ChatGptEndpoints.LoginUrl, UseShellExecute = true });
-                welcome.SetCompanionState(
-                    _companionHub.IsConnected ? UiText.CompanionConnected : (welcome.CompanionRegistered ? UiText.CompanionWaiting : UiText.CompanionNotInstalled),
-                    welcome.CompanionRegistered,
-                    _companionHub.IsConnected);
-                return;
-            }
-
-            welcome.SetBusy(UiText.OpeningWebViewSignIn);
-            var signedIn = await _webViewTransport.ShowLoginAsync();
-            if (!signedIn)
-            {
-                welcome.SetCancelled(UiText.SignInCancelled);
-                return;
-            }
-
-            welcome.MarkSignedIn(UiText.SignedInRunSync);
-        };
-        welcome.SyncRequested += async () =>
-        {
-            ApplyWelcomeChoices(welcome);
-            _settingsStore.Save(_settings);
-            ApplyTransport();
-            if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion && !_companionHub.IsConnected)
-            {
-                welcome.SetCompanionState(UiText.CompanionWaiting, welcome.CompanionRegistered, false);
-                return;
-            }
-
-            welcome.SetBusy(UiText.RunningFirstSync);
-            var outcome = await SyncAsync(SyncRunOptions.ManualIncremental);
-            welcome.ApplyOutcome(OnboardingOutcomeMapper.From(
-                outcome.Status,
-                _snapshot.Used,
-                _snapshot.Limit,
-                outcome.Detail,
-                _snapshot.DisplayUsageUnavailable,
-                _snapshot.UsesServerCount));
-            _log.Info("welcome sync " + outcome.Status);
-        };
-        if (welcome.ShowDialog() == true)
-        {
-            _settings.FirstRunCompleted = true;
-            ApplyWelcomeChoices(welcome);
-            _settingsStore.Save(_settings);
-            ApplyTransport();
-            StartupConsent.ApplyIfPermitted(new WindowsStartupService(), _settings);
-        }
-    }
-
-    private async Task<SyncOutcome> SyncAsync(SyncRunOptions options)
-    {
-        if (_syncing)
-        {
-            return new SyncOutcome(_snapshot.Status, "already running", 0);
-        }
-
-        _syncing = true;
-        RefreshSnapshot();
-        try
-        {
-            var outcome = await _sync.SyncAsync(
-                _provider,
-                _settings,
-                options with { KnownProServerStatus = _proStatus.Current });
-            _proStatus.ApplyFromMetadata(_sync.LastQuotaMetadata);
-            ScheduleProResetRecheck();
-            ApplySyncFailurePresentation(outcome, options.Origin);
-            return outcome;
-        }
-        finally
-        {
-            _syncing = false;
-            RefreshSnapshot();
-        }
-    }
-
-    private void ApplySyncFailurePresentation(SyncOutcome outcome, SyncOrigin origin)
-    {
-        var now = DateTimeOffset.Now;
-        if (SyncFailurePresentation.IsLoggedFailure(outcome.Status))
-        {
-            SyncErrorToastState.RememberFailureAttempt(_settings, outcome.Status, now);
-            if (SyncFailurePresentation.ProducesSyncErrorToast(outcome.Status))
-            {
-                _toasts.TrySyncError(
-                    _settings,
-                    outcome.Status,
-                    outcome.Detail ?? DisplayFormatting.StatusLabel(outcome.Status),
-                    origin,
-                    now);
-            }
-
-            _settingsStore.Save(_settings);
-            return;
-        }
-
-        if (SyncFailurePresentation.IsSuccessfulCompletion(outcome.Status))
-        {
-            _toasts.ResetSyncErrorSuppression(_settings);
-            _settingsStore.Save(_settings);
-        }
+        if (IsExiting) return;
+        try { await _refresh.RefreshAsync(_lifetime.Token); }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { _log.Error("Codex refresh failed", ex); }
     }
 
     private void RefreshSnapshot()
     {
-        var events = _store.GetUsageEvents();
-        var metadata = _sync.LastQuotaMetadata ?? new QuotaMetadataSet();
-        metadata.ProServerStatus = _proStatus.Current;
-
-        _snapshot = _quota.Build(
-            events,
-            _settings,
-            DateTimeOffset.Now,
-            _sync.LastSyncCompleted,
-            _sync.LastCoverage,
-            metadata,
-            _sync.LastStatus,
-            _sync.LastStatusDetail);
-        _snapshot.IsSyncing = _syncing;
-        if (_syncing)
-        {
-            _snapshot.Status = AppSyncStatus.Syncing;
-        }
-        _tray.Update(_snapshot, _settings.TrayIconStyle);
-        _toasts.Evaluate(_snapshot, _settings);
-        _flyout?.Bind(
-            _snapshot,
-            _settings,
-            _codex.Snapshot,
-            _syncing || _refresh.ChatGptRefreshing,
-            _codex.IsRefreshing || _refresh.CodexRefreshing,
-            _refresh.ManualRefreshInProgress);
-        _widget?.Bind(_snapshot, _codex.Snapshot);
-        _taskbarStrip?.Bind(_snapshot, _codex.Snapshot);
-        if (_main is { IsVisible: true })
-        {
-            var trend = _quota.BuildTrend(events, DateTimeOffset.UtcNow.AddDays(-30), DateTimeOffset.UtcNow.AddDays(1), _settings);
-            _main.Bind(_snapshot, events, trend, _codex.Snapshot);
-        }
-    }
-
-    private async Task RefreshAllAsync(bool bypassPause, CancellationToken cancellationToken)
-    {
-        var status = RefreshProStatusAsync(notifyFailure: false);
-        await _refresh.RefreshAllAsync(bypassPause, cancellationToken);
-        await status;
+        if (IsExiting || _codex is null || _refresh is null) return;
+        _tray.Update(_codex.Snapshot, _settings.TrayIconStyle);
+        _flyout?.Bind(_codex.Snapshot, _refresh.IsRefreshing);
+        _widget?.Bind(_codex.Snapshot);
+        _taskbarStrip?.Bind(_codex.Snapshot);
     }
 
     private void ToggleFlyout() => ToggleFlyout(FlyoutOpenSource.Tray, null, null);
@@ -421,58 +105,23 @@ public partial class App : Application
     private void ToggleFlyout(FlyoutOpenSource source, Rect? anchor, TaskbarEdge? edge)
     {
         EnsureFlyout();
-        if (_flyout is { IsVisible: true })
-        {
-            _flyout.Hide();
-            return;
-        }
-
-        _flyout!.ApplyWindowSettings(_settings);
+        if (_flyout!.IsVisible) { _flyout.Hide(); return; }
+        _flyout.ApplyWindowSettings(_settings);
         RefreshSnapshot();
         _flyout.Show();
         PlaceFlyout(_flyout, source, anchor, edge);
         _flyout.Activate();
-        if (FlyoutAutoSyncPolicy.ShouldStartStaleAutoSync(
-                _settings.AutoSync,
-                source == FlyoutOpenSource.TaskbarStrip,
-                DateTimeOffset.Now,
-                _snapshot.LastSync,
-                _settings.SyncIntervalMinutes,
-                FlyoutAutoSyncPolicy.ParseTimestamp(_settings.LastSyncFailureAt)))
-        {
-            _ = SyncAsync(SyncRunOptions.FlyoutStale);
-        }
-
         if (CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now))
-        {
-            _ = _codex.RefreshAsync(_settings.CodexExePath, _lifetime.Token);
-        }
-
-        if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion
-            && ProServerStatusService.ShouldRefreshOnFlyoutOpen(_proStatus.Current, DateTimeOffset.Now))
-        {
-            _ = RefreshProStatusAsync(notifyFailure: false);
-        }
+            _ = RefreshCodexAsync();
     }
 
     private void EnsureFlyout()
     {
-        if (_flyout is not null)
-        {
-            return;
-        }
-
+        if (_flyout is not null) return;
         _flyout = new FlyoutWindow();
-        _flyout.CoverageRequested += () => new CoverageWindow(
-            _snapshot,
-            _codex.Snapshot,
-            _codexLocator.Locate(_settings.CodexExePath) is not null).Show();
-        _flyout.SyncRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
-        _flyout.PinChanged += pinned =>
-        {
-            _settings.FlyoutPinned = pinned;
-            _settingsStore.Save(_settings);
-        };
+        _flyout.SyncRequested += () => _ = RefreshCodexAsync();
+        _flyout.SettingsRequested += ShowSettings;
+        _flyout.PinChanged += pinned => { _settings.FlyoutPinned = pinned; _settingsStore.Save(_settings); };
         _flyout.PositionChanged += (left, top) =>
         {
             _settings.FlyoutLeft = left;
@@ -480,6 +129,35 @@ public partial class App : Application
             _settings.FlyoutPositionConfigured = true;
             _settingsStore.Save(_settings);
         };
+    }
+
+    private void ShowMain()
+    {
+        EnsureFlyout();
+        if (_flyout!.IsVisible) { _flyout.Activate(); return; }
+        ToggleFlyout();
+    }
+
+    private void ShowSettings()
+    {
+        var window = new SettingsWindow(_settings);
+        if (_flyout?.IsVisible == true) window.Owner = _flyout;
+        window.Saved += settings =>
+        {
+            _settings = settings;
+            _settingsStore.Save(settings);
+            UiText.SetLanguage(settings.UiLanguage);
+            ApplyTheme(settings.Theme);
+            StartupConsent.ApplyIfPermitted(new WindowsStartupService(), settings);
+            _tray.RebuildMenu(settings.StartWithWindows);
+            _flyout?.ApplyWindowSettings(settings);
+            ApplyWidget();
+            ApplyTaskbarStrip();
+            RefreshSnapshot();
+            _ = RefreshCodexAsync();
+        };
+        window.OpenLogsRequested += OpenLogs;
+        window.ShowDialog();
     }
 
     private void PlaceFlyout(FlyoutWindow flyout, FlyoutOpenSource source, Rect? anchor, TaskbarEdge? edge)
@@ -499,63 +177,6 @@ public partial class App : Application
         flyout.PlaceNearTaskbar();
     }
 
-    private void ShowMain()
-    {
-        if (_main is null)
-        {
-            _main = new MainWindow();
-            _main.SyncRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
-            _main.SettingsRequested += ShowSettings;
-            _main.Closing += (_, e) =>
-            {
-                if (!IsExiting)
-                {
-                    e.Cancel = true;
-                    _main.Hide();
-                }
-            };
-        }
-
-        RefreshSnapshot();
-        _main.Show();
-        _main.Activate();
-    }
-
-    private void ShowSettings()
-    {
-        var window = new SettingsWindow(_settings);
-        window.Saved += settings =>
-        {
-            _settings = settings;
-            _settingsStore.Save(settings);
-            UiText.SetLanguage(settings.UiLanguage);
-            ApplyTransport();
-            StartupConsent.ApplyIfPermitted(new WindowsStartupService(), settings);
-            _timer.Interval = TimeSpan.FromMinutes(Math.Clamp(settings.SyncIntervalMinutes, 5, 180));
-            ApplyTheme(settings.Theme);
-            _tray.RebuildMenu(settings.StartWithWindows);
-            _flyout?.ApplyLocalizedTexts();
-            _main?.ApplyLocalizedTexts();
-            ApplyWidget();
-            ApplyCodexTimer();
-            ApplyProStatusTimer();
-            ApplyTaskbarStrip();
-            _taskbarStrip?.ApplyThemeResources();
-            RefreshSnapshot();
-        };
-        window.CompanionRegisterRequested += (chromeId, edgeId) =>
-        {
-            var error = RegisterCompanionHost(chromeId, edgeId);
-            MessageBox.Show(
-                error ?? (UiText.RegisteredNativeHosts + CompanionRegistration.WhaleInstructions),
-                UiText.ProductName);
-        };
-        window.ImportRequested += ImportExport;
-        window.ExportRequested += format => Export(format);
-        window.OpenLogsRequested += OpenLogs;
-        window.ShowDialog();
-    }
-
     private void OpenLogs()
     {
         Process.Start(new ProcessStartInfo
@@ -563,252 +184,6 @@ public partial class App : Application
             FileName = _log.DirectoryPath,
             UseShellExecute = true
         });
-    }
-
-    private void ImportExport()
-    {
-        var dialog = new OpenFileDialog
-        {
-            Filter = "ChatGPT export|*.json|All files|*.*",
-            Title = UiText.ImportTitle
-        };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        var json = File.ReadAllText(dialog.FileName);
-        var period = ProQuotaPeriodResolver.Resolve(
-            _settings,
-            DateTimeOffset.Now,
-            _proStatus.Current,
-            _sync.LastQuotaMetadata?.WeeklyWindow(_settings.PlanPreset)?.ResetAt);
-        var imported = _importer.Import(json, _settings.ImportHistoricalStatistics, period.Start);
-        if (imported.Error is not null)
-        {
-            System.Windows.MessageBox.Show(imported.Error, UiText.ProductName);
-            return;
-        }
-
-        _store.UpsertUsageEvents(imported.Events);
-        _sync.RecordImportedEvents(imported.Events.Count);
-        RefreshSnapshot();
-        System.Windows.MessageBox.Show(UiText.ImportedEvents(imported.Events.Count), UiText.ProductName);
-    }
-
-    private void Export(string format)
-    {
-        var events = _store.GetUsageEvents();
-        var dialog = new SaveFileDialog
-        {
-            Filter = format == "csv" ? "CSV|*.csv" : "JSON|*.json",
-            FileName = format == "csv" ? "prometer-usage.csv" : "prometer-usage.json"
-        };
-        if (dialog.ShowDialog() != true)
-        {
-            return;
-        }
-
-        var text = format == "csv" ? ExportService.ToCsv(events) : ExportService.ToJson(events);
-        File.WriteAllText(dialog.FileName, text);
-    }
-
-    private async Task SignInAsync()
-    {
-        if (_syncing)
-        {
-            return;
-        }
-
-        if (_settings.AuthTransport == AuthTransportKind.DataExport)
-        {
-            return;
-        }
-
-        if (_settings.AuthTransport == AuthTransportKind.BrowserCompanion)
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = ChatGptEndpoints.LoginUrl,
-                UseShellExecute = true
-            });
-            return;
-        }
-
-        if (!await _webViewTransport.ShowLoginAsync())
-        {
-            return;
-        }
-
-        if (_settings.AutoSync)
-        {
-            await SyncAsync(SyncRunOptions.ManualIncremental);
-        }
-    }
-
-    private void ApplyWelcomeChoices(WelcomeWindow welcome)
-    {
-        _settings.ApplyPreset(welcome.SelectedPreset);
-        _settings.AuthTransport = welcome.SelectedTransport;
-        _settings.ChromeExtensionId = welcome.ChromeExtensionId;
-        _settings.EdgeExtensionId = welcome.EdgeExtensionId;
-        _settings.CompanionExtensionId = welcome.ChromeExtensionId ?? welcome.EdgeExtensionId;
-        _settings.StartWithWindows = welcome.StartWithWindowsOptIn;
-        _settings.AutoSync = welcome.AutoSyncOptIn;
-    }
-
-    private void EnsureCompanionHostRegistration()
-    {
-        try
-        {
-            var pairing = CompanionPairingStore.LoadOrCreate();
-            var chromeId = FirstNonEmpty(_settings.ChromeExtensionId, pairing.ChromeExtensionId);
-            var edgeId = FirstNonEmpty(_settings.EdgeExtensionId, pairing.EdgeExtensionId);
-            var builtInId = _settings.CompanionConnectOptIn ? ResolveBuiltInCompanionExtensionId() : null;
-            var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "prometer.exe");
-            var result = CompanionRegistration.EnsureCurrent(exe, chromeId, edgeId, builtInId);
-            if (!result.Ok)
-            {
-                _log.Warn("companion host registration: " + AppLog.Sanitize(result.Error));
-            }
-        }
-        catch (Exception ex)
-        {
-            _log.Warn("companion host registration: " + AppLog.Sanitize(ex.GetType().Name));
-        }
-    }
-
-    /// <summary>
-    /// Recovers the Browser Companion extension's own deterministic ID from the
-    /// extension/manifest.json shipped next to prometer.exe. No browser profile data
-    /// is read; the ID depends only on the manifest's own "key" field.
-    /// </summary>
-    private static string? ResolveBuiltInCompanionExtensionId()
-    {
-        var manifestPath = Path.Combine(AppContext.BaseDirectory, "extension", "manifest.json");
-        return CompanionExtensionManifest.TryReadBuiltInExtensionId(manifestPath, out var extensionId)
-            ? extensionId
-            : null;
-    }
-
-    private static string? FirstNonEmpty(params string?[] values)
-    {
-        foreach (var value in values)
-        {
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value.Trim();
-            }
-        }
-
-        return null;
-    }
-
-    private string? RegisterCompanionHost(string? chromeId, string? edgeId)
-    {
-        var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "prometer.exe");
-        var builtInId = ResolveBuiltInCompanionExtensionId();
-        var result = CompanionRegistration.Register(exe, chromeId, edgeId, builtInId);
-        if (!result.Ok)
-        {
-            return result.Error ?? UiText.NativeHostFailed;
-        }
-
-        _settings.ChromeExtensionId = chromeId;
-        _settings.EdgeExtensionId = edgeId;
-        _settings.CompanionExtensionId = chromeId ?? edgeId;
-        var pairing = CompanionPairingStore.LoadOrCreate();
-        pairing.ChromeExtensionId = chromeId;
-        pairing.EdgeExtensionId = edgeId;
-        pairing.ExtensionId = chromeId ?? edgeId;
-        CompanionPairingStore.Save(pairing);
-        _settings.CompanionConnectOptIn = true;
-        _settingsStore.Save(_settings);
-        return null;
-    }
-
-    private void ApplyTransport()
-    {
-        _transport = _settings.AuthTransport switch
-        {
-            AuthTransportKind.BrowserCompanion => new BrowserCompanionTransport(
-                _companionHub,
-                message => _log.Info(message)),
-            AuthTransportKind.DataExport => new DataExportTransport(),
-            _ => _webViewTransport
-        };
-        _provider = new ChatGptProvider(_transport, _log.Info);
-    }
-
-    private void ShowAbout()
-    {
-        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
-        new AboutWindow(version, DisplayFormatting.StatusLabel(_snapshot.Status)).ShowDialog();
-    }
-
-    private void ApplyCodexTimer()
-    {
-        if (_settings.TaskbarStatusEnabled)
-        {
-            _codexTimer.Start();
-        }
-        else
-        {
-            _codexTimer.Stop();
-        }
-    }
-
-    private void ApplyProStatusTimer()
-    {
-        if (ProServerStatusService.ShouldPeriodicRefresh(_settings)
-            && _settings.AuthTransport == AuthTransportKind.BrowserCompanion)
-        {
-            _proStatusTimer.Start();
-            ScheduleProResetRecheck();
-        }
-        else
-        {
-            _proStatusTimer.Stop();
-            _proResetRecheckTimer.Stop();
-        }
-    }
-
-    private void ScheduleProResetRecheck()
-    {
-        _proResetRecheckTimer.Stop();
-        var due = ProServerStatusService.NextResetRecheck(_proStatus.Current, DateTimeOffset.Now);
-        if (due is null)
-        {
-            return;
-        }
-
-        var delay = due.Value - DateTimeOffset.Now;
-        if (delay < TimeSpan.Zero)
-        {
-            delay = ProServerStatusService.ResetRecheckMin;
-        }
-
-        _proResetRecheckTimer.Interval = delay;
-        _proResetRecheckTimer.Start();
-    }
-
-    private async Task RefreshProStatusAsync(bool notifyFailure)
-    {
-        try
-        {
-            await _proStatus.RefreshAsync(_provider, _lifetime.Token);
-            ScheduleProResetRecheck();
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception ex)
-        {
-            if (notifyFailure)
-            {
-                _log.Warn("pro status refresh failed: " + AppLog.Sanitize(ex.Message));
-            }
-        }
     }
 
     private void ApplyTaskbarStrip()
@@ -832,11 +207,11 @@ public partial class App : Application
             };
             _taskbarStrip.FlyoutRequested += () =>
                 ToggleFlyout(FlyoutOpenSource.TaskbarStrip, _taskbarStrip.LastBounds, _taskbarStrip.LastEdge);
-            _taskbarStrip.RefreshRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
+            _taskbarStrip.RefreshRequested += () => _ = RefreshCodexAsync();
             _taskbarStrip.ContextMenuRequested += () => _tray.ShowContextMenu();
         }
 
-        _taskbarStrip.Bind(_snapshot, _codex.Snapshot);
+        _taskbarStrip.Bind(_codex.Snapshot);
         _taskbarStrip.Reposition();
     }
 
@@ -858,11 +233,11 @@ public partial class App : Application
                 _settingsStore.Save(_settings);
             };
             _widget.FlyoutRequested += ToggleFlyout;
-            _widget.RefreshRequested += () => _ = RefreshAllAsync(true, _lifetime.Token);
+            _widget.RefreshRequested += () => _ = RefreshCodexAsync();
             _widget.ContextMenuRequested += () => _tray.ShowContextMenu();
         });
         _widget.Apply(_settings);
-        _widget.Bind(_snapshot, _codex.Snapshot);
+        _widget.Bind(_codex.Snapshot);
         _widget.Show();
     }
 
@@ -901,37 +276,26 @@ public partial class App : Application
         }
     }
 
-    private void ExitApp()
+    private async void ExitApp()
     {
+        if (IsExiting) return;
         IsExiting = true;
-        _timer.Stop();
         _codexTimer.Stop();
-        _proStatusTimer.Stop();
-        _proResetRecheckTimer.Stop();
         _lifetime.Cancel();
-        try { _flyout?.Hide(); } catch { }
-        try { _widget?.Hide(); } catch { }
-        try { _main?.Hide(); } catch { }
-        try { _taskbarStrip?.Close(); } catch { }
-        _taskbarStrip = null;
-        try
-        {
-            _companionServer?.StopAsync(CompanionPipeServer.StopTimeout).GetAwaiter().GetResult();
-        }
-        catch
-        {
-        }
-
-        _companionServer?.Dispose();
+        _flyout?.Hide();
+        _widget?.Hide();
+        _taskbarStrip?.Close();
+        // Let the existing bounded client stop and reap its app-server process.
+        try { await _refresh.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(15)); }
+        catch (OperationCanceledException) { }
+        catch (TimeoutException) { _log.Warn("Codex shutdown wait timed out"); }
         _tray.Dispose();
-        _webViewTransport.Dispose();
-        _store.Dispose();
         Shutdown();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _mutex?.ReleaseMutex();
+        if (_ownsMutex) _mutex?.ReleaseMutex();
         _mutex?.Dispose();
         base.OnExit(e);
     }

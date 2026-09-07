@@ -76,7 +76,12 @@ Public policy (Help Center, not an account reading):
 
 Within the **same** allowance, fresh applicable server evidence precedes a retained historical anchor. A fresh daily or unrelated-model reset must not replace a shared weekly anchor. Retained timestamps must not be presented as freshly observed future resets.
 
-Seven-day reconstruction requires a known weekly allowance and stays estimated. Never convert a daily or unknown reset into a weekly one.
+Quota-cycle reconstruction requires an applicable allowance/period and stays estimated. Never convert a daily or unknown reset into a weekly one.
+
+With no applicable server/retained or explicitly configured reset anchor, show rolling **last 7 days**
+observed-request statistics, using (now - 7 days, now]. This is a historical window, not a quota-cycle
+estimate: no guessed Monday reset, next-reset date, exact remaining count, or mathematical lower bound.
+Use the same window for history scanning so crossing Monday does not silently exclude weekend evidence.
 
 Legacy unscoped `LastConfirmedResetAt` is retained. Attach scope only when existing metadata proves it; otherwise using it is uncertain. Do not erase a valid retained Pro100 weekly anchor without cause.
 

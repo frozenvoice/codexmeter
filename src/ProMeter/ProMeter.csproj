@@ -7,43 +7,23 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RootNamespace>ProMeter</RootNamespace>
-    <AssemblyName>prometer</AssemblyName>
+    <AssemblyName>CodexMeter</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Description>Windows tray monitor for ChatGPT Pro quota and model usage</Description>
-    <Product>ProMeter</Product>
+    <Description>Windows tray monitor for Codex account usage</Description>
+    <Product>CodexMeter</Product>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\ProMeter.Core\ProMeter.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Toolkit.Uwp.Notifications" Version="7.1.3" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.11" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\prometer.ico" Condition="Exists('Assets\prometer.ico')" />
-    <Content Include="..\..\extension\**\*.*">
-      <Link>extension\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
   </ItemGroup>
-  <Target Name="CopyCompanionHost" AfterTargets="Build">
-    <MSBuild Projects="..\ProMeter.CompanionHost\ProMeter.CompanionHost.csproj" Targets="Build" Properties="Configuration=$(Configuration)" />
-    <ItemGroup>
-      <_CompanionHostFiles Include="..\ProMeter.CompanionHost\bin\$(Configuration)\net8.0\prometer-companion-host*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_CompanionHostFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
-  </Target>
-  <Target Name="PublishCompanionHost" AfterTargets="Publish" Condition="'$(RuntimeIdentifier)' != ''">
-    <MSBuild
-      Projects="..\ProMeter.CompanionHost\ProMeter.CompanionHost.csproj"
-      Targets="Restore"
-      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier)" />
-    <MSBuild
-      Projects="..\ProMeter.CompanionHost\ProMeter.CompanionHost.csproj"
-      Targets="Publish"
-      Properties="Configuration=$(Configuration);RuntimeIdentifier=$(RuntimeIdentifier);SelfContained=$(SelfContained);PublishDir=$(PublishDir);PublishSingleFile=$(PublishSingleFile);IncludeNativeLibrariesForSelfExtract=$(IncludeNativeLibrariesForSelfExtract)" />
-  </Target>
+  <ItemGroup>
+    <Compile Remove="Services\ToastNotificationService.cs;WebView\**\*.cs;Companion\**\*.cs;UI\WelcomeWindow.xaml.cs;UI\MainWindow.xaml.cs;UI\CoverageWindow.xaml.cs" />
+    <Page Remove="UI\WelcomeWindow.xaml;UI\MainWindow.xaml;UI\CoverageWindow.xaml" />
+  </ItemGroup>
 </Project>

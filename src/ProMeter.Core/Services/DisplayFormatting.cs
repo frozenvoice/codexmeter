@@ -60,7 +60,7 @@ public static class DisplayFormatting
             }
         }
 
-        if (snapshot.ResetAt is null)
+        if (snapshot.ResetAt is null || snapshot.ResetAnchorSource == ResetAnchorSource.Default)
         {
             return new ResetDisplayInfo(UiText.ResetTime, UiText.NotConfirmed, null, null);
         }
@@ -70,9 +70,7 @@ public static class DisplayFormatting
         {
             ResetAnchorSource.Server => new ResetDisplayInfo(UiText.ServerReset, UiText.ResetServer(stamp), null, null),
             ResetAnchorSource.UserConfigured => new ResetDisplayInfo(UiText.ResetTime, UiText.ResetUserConfigured(stamp), null, null),
-            // No confirmed cycle boundary at all - show only the single estimated-reset
-            // row, never a "Reset time: Not confirmed" row alongside it.
-            _ => new ResetDisplayInfo(string.Empty, string.Empty, UiText.EstimatedNextReset, stamp)
+            _ => new ResetDisplayInfo(UiText.ResetTime, UiText.NotConfirmed, null, null)
         };
     }
 

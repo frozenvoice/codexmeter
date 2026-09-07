@@ -304,7 +304,7 @@ assert.strictEqual(preserved.json, false);
 const reconnect = require("./companion-reconnect.js");
 assert.deepStrictEqual(reconnect.DELAYS_MS, [1000, 2000, 5000, 10000, 30000]);
 assert.strictEqual(reconnect.formatDelayLog(1000), "companion reconnect scheduled delay=1s");
-assert.strictEqual(canonical.PAGE_BRIDGE_VERSION, 3);
+assert.strictEqual(canonical.PAGE_BRIDGE_VERSION, 6);
 
 const optedIn = reconnect.createState();
 const swStart = reconnect.onServiceWorkerStart(optedIn, true);
@@ -430,6 +430,7 @@ assert.strictEqual(quotaProjected.body.blocked_features[0].description, "server 
 assert.strictEqual(quotaProjected.body.blocked_features[0].conversation_id, undefined);
 
 await require("./test-page-context.js")();
+await require("./test-page-timeouts.js")();
 
 const chunk = require("./chunk.js");
 assert.strictEqual(chunk.isChunkableOperation("GetConversationLegacy"), true);
@@ -541,6 +542,15 @@ assert.strictEqual(chunk.reassembleBody([tooBigStart, {
   operation: "GetConversationLegacy"
 }]).error, "PayloadTooLarge");
 
+const modelsQuota = project.project("GetModels", {
+  models: [{ slug: "gpt-6-pro" }],
+  model_limits: [{ model_slug: "gpt-6-pro", resets_at: "2026-09-13T05:00:00Z", prompt: "PRIVATE" }],
+  access_token: "PRIVATE"
+});
+assert.strictEqual(modelsQuota.body.models[0].slug, "gpt-6-pro");
+assert.strictEqual(modelsQuota.body.model_limits[0].resets_at, "2026-09-13T05:00:00Z");
+assert.strictEqual(modelsQuota.body.model_limits[0].prompt, undefined);
+assert.strictEqual(modelsQuota.body.access_token, undefined);
   process.stdout.write("companion node tests ok\n");
 })().catch(function (error) {
   process.stderr.write(String(error && error.stack ? error.stack : error) + "\n");

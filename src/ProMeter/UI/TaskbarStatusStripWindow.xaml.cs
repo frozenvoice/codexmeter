@@ -21,7 +21,6 @@ public partial class TaskbarStatusStripWindow : Window
     };
     private HwndSource? _hwnd;
     private bool _closed;
-    private QuotaSnapshot _chatgpt = new();
     private CodexQuotaSnapshot _codex = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
     private TaskbarLayoutResult _layout;
     public Action<string>? VisibilityLog { get; set; }
@@ -43,15 +42,16 @@ public partial class TaskbarStatusStripWindow : Window
             Reposition();
         };
         _fullscreenTimer.Tick += (_, _) => Reposition();
+        // Poll before the first HWND exists: startup may be hidden/fullscreen.
+        _fullscreenTimer.Start();
         SystemEvents.DisplaySettingsChanged += OnSystemLayout;
         SystemEvents.SessionSwitch += OnSystemLayout;
         SystemEvents.UserPreferenceChanged += OnSystemLayout;
         UiText.Changed += OnLanguageChanged;
     }
 
-    public void Bind(QuotaSnapshot chatgpt, CodexQuotaSnapshot codex)
+    public void Bind(CodexQuotaSnapshot codex)
     {
-        _chatgpt = chatgpt;
         _codex = codex;
         ApplyText();
     }
@@ -66,14 +66,15 @@ public partial class TaskbarStatusStripWindow : Window
             mode = TaskbarStripMode.UltraCompact;
         }
 
-        Label.Text = TaskbarStatusFormatter.Format(_chatgpt, _codex, mode);
-        Label.Foreground = _codex.CompactWindow?.UsedPercent >= 100
+        Label.Text = CodexMeterPresentation.CompactText(_codex, mode);
+        Label.Foreground = CodexRingPresentation.From(_codex).IsDangerLevel
             ? (Brush)FindResource("DangerBrush")
             : (Brush)FindResource("TextBrush");
     }
 
     public void Reposition()
     {
+        if (_closed) return;
         try
         {
             var hwnd = _hwnd?.Handle ?? IntPtr.Zero;
@@ -131,7 +132,6 @@ public partial class TaskbarStatusStripWindow : Window
         _hwnd = (HwndSource)PresentationSource.FromVisual(this)!;
         TaskbarWin32.ApplyToolWindowStyles(_hwnd.Handle);
         _hwnd.AddHook(Hook);
-        _fullscreenTimer.Start();
         Reposition();
     }
 

@@ -1,3 +1,4 @@
+using ProMeter.Codex;
 using System.Windows.Forms;
 
 namespace ProMeter.UI;
@@ -10,10 +11,8 @@ public sealed class TrayController : IDisposable
     public event Action? LeftClick;
     public event Action? OpenRequested;
     public event Action? SyncRequested;
-    public event Action? LoginRequested;
     public event Action? SettingsRequested;
     public event Action? OpenLogsRequested;
-    public event Action? StatisticsRequested;
     public event Action<bool>? StartupToggled;
     public event Action? AboutRequested;
     public event Action? ExitRequested;
@@ -39,25 +38,25 @@ public sealed class TrayController : IDisposable
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add(UiText.OpenProMeter, null, (_, _) => OpenRequested?.Invoke());
-        menu.Items.Add(UiText.SyncNow, null, (_, _) => SyncRequested?.Invoke());
-        menu.Items.Add(UiText.OpenLogin, null, (_, _) => LoginRequested?.Invoke());
+        menu.Items.Add(UiText.RefreshAll, null, (_, _) => SyncRequested?.Invoke());
         menu.Items.Add(UiText.Settings, null, (_, _) => SettingsRequested?.Invoke());
         menu.Items.Add(UiText.OpenLogs, null, (_, _) => OpenLogsRequested?.Invoke());
-        menu.Items.Add(UiText.ViewStatistics, null, (_, _) => StatisticsRequested?.Invoke());
         var startup = new ToolStripMenuItem(UiText.StartWithWindows) { Checked = startWithWindows, CheckOnClick = true };
         startup.CheckedChanged += (_, _) => StartupToggled?.Invoke(startup.Checked);
         menu.Items.Add(startup);
         menu.Items.Add(UiText.About, null, (_, _) => AboutRequested?.Invoke());
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(UiText.Exit, null, (_, _) => ExitRequested?.Invoke());
+        var old = _icon.ContextMenuStrip;
         _icon.ContextMenuStrip = menu;
+        old?.Dispose();
     }
 
-    public void Update(QuotaSnapshot snapshot, TrayIconStyle style)
+    public void Update(CodexQuotaSnapshot snapshot, TrayIconStyle style)
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            _icon.Text = NotifyIconText.Safe(DisplayFormatting.TrayTooltip(snapshot));
+            _icon.Text = NotifyIconText.Safe(CodexMeterPresentation.Tooltip(snapshot));
             var next = TrayIconRenderer.Render(snapshot, style, 32);
             _icon.Icon = next;
             _current?.Dispose();

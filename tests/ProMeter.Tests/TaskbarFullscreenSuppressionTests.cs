@@ -8,6 +8,16 @@ public class TaskbarFullscreenSuppressionTests
     private static readonly ScreenRect TaskbarWorkArea = new(0, 0, 1920, 1040);
 
     [Fact]
+    public void StartingDuringFullscreen_RecoversOnlyAfterConfirmedExit()
+    {
+        var gate = new TaskbarStripVisibilityGate();
+        Assert.False(Observe(gate, FullscreenObservationKind.Fullscreen).OverlayVisible);
+        for (var i = 1; i < TaskbarStripVisibilityGate.FullscreenExitConfirmationsRequired; i++)
+            Assert.False(Observe(gate, FullscreenObservationKind.ConfirmedNotFullscreen).OverlayVisible);
+        Assert.True(Observe(gate, FullscreenObservationKind.ConfirmedNotFullscreen).OverlayVisible);
+    }
+
+    [Fact]
     public void ExitConfirmationConstant_IsSeparateFromHiddenNoiseConstant()
     {
         Assert.Equal(4, TaskbarStripVisibilityGate.FullscreenExitConfirmationsRequired);

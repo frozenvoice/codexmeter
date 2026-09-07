@@ -130,7 +130,7 @@ public sealed class QuotaEngine
                 .ToList(),
             PeriodStart = start,
             PeriodEnd = end,
-            ResetAt = end,
+            ResetAt = period.CurrentCycleKnown ? end : null,
             ResetEstimated = resetSource != ResetAnchorSource.Server || period.NextResetEstimated,
             ResetAnchorSource = resetSource,
             CurrentCycleKnown = period.CurrentCycleKnown,

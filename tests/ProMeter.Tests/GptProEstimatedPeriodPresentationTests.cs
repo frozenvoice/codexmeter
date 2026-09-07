@@ -88,18 +88,16 @@ public class GptProEstimatedPeriodPresentationTests
     }
 
     [Fact]
-    public void UnconfirmedCycle_ShowsSingleEstimatedResetRow_NotAConfirmedTimeRow()
+    public void UnconfirmedCycle_DoesNotInventResetTime()
     {
         var snapshot = Usable(reconstructed: 38, currentCycleKnown: false);
         var display = DisplayFormatting.ResetDisplay(snapshot);
 
-        // Exactly one row's worth of information: the estimate. No separate
-        // "Reset time: Not confirmed" row alongside it.
-        Assert.Equal("", display.TimeLabel);
-        Assert.Equal("", display.TimeValue);
-        Assert.Equal(UiText.EstimatedNextReset, display.EstimateLabel);
-        Assert.NotNull(display.EstimateValue);
-        Assert.DoesNotContain(UiText.NotConfirmed, display.TimeValue, StringComparison.Ordinal);
+        // A rolling observation window is not a guessed quota reset.
+        Assert.Equal(UiText.ResetTime, display.TimeLabel);
+        Assert.Equal(UiText.NotConfirmed, display.TimeValue);
+        Assert.Null(display.EstimateLabel);
+        Assert.Null(display.EstimateValue);
     }
 
     [Fact]
@@ -147,7 +145,8 @@ public class GptProEstimatedPeriodPresentationTests
         var english = ProStatusPresentation.From(snapshot);
         var englishReset = DisplayFormatting.ResetDisplay(snapshot);
         Assert.Equal("38 · estimated", english.ConfirmedRequestsText);
-        Assert.Equal("Estimated next reset", englishReset.EstimateLabel);
+        Assert.Equal("Not confirmed", englishReset.TimeValue);
+        Assert.Equal("Last 7 days reconstructed", english.ReconstructedLabel);
 
         UiText.SetLanguage(UiLanguage.Korean);
         try
@@ -155,7 +154,8 @@ public class GptProEstimatedPeriodPresentationTests
             var korean = ProStatusPresentation.From(snapshot);
             var koreanReset = DisplayFormatting.ResetDisplay(snapshot);
             Assert.Equal("38회 · 추정", korean.ConfirmedRequestsText);
-            Assert.Equal("예상 다음 리셋", koreanReset.EstimateLabel);
+            Assert.Equal("확인되지 않음", koreanReset.TimeValue);
+            Assert.Equal("최근 7일 기록 집계", korean.ReconstructedLabel);
         }
         finally
         {
@@ -211,36 +211,30 @@ public class GptProEstimatedPeriodPresentationTests
         Assert.Equal(UiText.EstimatedPeriodReconstructed, presentation.ReconstructedLabel);
         Assert.Equal(ReconstructionDisplayState.EstimatedFallbackPeriod, presentation.DisplayState);
 
-        Assert.Equal("", reset.TimeValue);
-        Assert.Equal(UiText.EstimatedNextReset, reset.EstimateLabel);
-        Assert.NotNull(reset.EstimateValue);
+        Assert.Equal(UiText.NotConfirmed, reset.TimeValue);
+        Assert.Null(reset.EstimateLabel);
+        Assert.Null(reset.EstimateValue);
 
         Assert.False(presentation.ExactRemainingAvailable);
         Assert.Equal(UiText.ExactRemainingUnavailable, presentation.ExactRemainingText);
     }
 
     [Fact]
-    public void FlyoutCodeBehind_HidesResetTimeRowWhenThereIsNothingConfirmedToShow()
+    public void FlyoutDoesNotDisplayHistoricalProReset()
     {
         var source = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
-        var hasRowIndex = source.IndexOf("hasResetTimeRow", StringComparison.Ordinal);
-        Assert.True(hasRowIndex >= 0, "FlyoutWindow.xaml.cs must gate the Reset time row on whether there is a confirmed/labeled value.");
-        Assert.Contains("ResetTimeLabel.Visibility = hasResetTimeRow", source, StringComparison.Ordinal);
-        Assert.Contains("ResetText.Visibility = hasResetTimeRow", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ResetDisplay(snapshot)", source, StringComparison.Ordinal);
+        Assert.Contains("CodexDisplayFormatting.Rows(snapshot)", source, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void FlyoutAndMainWindow_BothBindTheSharedReconstructedLabel()
+    public void RetiredMainWindowIsExcludedFromDesktopBuild()
     {
-        // AGENTS.md: every visible UI surface must use the same Pro status
-        // presentation semantics - the label must come from ProStatusPresentation,
-        // not be independently hardcoded per window.
         var flyout = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
-        Assert.Contains("ConfirmedUsageLabel.Text = presentation.ReconstructedLabel", flyout, StringComparison.Ordinal);
-
-        var main = File.ReadAllText(Find("src/ProMeter/UI/MainWindow.xaml.cs"));
-        Assert.Contains("presentation.ReconstructedLabel", main, StringComparison.Ordinal);
-        Assert.DoesNotContain("UiText.CurrentCycleReconstructed", main, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProStatusPresentation", flyout, StringComparison.Ordinal);
+        var project = System.Xml.Linq.XDocument.Load(Find("src/ProMeter/ProMeter.csproj"));
+        var removed = string.Join(";", project.Descendants("Compile").Select(x => (string?)x.Attribute("Remove")));
+        Assert.Contains("MainWindow.xaml.cs", removed, StringComparison.Ordinal);
     }
 
     private static string Find(string relative)

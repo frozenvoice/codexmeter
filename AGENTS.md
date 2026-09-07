@@ -1,11 +1,20 @@
-# ProMeter agent instructions
+# CodexMeter agent instructions
 
-Repository folder: `prometer`. Product name: **ProMeter**. Windows-only lightweight tray app. Stack: .NET 8, WPF, WebView2, Microsoft.Data.Sqlite.
+Repository/solution: `prometer` / `ProMeter.sln`. Product: **CodexMeter**.
+Windows-only .NET 8 WPF tray app, distributed as one `CodexMeter.exe`.
 
-## Purpose
+## Active product direction
 
-Reconstruct ChatGPT Pro usage from **account-side conversation history**, including multi-device use (Windows PCs and mobile ChatGPT). Local browser request interception must never be the primary source of truth. Default UI is Tray Only; the floating widget is optional.
-
+- Monitor Codex account limits through the installed, signed-in Codex App Server protocol.
+- No ChatGPT Pro/Sol counters, browser extension, WebView2, conversation sync or active SQLite collector.
+- Keep Codex unavailable/stale/fresh states truthful; never fabricate counts from percentages.
+- Keep the tray, optional widget/taskbar, theme/language settings, bounded shared refresh,
+  existing user preferences and quota-cache compatibility.
+- Publish exactly one self-contained `CodexMeter.exe`; do not ship a companion host or extension.
+- Read `README.md` and the active sections of `docs/ARCHITECTURE.md` / `docs/VALIDATION.md`.
+- Browser/ChatGPT-specific rules below apply only when maintaining the retained legacy source/tests.
+  They do not authorize re-enabling those features or require installing/reloading an extension
+  for the current product. Active UI must not show Pro reconstruction.
 ## Correctness
 
 - Never convert an unknown or malformed API shape into a successful empty result.
@@ -71,7 +80,7 @@ Reconstruct ChatGPT Pro usage from **account-side conversation history**, includ
 
 - Start with Windows and automatic history synchronization require explicit user opt-in.
 - ChatGPT internal endpoints are unofficial and may change without notice.
-- The application must disclose that programmatic history access is unsupported and may carry account/terms risk.
+- Any retained legacy history-access UI must disclose its unsupported status; active CodexMeter has no history access.
 - Onboarding must never display a quota count as successfully loaded when sync failed.
 
 ## Transport

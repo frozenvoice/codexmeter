@@ -42,9 +42,14 @@ public static class ProQuotaPeriodResolver
                 false);
         }
 
+        // No quota-cycle anchor is known. Show a rolling historical window rather
+        // than silently dropping Sunday usage at an invented Monday quota reset.
+        // Existing range helpers are half-open. Shift both bounds by one tick
+        // to represent (now - 7 days, now] and include observations at the as-of instant.
+        var historicalEnd = now.AddTicks(1);
         return new ProQuotaPeriodResolution(
-            fallback.Start,
-            fallback.End,
+            historicalEnd.AddDays(-7),
+            historicalEnd,
             ResetAnchorSource.Default,
             false,
             true);

@@ -208,19 +208,12 @@ public class SyncFailureNotificationTests
     }
 
     [Fact]
-    public void AppWiresOriginCooldownAndToastGate()
+    public void AppDoesNotWireChatSyncNotifications()
     {
         var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
-        Assert.Contains("FlyoutAutoSyncPolicy.ShouldStartStaleAutoSync", app, StringComparison.Ordinal);
-        Assert.Contains("SyncRunOptions.FlyoutStale", app, StringComparison.Ordinal);
-        Assert.Contains("SyncRunOptions.Manual", app, StringComparison.Ordinal);
-        Assert.Contains("TrySyncError", app, StringComparison.Ordinal);
-        Assert.Contains("ResetSyncErrorSuppression", app, StringComparison.Ordinal);
-        var engine = File.ReadAllText(Find("src/ProMeter.Core/Services/SyncEngine.cs"));
-        Assert.Contains("LogSyncFailure(options.Origin, LastStatus)", engine, StringComparison.Ordinal);
-        Assert.Contains("ex.IsOffline", engine, StringComparison.Ordinal);
-        Assert.Contains("ex.IsCompanionDisconnected", engine, StringComparison.Ordinal);
-        Assert.Contains("TrySyncError", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("SyncErrorNotificationGate", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("new ToastNotificationService", app, StringComparison.Ordinal);
+        Assert.Contains("Codex refresh failed", app, StringComparison.Ordinal);
     }
 
     [Fact]

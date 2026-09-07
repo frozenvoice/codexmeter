@@ -21,7 +21,7 @@ public static class UiText
 
     public static string T(string english, string korean) => IsKorean ? korean : english;
 
-    public static string ProductName => "ProMeter";
+    public static string ProductName => "CodexMeter";
     public static string GptPro => "GPT Pro";
     public static string Gpt6Pro => "GPT-6 Pro";
     public static string SolPro => "Sol Pro";
@@ -53,7 +53,7 @@ public static class UiText
         "기록 집계 · 추정");
     public static string ReconstructedCount(int count) => T($"{count} · estimated", $"{count}회 · 추정");
     public static string CurrentCycleReconstructed => T("This cycle reconstructed", "이번 주기 기록 집계");
-    public static string EstimatedPeriodReconstructed => T("Estimated period reconstructed", "예상 주기 기록 집계");
+    public static string EstimatedPeriodReconstructed => T("Last 7 days reconstructed", "최근 7일 기록 집계");
     public static string UnresolvedPending => T("Unresolved", "확인 보류");
     public static string MigrationBackupFailed => T(
         "ProMeter could not create a verified backup of the usage database, so it stopped before migrating it. Your data was not changed.",
@@ -78,8 +78,8 @@ public static class UiText
     public static string Estimate => T("Estimate", "추정 기준");
     public static string EstimatedNextReset => T("Estimated next reset", "예상 다음 리셋");
     public static string EstimatedPeriodFooter => T(
-        "Reconstructed from conversation history using an estimated period boundary. Not an official remaining quota.",
-        "예상 주기 경계를 기준으로 대화 기록에서 재구성한 통계입니다. 공식 잔여 한도가 아닙니다.");
+        "Observed requests from the last 7 days. The quota reset is not confirmed; this is not an official remaining quota.",
+        "최근 7일 대화 기록에서 재구성한 통계입니다. 실제 리셋 시각과 공식 잔여 한도는 확인되지 않았습니다.");
     public static string NotConfirmed => T("Not confirmed", "확인되지 않음");
     public static string NotAvailable => T("Not available", "확인되지 않음");
     public static string Limit => T("Limit", "한도");
@@ -101,7 +101,7 @@ public static class UiText
     public static string Save => T("Save", "저장");
     public static string About => T("About", "정보");
     public static string Exit => T("Exit", "종료");
-    public static string OpenProMeter => T("Open ProMeter", "ProMeter 열기");
+    public static string OpenProMeter => T("Open CodexMeter", "CodexMeter 열기");
     public static string OpenLogin => T("Open Login", "로그인 열기");
     public static string ViewStatistics => T("View statistics", "통계 보기");
     public static string Finish => T("Finish", "마침");
@@ -273,7 +273,6 @@ public static class UiText
         "Sol reasoning counts are reconstructed statistics, not an official remaining quota.",
         "Sol 추론 횟수는 대화 기록에서 재구성한 통계이며, 공식 잔여 한도가 아닙니다.");
     public static string HistoryBasedEstimateBadge => T("History-based estimate", "기록 기반 추정");
-    public static string ServerBasedAccurateBadge => T("Server-based · accurate", "서버 기반 정확");
     public static string PartialRevalidationNotice => T(
         "Some history is being revalidated.",
         "일부 기록 재검증 중");

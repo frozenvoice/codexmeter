@@ -33,7 +33,7 @@ public class WidgetInteractionTests
         Assert.Contains("CardBrush", xaml, StringComparison.Ordinal);
         Assert.Contains("TextBrush", xaml, StringComparison.Ordinal);
         Assert.Contains("MutedBrush", xaml, StringComparison.Ordinal);
-        Assert.Contains("AccentBrush", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProStateValue", xaml, StringComparison.Ordinal);
         Assert.Contains("OnPreviewLeftDown", xaml, StringComparison.Ordinal);
         Assert.Contains("OnMouseDown", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("31/50", xaml, StringComparison.Ordinal);
@@ -45,16 +45,16 @@ public class WidgetInteractionTests
         Assert.Contains("MouseButton.Middle", widgetCode, StringComparison.Ordinal);
         var appCode = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
         Assert.Contains("_widgetEvents.TrySubscribe", appCode, StringComparison.Ordinal);
-        Assert.Contains("RefreshProStatusAsync", appCode, StringComparison.Ordinal);
+        Assert.Contains("RefreshCodexAsync", appCode, StringComparison.Ordinal);
         Assert.DoesNotContain("TryGetConversation", appCode, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void SettingsXaml_RenamesReconstructionWindowAndKeepsSurfaceToggles()
+    public void SettingsXaml_RemovesChatControlsAndKeepsSurfaceToggles()
     {
         var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "SettingsWindow.xaml"));
         var xaml = document.ToString();
-        Assert.Contains("RECONSTRUCTION WINDOW", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("RECONSTRUCTION WINDOW", xaml, StringComparison.Ordinal);
         Assert.Contains("WidgetBox", xaml, StringComparison.Ordinal);
         Assert.Contains("TaskbarStatusBox", xaml, StringComparison.Ordinal);
         Assert.Contains("WidgetOpacityBox", xaml, StringComparison.Ordinal);
@@ -63,16 +63,13 @@ public class WidgetInteractionTests
     }
 
     [Fact]
-    public void FlyoutXaml_HasServerStatusRows()
+    public void FlyoutXaml_HasCodexRowsOnly()
     {
-        var document = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "FlyoutWindow.xaml"));
-        var xaml = document.ToString();
-        Assert.Contains("ProStateText", xaml, StringComparison.Ordinal);
-        Assert.Contains("ResetText", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("ServerResetText", xaml, StringComparison.Ordinal);
-        Assert.Contains("ExactRemainingText", xaml, StringComparison.Ordinal);
-        Assert.Contains("ConfirmedRequestsText", xaml, StringComparison.Ordinal);
-        Assert.Contains("CODEX", xaml, StringComparison.Ordinal);
+        var xaml = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "FlyoutWindow.xaml")).ToString();
+        Assert.Contains("CodexRows", xaml, StringComparison.Ordinal);
+        Assert.Contains("CodexStatusText", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProStateText", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConfirmedRequestsText", xaml, StringComparison.Ordinal);
     }
 
     private static string Find(string relative)

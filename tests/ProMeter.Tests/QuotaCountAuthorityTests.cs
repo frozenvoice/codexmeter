@@ -147,13 +147,12 @@ public class QuotaCountAuthorityTests
     }
 
     [Fact]
-    public void FlyoutAndMain_UsePerWindowAuthorityFlags()
+    public void DesktopDoesNotDisplayRetiredChatQuotaCounters()
     {
-        var flyout = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
-        Assert.Contains("UsesServerWeeklyCount", flyout, StringComparison.Ordinal);
-        Assert.Contains("UsesServerSolDailyCount", flyout, StringComparison.Ordinal);
-        Assert.Contains("UsesServerCombinedDailyCount", flyout, StringComparison.Ordinal);
-        Assert.DoesNotContain("snapshot.UsesServerCount", flyout, StringComparison.Ordinal);
+        var source = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
+        Assert.DoesNotContain("UsesServerWeeklyCount", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProCountText", source, StringComparison.Ordinal);
+        Assert.Contains("CodexDisplayFormatting.Rows(snapshot)", source, StringComparison.Ordinal);
     }
 
     private static AppSettings Pro200()

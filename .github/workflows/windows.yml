@@ -49,20 +49,17 @@ jobs:
           --self-contained true
           -p:PublishSingleFile=true
           -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -p:DebugSymbols=false
           -o publish/win-x64
 
-      - name: Assert published artifacts
+      - name: Assert single-file artifact
         run: |
-          if (!(Test-Path publish/win-x64/prometer.exe)) { throw "prometer.exe missing" }
-          if (!(Test-Path publish/win-x64/prometer-companion-host.exe)) { throw "prometer-companion-host.exe missing" }
-          if (!(Test-Path publish/win-x64/extension/manifest.json)) { throw "extension/manifest.json missing" }
-          if (!(Test-Path publish/win-x64/extension/background.js)) { throw "extension/background.js missing" }
-          if (!(Test-Path publish/win-x64/extension/page-executor.js)) { throw "extension/page-executor.js missing" }
-          if (!(Test-Path publish/win-x64/extension/page-tab.js)) { throw "extension/page-tab.js missing" }
-          if (!(Test-Path publish/win-x64/extension/companion-reconnect.js)) { throw "extension/companion-reconnect.js missing" }
+          if (!(Test-Path publish/win-x64/CodexMeter.exe)) { throw "CodexMeter.exe missing" }
+          if (@(Get-ChildItem publish/win-x64 -File -Recurse).Count -ne 1) { throw "Unexpected companion files" }
 
-      - name: Upload published folder
+      - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
-          name: prometer-win-x64
-          path: publish/win-x64
+          name: CodexMeter-win-x64
+          path: publish/win-x64/CodexMeter.exe

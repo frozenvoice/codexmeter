@@ -11,7 +11,7 @@
   var CHUNK_RAW_BYTES = 393216;
   var MAX_CHUNK_FRAME_BYTES = 716800;
   var MAX_CHUNK_COUNT = 48;
-  var PAGE_BRIDGE_VERSION = 3;
+  var PAGE_BRIDGE_VERSION = 6;
 
   function utf8ByteLength(text) {
     return new TextEncoder().encode(String(text)).byteLength;

@@ -8,8 +8,8 @@ namespace ProMeter.UI;
 
 public partial class FlyoutWindow : Window
 {
-    public event Action? CoverageRequested;
     public event Action? SyncRequested;
+    public event Action? SettingsRequested;
     public event Action<bool>? PinChanged;
     public event Action<double, double>? PositionChanged;
     public bool Pinned { get; private set; }
@@ -47,121 +47,13 @@ public partial class FlyoutWindow : Window
         Top = clamped.Top;
     }
 
-    public void Bind(
-        QuotaSnapshot snapshot,
-        AppSettings settings,
-        CodexQuotaSnapshot? codex = null,
-        bool chatGptRefreshing = false,
-        bool codexRefreshing = false,
-        bool combinedManual = false)
+    public void Bind(CodexQuotaSnapshot snapshot, bool refreshing = false)
     {
         ApplyLocalizedTexts();
-        var presentation = ProStatusPresentation.From(snapshot);
-        StatusText.Text = DisplayFormatting.FlyoutHeader(snapshot);
-
-        ConfirmedUsageLabel.Text = presentation.ReconstructedLabel;
-        ConfirmedUsageText.Text = presentation.ConfirmedRequestsText;
-        GptProBadge.Visibility = presentation.ExactRemainingAvailable ? Visibility.Collapsed : Visibility.Visible;
-        HistoryLowerBoundCaption.Visibility = presentation.ShowHistoryLowerBound ? Visibility.Visible : Visibility.Collapsed;
-        HistoryLowerBoundCaption.Text = presentation.HistoryLowerBoundCaption;
-
-        GptProRestrictionBanner.Visibility = presentation.Restricted ? Visibility.Visible : Visibility.Collapsed;
-        ProStateText.Text = presentation.ProStateText;
-        RestrictionDetailText.Text = presentation.RestrictionDetail;
-
-        var reliabilityConcern = !presentation.ExactRemainingAvailable && ProStatusPresentation.HasReliabilityConcern(snapshot);
-        ReliabilityNoticeText.Visibility = reliabilityConcern ? Visibility.Visible : Visibility.Collapsed;
-        ReliabilityNoticeText.Text = reliabilityConcern ? UiText.PartialRevalidationNotice : "";
-
-        ExactRemainingPanel.Visibility = presentation.ExactRemainingAvailable ? Visibility.Visible : Visibility.Collapsed;
-        ExactRemainingText.Text = presentation.ExactRemainingText;
-
-        HistoryStatsPanel.Visibility = Visibility.Collapsed;
-        ConfirmedRequestsText.Text = presentation.ConfirmedRequestsText;
-        CountSourceText.Text = presentation.CountSourceText;
-        AuthoritativeCountPanel.Visibility = presentation.ExactRemainingAvailable ? Visibility.Visible : Visibility.Collapsed;
-        if (presentation.ExactRemainingAvailable)
-        {
-            ProCountText.Text = $"{snapshot.Used} / {snapshot.Limit}";
-        }
-
-        var showPro200 = snapshot.UsesServerWeeklyCount
-            || snapshot.UsesServerSolDailyCount
-            || snapshot.UsesServerCombinedDailyCount;
-        Pro200Panel.Visibility = showPro200 ? Visibility.Visible : Visibility.Collapsed;
-        if (showPro200)
-        {
-            Gpt6WeekText.Text = DisplayFormatting.WindowUsage(
-                snapshot.UsesServerWeeklyCount ? snapshot.Used : snapshot.Gpt6WeeklyUsed,
-                snapshot.Limit,
-                snapshot.UsesServerWeeklyCount);
-            SolDailyText.Text = snapshot.SolProDailyLimit is int sol
-                ? DisplayFormatting.WindowUsage(snapshot.TodaySolPro, sol, snapshot.UsesServerSolDailyCount)
-                : "—";
-            CombinedDailyText.Text = snapshot.CombinedDailyLimit is int combined
-                ? DisplayFormatting.WindowUsage(snapshot.CombinedToday, combined, snapshot.UsesServerCombinedDailyCount)
-                : "—";
-        }
-
-        var reset = DisplayFormatting.ResetDisplay(snapshot);
-        var hasResetTimeRow = !string.IsNullOrEmpty(reset.TimeValue);
-        ResetTimeLabel.Visibility = hasResetTimeRow ? Visibility.Visible : Visibility.Collapsed;
-        ResetText.Visibility = hasResetTimeRow ? Visibility.Visible : Visibility.Collapsed;
-        ResetTimeLabel.Text = reset.TimeLabel;
-        ResetText.Text = reset.TimeValue;
-        if (reset.EstimateValue is null)
-        {
-            ResetEstimatePanel.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            ResetEstimatePanel.Visibility = Visibility.Visible;
-            ResetEstimateLabel.Text = reset.EstimateLabel;
-            ResetEstimateText.Text = reset.EstimateValue;
-        }
-
-        SyncText.Text = DisplayFormatting.LastSyncLabel(snapshot.LastSync);
-        CoverageText.Text = DisplayFormatting.CoverageFlyoutValue(snapshot);
-        var tone = UserFacingHealthTone.From(UserFacingHealth.From(snapshot).Kind);
-        StatusHealthDot.Fill = (Brush)FindResource(ToneBrushKey(tone));
-
-        var reasoning = snapshot.Reasoning;
-        ReasonToday.Text = reasoning.Today.ToString(CultureInfo.InvariantCulture);
-        ReasonWeek.Text = reasoning.ThisWeek.ToString(CultureInfo.InvariantCulture);
-        ReasonMedium.Text = reasoning.Medium.ToString(CultureInfo.InvariantCulture);
-        ReasonHigh.Text = reasoning.High.ToString(CultureInfo.InvariantCulture);
-        ReasonExtra.Text = reasoning.ExtraHigh.ToString(CultureInfo.InvariantCulture);
-        ReasonWeekCenterValue.Text = DisplayFormatting.CountWithUnit(reasoning.ThisWeek);
-        if (snapshot.Reasoning.Limit is int limit)
-        {
-            ReasonLimitPanel.Visibility = Visibility.Visible;
-            ReasonLimit.Text = limit.ToString(CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            ReasonLimitPanel.Visibility = Visibility.Collapsed;
-        }
-
-        BindCodex(codex ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable));
-        SetRefreshPresentation(CombinedRefreshCoordinator.Present(chatGptRefreshing, codexRefreshing, combinedManual));
-
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (!presentation.ExactRemainingAvailable)
-            {
-                ProBar.Width = 0;
-            }
-            else
-            {
-                var width = Math.Max(8, (ProBar.Parent as FrameworkElement)?.ActualWidth * snapshot.PercentUsed ?? 0);
-                ProBar.Width = width;
-            }
-
-            ApplyReasoningBars(reasoning);
-        });
-
-        ModelRows.Items.Clear();
-        ModelRows.Visibility = Visibility.Collapsed;
+        StatusText.Text = CodexMeterPresentation.StatusLabel(snapshot);
+        BindCodex(snapshot);
+        SetRefreshPresentation(new FlyoutRefreshPresentation(!refreshing, refreshing,
+            refreshing ? UiText.CodexRefreshing : ""));
     }
 
     public void SetRefreshPresentation(FlyoutRefreshPresentation presentation)
@@ -268,31 +160,10 @@ public partial class FlyoutWindow : Window
 
     public void ApplyLocalizedTexts()
     {
-        ProStateLabel.Text = UiText.T("Status", "상태");
-        ExactRemainingLabel.Text = UiText.RemainingCount;
-        ConfirmedUsageLabel.Text = UiText.CurrentCycleReconstructed;
-        HistoryLowerBoundCaption.Text = UiText.ReconstructedObservedCaption;
-        GptProBadgeText.Text = UiText.HistoryBasedEstimateBadge;
-        HistoryStatsLabel.Text = UiText.HistoryStatistics;
-        ConfirmedRequestsLabel.Text = UiText.ConfirmedProRequests;
-        Gpt6WeekLabel.Text = UiText.Gpt6ProWeek;
-        SolDailyLabel.Text = UiText.SolProDaily;
-        CombinedDailyLabel.Text = UiText.CombinedDaily;
+        Title = UiText.ProductName;
         CodexSectionTitle.Text = CodexDisplayFormatting.SectionTitle;
-        CodexBadgeText.Text = UiText.ServerBasedAccurateBadge;
-        ReasoningSectionTitle.Text = UiText.SolReasoning;
-        ReasoningBadgeText.Text = UiText.HistoryBasedEstimateBadge;
-        ReasonWeekCenterLabel.Text = UiText.ThisWeek;
-        ReasonTodayLabel.Text = UiText.Today;
-        ReasonWeekLabel.Text = UiText.ThisWeek;
-        ReasonMediumLabel.Text = UiText.Medium;
-        ReasonHighLabel.Text = UiText.High;
-        ReasonExtraLabel.Text = UiText.ExtraHigh;
-        ReasonLimitLabel.Text = UiText.LimitInfo;
-        ReasoningNoteText.Text = UiText.ReasoningReconstructedNote;
-        StatusSectionTitle.Text = UiText.Status;
-        LastSyncLabel.Text = UiText.LastSync;
-        CoverageLabel.Text = UiText.DataStatus;
+        SettingsButton.ToolTip = UiText.Settings;
+        System.Windows.Automation.AutomationProperties.SetName(SettingsButton, UiText.Settings);
         RefreshAllButton.ToolTip = UiText.RefreshAll;
         System.Windows.Automation.AutomationProperties.SetName(RefreshAllButton, UiText.RefreshAll);
         ApplyPinGlyph();
@@ -377,7 +248,6 @@ public partial class FlyoutWindow : Window
     private void ApplyCodexRing(CodexQuotaSnapshot snapshot)
     {
         var ring = CodexRingPresentation.From(snapshot);
-        CodexBadge.Visibility = ring.IsAvailable ? Visibility.Visible : Visibility.Collapsed;
         CodexRingValueText.Text = ring.CenterValueText;
         CodexRingSubLabel.Text = ring.CenterSubLabel;
 
@@ -406,30 +276,6 @@ public partial class FlyoutWindow : Window
         }
     }
 
-    private void ApplyReasoningBars(ReasoningStats reasoning)
-    {
-        var bars = SolBarSet.Compute(reasoning);
-        SetBarWidth(ReasonTodayBar, bars.Today);
-        SetBarWidth(ReasonWeekBar, bars.ThisWeek);
-        SetBarWidth(ReasonMediumBar, bars.Medium);
-        SetBarWidth(ReasonHighBar, bars.High);
-        SetBarWidth(ReasonExtraBar, bars.ExtraHigh);
-    }
-
-    private static void SetBarWidth(FrameworkElement bar, double fraction)
-    {
-        var trackWidth = (bar.Parent as FrameworkElement)?.ActualWidth ?? 0;
-        bar.Width = fraction <= 0 ? 0 : Math.Max(3, trackWidth * fraction);
-    }
-
-    private static string ToneBrushKey(StatusToneKind tone) => tone switch
-    {
-        StatusToneKind.Ok => "OkBrush",
-        StatusToneKind.Accent => "AccentBrush",
-        StatusToneKind.Danger => "DangerBrush",
-        _ => "MutedBrush"
-    };
-
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Escape)
@@ -439,6 +285,8 @@ public partial class FlyoutWindow : Window
     }
 
     private void OnRefreshAllClick(object sender, RoutedEventArgs e) => SyncRequested?.Invoke();
+
+    private void OnSettingsClick(object sender, RoutedEventArgs e) => SettingsRequested?.Invoke();
 
     private void OnPinClick(object sender, RoutedEventArgs e)
     {
@@ -528,5 +376,4 @@ public partial class FlyoutWindow : Window
         return areas;
     }
 
-    private void OnCoverageClick(object sender, RoutedEventArgs e) => CoverageRequested?.Invoke();
 }

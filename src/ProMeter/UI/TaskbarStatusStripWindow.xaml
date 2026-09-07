@@ -1,7 +1,7 @@
 <Window x:Class="ProMeter.UI.TaskbarStatusStripWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ProMeter status"
+        Title="CodexMeter status"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"

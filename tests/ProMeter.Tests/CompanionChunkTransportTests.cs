@@ -303,7 +303,7 @@ public class CompanionChunkTransportTests
         Assert.Contains($"CHUNK_RAW_BYTES = {CompanionChunkProtocol.ChunkRawBytes}", canonical, StringComparison.Ordinal);
         Assert.Contains($"MAX_CHUNK_FRAME_BYTES = {CompanionChunkProtocol.MaxChunkFrameBytes}", canonical, StringComparison.Ordinal);
         Assert.Contains($"MAX_CHUNK_COUNT = {CompanionChunkProtocol.MaxChunkCount}", canonical, StringComparison.Ordinal);
-        Assert.Contains("PAGE_BRIDGE_VERSION = 3", canonical, StringComparison.Ordinal);
+        Assert.Contains("PAGE_BRIDGE_VERSION = 6", canonical, StringComparison.Ordinal);
         Assert.Contains("chunk.js", File.ReadAllText(Find("extension/background.js")), StringComparison.Ordinal);
         Assert.DoesNotContain("error: \"PayloadTooLarge\", schemaMismatch: true", File.ReadAllText(Find("extension/background.js")), StringComparison.Ordinal);
     }

@@ -1,7 +1,7 @@
 <Window x:Class="ProMeter.UI.FlyoutWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ProMeter"
+        Title="CodexMeter"
         Width="360"
         SizeToContent="Height"
         WindowStyle="None"
@@ -68,10 +68,11 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <TextBlock x:Name="TitleText"
                            Grid.Column="0"
-                           Text="ProMeter"
+                           Text="CodexMeter"
                            FontWeight="SemiBold"
                            FontSize="16"
                            VerticalAlignment="Center"
@@ -142,8 +143,13 @@
                         </Viewbox>
                     </Grid>
                 </Button>
+                <Button x:Name="SettingsButton" Grid.Column="3"
+                        Style="{StaticResource FlyoutHeaderIconButton}" Click="OnSettingsClick" Margin="0,0,4,0">
+                    <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                               Foreground="{DynamicResource TextBrush}"/>
+                </Button>
                 <Button x:Name="PinButton"
-                        Grid.Column="3"
+                        Grid.Column="4"
                         Style="{StaticResource FlyoutHeaderIconButton}"
                         Click="OnPinClick"
                         ToolTip="Pin"
@@ -169,7 +175,7 @@
                     </Grid>
                 </Button>
                 <Button x:Name="CloseFlyoutButton"
-                        Grid.Column="4"
+                        Grid.Column="5"
                         Style="{StaticResource FlyoutHeaderIconButton}"
                         Click="OnCloseClick"
                         ToolTip="Close"
@@ -202,92 +208,6 @@
             </Grid>
             <StackPanel Margin="16,8,16,16">
 
-            <!-- GPT PRO -->
-            <Border x:Name="GptProCard" Style="{StaticResource FlyoutCard}">
-                <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Style="{StaticResource FlyoutCardTitle}" Text="GPT PRO"/>
-                        <Border x:Name="GptProBadge" Grid.Column="1" Style="{StaticResource FlyoutBadgeBorder}"
-                                Background="Transparent" BorderBrush="{DynamicResource LineBrush}">
-                            <TextBlock x:Name="GptProBadgeText" Style="{StaticResource FlyoutBadgeText}" Foreground="{DynamicResource MutedBrush}"/>
-                        </Border>
-                    </Grid>
-
-                    <Grid Margin="0,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel x:Name="ConfirmedUsagePanel" Grid.Column="0">
-                            <TextBlock x:Name="ConfirmedUsageLabel" Style="{StaticResource FlyoutMutedSmall}" Text="This cycle reconstructed"/>
-                            <TextBlock x:Name="ConfirmedUsageText" Style="{StaticResource FlyoutBigValue}" Margin="0,2,0,0"/>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" HorizontalAlignment="Right" MinWidth="132">
-                            <TextBlock x:Name="ResetTimeLabel" Style="{StaticResource FlyoutMutedSmall}" HorizontalAlignment="Right" Text="Reset time"/>
-                            <TextBlock x:Name="ResetText" Style="{StaticResource FlyoutValueText}" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right" Margin="0,1,0,0"/>
-                            <StackPanel x:Name="ResetEstimatePanel" Margin="0,6,0,0" Visibility="Collapsed">
-                                <TextBlock x:Name="ResetEstimateLabel" Style="{StaticResource FlyoutMutedSmall}" HorizontalAlignment="Right" Text="Estimate"/>
-                                <TextBlock x:Name="ResetEstimateText" Style="{StaticResource FlyoutValueText}" HorizontalAlignment="Right" TextWrapping="Wrap" TextAlignment="Right" Margin="0,1,0,0"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Grid>
-
-                    <TextBlock x:Name="HistoryLowerBoundCaption" Style="{StaticResource FlyoutCaption}"/>
-
-                    <Border x:Name="GptProRestrictionBanner" Visibility="Collapsed" Margin="0,8,0,0"
-                            Background="Transparent" BorderBrush="{DynamicResource DangerBrush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
-                        <StackPanel>
-                            <DockPanel>
-                                <TextBlock x:Name="ProStateLabel" Text="Status" FontWeight="SemiBold" Foreground="{DynamicResource DangerBrush}"/>
-                                <TextBlock x:Name="ProStateText" Style="{StaticResource FlyoutValueText}" Foreground="{DynamicResource DangerBrush}" DockPanel.Dock="Right"/>
-                            </DockPanel>
-                            <TextBlock x:Name="RestrictionDetailText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock x:Name="ReliabilityNoticeText" Style="{StaticResource FlyoutCaption}" Visibility="Collapsed"/>
-
-                    <DockPanel x:Name="ExactRemainingPanel" Margin="0,10,0,0" Visibility="Collapsed">
-                        <TextBlock x:Name="ExactRemainingLabel" Text="Remaining" Foreground="{DynamicResource MutedBrush}"/>
-                        <TextBlock x:Name="ExactRemainingText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
-                    </DockPanel>
-                    <DockPanel x:Name="AuthoritativeCountPanel" Visibility="Collapsed" Margin="0,6,0,0">
-                        <TextBlock x:Name="ProCountText" DockPanel.Dock="Right" Foreground="{DynamicResource TextBrush}" FontWeight="SemiBold"/>
-                        <Border Height="8" CornerRadius="4" Background="{DynamicResource LineBrush}" Margin="0,4,12,0">
-                            <Border x:Name="ProBar" Width="0" HorizontalAlignment="Left" CornerRadius="4" Background="{DynamicResource AccentBrush}"/>
-                        </Border>
-                    </DockPanel>
-                    <StackPanel x:Name="Pro200Panel" Visibility="Collapsed" Margin="0,10,0,0">
-                        <DockPanel>
-                            <TextBlock x:Name="Gpt6WeekLabel" Text="GPT-6 Pro week" Foreground="{DynamicResource MutedBrush}"/>
-                            <TextBlock x:Name="Gpt6WeekText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,4,0,0">
-                            <TextBlock x:Name="SolDailyLabel" Text="Sol Pro daily" Foreground="{DynamicResource MutedBrush}"/>
-                            <TextBlock x:Name="SolDailyText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,4,0,0">
-                            <TextBlock x:Name="CombinedDailyLabel" Text="Combined daily" Foreground="{DynamicResource MutedBrush}"/>
-                            <TextBlock x:Name="CombinedDailyText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
-                        </DockPanel>
-                    </StackPanel>
-
-                    <StackPanel x:Name="HistoryStatsPanel" Visibility="Collapsed">
-                    <TextBlock x:Name="HistoryStatsLabel" Style="{StaticResource SectionTitle}" Text="HISTORY"/>
-                    <DockPanel>
-                        <TextBlock x:Name="ConfirmedRequestsLabel" Text="Confirmed Pro requests" Foreground="{DynamicResource MutedBrush}"/>
-                        <TextBlock x:Name="ConfirmedRequestsText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
-                    </DockPanel>
-                    <TextBlock x:Name="CountSourceText" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,4,0,0"/>
-                    <ItemsControl x:Name="ModelRows" Margin="0,8,0,0"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
             <!-- CODEX -->
             <Border x:Name="CodexCard" Style="{StaticResource FlyoutCard}">
                 <StackPanel>
@@ -297,10 +217,6 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="CodexSectionTitle" Grid.Column="0" Style="{StaticResource FlyoutCardTitle}" Text="CODEX"/>
-                        <Border x:Name="CodexBadge" Grid.Column="1" Style="{StaticResource FlyoutBadgeBorder}"
-                                Background="Transparent" BorderBrush="{DynamicResource OkBrush}">
-                            <TextBlock x:Name="CodexBadgeText" Style="{StaticResource FlyoutBadgeText}" Foreground="{DynamicResource OkBrush}"/>
-                        </Border>
                     </Grid>
 
                     <TextBlock x:Name="CodexStatusText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
@@ -343,128 +259,6 @@
                 </StackPanel>
             </Border>
 
-            <!-- SOL REASONING -->
-            <Border x:Name="ReasoningCard" Style="{StaticResource FlyoutCard}">
-                <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="ReasoningSectionTitle" Grid.Column="0" Style="{StaticResource FlyoutCardTitle}" Text="SOL REASONING"/>
-                        <Border x:Name="ReasoningBadge" Grid.Column="1" Style="{StaticResource FlyoutBadgeBorder}"
-                                Background="Transparent" BorderBrush="{DynamicResource LineBrush}">
-                            <TextBlock x:Name="ReasoningBadgeText" Style="{StaticResource FlyoutBadgeText}" Foreground="{DynamicResource MutedBrush}"/>
-                        </Border>
-                    </Grid>
-
-                    <Grid Margin="0,10,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid Grid.Column="0" Width="68" Height="68" VerticalAlignment="Top">
-                            <Ellipse Width="68" Height="68" StrokeThickness="2" Stroke="{DynamicResource LineBrush}"/>
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <TextBlock x:Name="ReasonWeekCenterValue" FontSize="17" FontWeight="Bold" HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource TextBrush}"/>
-                                <TextBlock x:Name="ReasonWeekCenterLabel" FontSize="9" HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource MutedBrush}"/>
-                            </StackPanel>
-                        </Grid>
-
-                        <StackPanel Grid.Column="1" Margin="14,0,0,0">
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="58"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="ReasonTodayLabel" Grid.Column="0" Style="{StaticResource FlyoutMutedSmall}" VerticalAlignment="Center" Text="Today"/>
-                                <Border Grid.Column="1" Height="6" CornerRadius="3" VerticalAlignment="Center" Margin="6,0,8,0" Background="{DynamicResource LineBrush}">
-                                    <Border x:Name="ReasonTodayBar" Width="0" HorizontalAlignment="Left" CornerRadius="3" Background="{DynamicResource AccentBrush}"/>
-                                </Border>
-                                <TextBlock x:Name="ReasonToday" Grid.Column="2" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
-                            </Grid>
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="58"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="ReasonWeekLabel" Grid.Column="0" Style="{StaticResource FlyoutMutedSmall}" VerticalAlignment="Center" Text="This week"/>
-                                <Border Grid.Column="1" Height="6" CornerRadius="3" VerticalAlignment="Center" Margin="6,0,8,0" Background="{DynamicResource LineBrush}">
-                                    <Border x:Name="ReasonWeekBar" Width="0" HorizontalAlignment="Left" CornerRadius="3" Background="{DynamicResource AccentBrush}"/>
-                                </Border>
-                                <TextBlock x:Name="ReasonWeek" Grid.Column="2" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
-                            </Grid>
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="58"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="ReasonMediumLabel" Grid.Column="0" Style="{StaticResource FlyoutMutedSmall}" VerticalAlignment="Center" Text="Medium"/>
-                                <Border Grid.Column="1" Height="6" CornerRadius="3" VerticalAlignment="Center" Margin="6,0,8,0" Background="{DynamicResource LineBrush}">
-                                    <Border x:Name="ReasonMediumBar" Width="0" HorizontalAlignment="Left" CornerRadius="3" Background="{DynamicResource AccentBrush}"/>
-                                </Border>
-                                <TextBlock x:Name="ReasonMedium" Grid.Column="2" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
-                            </Grid>
-                            <Grid Margin="0,0,0,6">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="58"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="ReasonHighLabel" Grid.Column="0" Style="{StaticResource FlyoutMutedSmall}" VerticalAlignment="Center" Text="High"/>
-                                <Border Grid.Column="1" Height="6" CornerRadius="3" VerticalAlignment="Center" Margin="6,0,8,0" Background="{DynamicResource LineBrush}">
-                                    <Border x:Name="ReasonHighBar" Width="0" HorizontalAlignment="Left" CornerRadius="3" Background="{DynamicResource AccentBrush}"/>
-                                </Border>
-                                <TextBlock x:Name="ReasonHigh" Grid.Column="2" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
-                            </Grid>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="58"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock x:Name="ReasonExtraLabel" Grid.Column="0" Style="{StaticResource FlyoutMutedSmall}" VerticalAlignment="Center" Text="Extra High" Foreground="{DynamicResource ExtraHighAccentBrush}"/>
-                                <Border Grid.Column="1" Height="6" CornerRadius="3" VerticalAlignment="Center" Margin="6,0,8,0" Background="{DynamicResource LineBrush}">
-                                    <Border x:Name="ReasonExtraBar" Width="0" HorizontalAlignment="Left" CornerRadius="3" Background="{DynamicResource ExtraHighAccentBrush}"/>
-                                </Border>
-                                <TextBlock x:Name="ReasonExtra" Grid.Column="2" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
-                            </Grid>
-                        </StackPanel>
-                    </Grid>
-
-                    <DockPanel x:Name="ReasonLimitPanel" Margin="0,8,0,0" Visibility="Collapsed">
-                        <TextBlock x:Name="ReasonLimitLabel" Text="Limit" Foreground="{DynamicResource MutedBrush}"/>
-                        <TextBlock x:Name="ReasonLimit" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
-                    </DockPanel>
-
-                    <TextBlock x:Name="ReasoningNoteText" Style="{StaticResource FlyoutCaption}"/>
-                </StackPanel>
-            </Border>
-
-            <!-- STATUS -->
-            <Border x:Name="StatusCard" Style="{StaticResource FlyoutCard}" Margin="0">
-                <StackPanel>
-                    <TextBlock x:Name="StatusSectionTitle" Style="{StaticResource FlyoutCardTitle}" Text="STATUS"/>
-                    <DockPanel Margin="0,10,0,0">
-                        <TextBlock x:Name="LastSyncLabel" Text="Last sync" Foreground="{DynamicResource MutedBrush}"/>
-                        <TextBlock x:Name="SyncText" Style="{StaticResource FlyoutValueText}" DockPanel.Dock="Right"/>
-                    </DockPanel>
-                    <Button Click="OnCoverageClick" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Stretch" Cursor="Hand" Margin="0,8,0,0">
-                        <DockPanel>
-                            <TextBlock x:Name="CoverageLabel" Text="Coverage" Foreground="{DynamicResource MutedBrush}"/>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Ellipse x:Name="StatusHealthDot" Width="8" Height="8" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="CoverageText" HorizontalAlignment="Right" Foreground="{DynamicResource AccentBrush}"/>
-                            </StackPanel>
-                        </DockPanel>
-                    </Button>
-                </StackPanel>
-            </Border>
             </StackPanel>
         </DockPanel>
     </Border>

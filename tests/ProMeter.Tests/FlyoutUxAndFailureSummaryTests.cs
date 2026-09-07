@@ -56,7 +56,7 @@ public class FlyoutUxAndFailureSummaryTests
         Assert.Contains("FlyoutLeft", positionChanged, StringComparison.Ordinal);
         Assert.Contains("FlyoutTop", positionChanged, StringComparison.Ordinal);
         Assert.Contains("FlyoutPositionConfigured = true", positionChanged, StringComparison.Ordinal);
-        var place = Slice(app, "private void PlaceFlyout", "private void ShowMain");
+        var place = Slice(app, "private void PlaceFlyout", "private void OpenLogs");
         Assert.Contains("UseSavedPosition(_settings.FlyoutPositionConfigured)", place, StringComparison.Ordinal);
         Assert.DoesNotContain("FlyoutPinned", place, StringComparison.Ordinal);
         Assert.Contains("PlaceNearTaskbar", place, StringComparison.Ordinal);

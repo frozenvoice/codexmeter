@@ -9,7 +9,7 @@ public class ChatGptProviderQuotaMetadataTests
     [Theory]
     [InlineData("{}")]
     [InlineData("""{"model_limits":[]}""")]
-    public async Task SuccessfulInitWithoutProLimits_ReturnsUnknownAndSkipsModels(string body)
+    public async Task SuccessfulInitWithoutProLimits_TriesModelsAndRetainsUnknown(string body)
     {
         var calls = new List<(string Method, string Path)>();
         var transport = new PaginationTests.ScriptedTransport((method, path) =>
@@ -20,7 +20,7 @@ public class ChatGptProviderQuotaMetadataTests
                 return new ProviderResponse { Status = 200, Body = body };
             }
 
-            return new ProviderResponse { Status = 500, Error = "models should not be called" };
+            return new ProviderResponse { Status = 500, Error = "models unavailable" };
         });
 
         var result = await new ChatGptProvider(transport).TryGetQuotaMetadataAsync();
@@ -32,10 +32,10 @@ public class ChatGptProviderQuotaMetadataTests
         Assert.Equal(ServerResetConfidence.None, result.ProServerStatus.ResetConfidence);
         Assert.False(result.Found);
         Assert.Equal("P?", ProStatusPresentation.From(new QuotaSnapshot { ProServerStatus = result.ProServerStatus }).ProCompactToken);
-        Assert.Single(calls);
+        Assert.Equal(2, calls.Count);
         Assert.Equal("POST", calls[0].Method);
         Assert.Equal(ChatGptEndpoints.ConversationInit, calls[0].Path);
-        Assert.DoesNotContain(calls, call => call.Path == ChatGptEndpoints.Models);
+        Assert.Equal(ChatGptEndpoints.Models, calls[1].Path);
     }
 
     [Fact]
@@ -149,6 +149,21 @@ public class ChatGptProviderQuotaMetadataTests
             TaskbarStripMode.Full));
     }
 
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"model_limits\":[]}")]
+    public async Task InitWithoutLimits_UsesModelsResetWhenPresent(string init)
+    {
+        var transport = new PaginationTests.ScriptedTransport((_, path) => new ProviderResponse
+        {
+            Status = 200,
+            Body = path == ChatGptEndpoints.ConversationInit ? init :
+                """{"models":[{"slug":"gpt-6-pro"}],"model_limits":[{"model_slug":"gpt-6-pro","resets_at":"2026-09-13T05:00:00Z"}]}"""
+        });
+        var result = await new ChatGptProvider(transport).TryGetQuotaMetadataAsync();
+        Assert.Equal(DateTimeOffset.Parse("2026-09-13T05:00:00Z"), result.ProServerStatus.ResetAt);
+        Assert.Equal(ServerResetConfidence.Server, result.ProServerStatus.ResetConfidence);
+    }
     private static PaginationTests.ScriptedTransport OrdinaryModelsAfterInitFailure(
         List<(string Method, string Path)>? calls = null) =>
         new((method, path) =>

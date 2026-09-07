@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>ProMeter</RootNamespace>
-    <Description>Windows tray monitor for ChatGPT Pro quota and model usage</Description>
+    <Description>Codex account quota and desktop presentation logic; retained legacy metering tests</Description>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />

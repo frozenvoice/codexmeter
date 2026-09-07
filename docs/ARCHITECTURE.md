@@ -1,3 +1,38 @@
+# CodexMeter architecture
+
+## Active product — Codex only (2026-09-07)
+
+`CodexMeter.exe` → shared `CodexRefreshCoordinator` → `CodexQuotaService` →
+installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit metadata.
+
+- Tray, flyout, widget, taskbar and timer all share one bounded refresh. Cancelling a
+  waiting caller does not cancel the active owner's work. File/process work runs off the UI thread.
+- Only Codex is visible: actual provided periods, used/remaining percentages, reset times,
+  reset-credit metadata and last refresh. Signed-out/missing CLI states do not display cached
+  percentages as current; stale data is explicitly marked.
+- The desktop never constructs ChatGPT transports, collectors, SQLite stores, pairing servers
+  or Pro reset services. Retired WPF views and WebView2 are excluded from its build.
+- Publish bundles the .NET runtime and produces exactly one `CodexMeter.exe`; Codex CLI itself
+  remains an external installed/sign-in prerequisite. No extension or companion host is shipped.
+- Existing settings/cache paths are retained; history is neither read nor deleted.
+  Startup removes only known native-host registrations matching the old owned manifest path.
+  The browser extension must be removed via the browser's extension manager.
+- Internal namespaces/solution name remain ProMeter for compatibility.
+- Taskbar polling begins at construction, before HWND creation. Starting during fullscreen,
+  auto-hide or missing Explorer geometry cannot prevent future recovery. Fullscreen on the
+  target monitor hides immediately; four confirmed exit samples restore the strip.
+- Flyout header exposes refresh, settings, pin and close. Settings is owned by the visible
+  flyout so it stays above a pinned card. Ring captions omit the product prefix; the old
+  accuracy badge is removed. Widget-only options are disabled when the widget is off.
+- Cleanup audit: old WPF views/WebView2/companion are excluded from desktop build, but legacy
+  Core logic, SQLite package, compatibility settings fields and regression tests remain.
+  Removing that shared legacy layer requires a separate source/project split; none runs as
+  a CodexMeter history collector.
+
+## Historical ProMeter architecture (retired)
+
+The following describes retained legacy code and prior investigations. It is not the
+runtime or setup contract for CodexMeter.
 # ProMeter architecture
 
 ProMeter reconstructs ChatGPT Pro usage from **account conversation history**, not from local request interception. History is the reconstruction input. Only a matching server quota counter is authoritative. That is what allows company PC, home PC, and mobile usage to share one meter.
@@ -5,7 +40,7 @@ ProMeter reconstructs ChatGPT Pro usage from **account conversation history**, n
 ```text
 Browser companion (recommended)
   Chrome/Edge tab
-    → MV3 extension (operation allowlist, SW-memory auth, endpoint projection)
+    → MV3 extension (operation allowlist, page-local auth, endpoint projection)
     → Native Messaging full-duplex (stdin↔pipe and pipe↔stdout pumps)
     → prometer-companion-host.exe
     → named pipe ProMeterCompanion (CurrentUserOnly, serialized writer)
@@ -58,7 +93,7 @@ The companion security model:
 - A local pairing token authenticates host messages. It is not a ChatGPT secret.
 - Native Messaging is two concurrent pumps. Application-initiated invoke messages do not wait for another extension message.
 - The extension constructs method/path from a closed operation enum. Arbitrary `/backend-api` fetch is forbidden.
-- Responses are projected through endpoint-specific metadata allowlists before leaving the browser. Access tokens stay in service-worker memory only.
+- Responses are projected through endpoint-specific metadata allowlists before leaving the browser. Access tokens stay in authenticated chatgpt.com page-local memory only.
 - Cookie databases are never read. Cookies and access tokens are never sent to the Windows app.
 
 WebView2 remains an optional fallback for authentication methods that actually work there. Its profile lives under `%LOCALAPPDATA%\ProMeter\webview`. Access tokens stay in process memory only.
@@ -74,3 +109,30 @@ All mapping nodes are scanned, so regenerate branches are counted when the serve
 ## Privacy
 
 Usage events store model, timestamps, request/message ids, and source metadata only. Prompt and response text are discarded.
+
+
+## Browser page request deadlines
+
+- The page bridge runs immediately rather than waiting for `document_idle`; its modules do not
+  depend on DOM readiness. Exact HTTPS origin and operation allowlists still apply.
+- Runnable ChatGPT tabs take priority over frozen/discarded tabs. A suspended tab, or a tab
+  whose bridge probe times out, is activated once in its own window before retrying preparation.
+  This can select the ChatGPT tab but does not focus the browser window, explicitly reload/navigate
+  a conversation, change VPN settings, switch accounts/tabs on fetch failure, or change transports.
+- Tab query, bridge probe, and injection have bounded setup waits. The extension invocation has
+  a 55-second ceiling, below the native hub's existing 60-second deadline.
+- Page fetches and response-body reads share a 40-second operation deadline and AbortSignal.
+  A stalled session probe releases single-flight waiters so retry can authenticate again;
+  late responses from timed-out probes cannot overwrite recovered page-local authentication.
+- PAGE_BRIDGE_VERSION 5 replaces the prior unbounded page executor after extension reload.
+  Conversation endpoint/whole-conversation budgets are unchanged.
+
+## Unknown Pro reset
+
+When neither an applicable server/retained anchor nor a user-configured anchor exists, Pro
+reconstruction and history scanning use the rolling interval (now - 7 days, now]. It is labelled
+"Last 7 days reconstructed" and has no next-reset timestamp. It must never be described as an
+actual quota cycle, exact remaining amount, or lower bound. Confirmed quota periods and Sol
+local-calendar day/week analytics retain their existing rules.
+
+- When init has no usable Pro metadata, quota lookup also checks models metadata. The models projection preserves only the existing scalar quota allowlist. Confirmed-reset cache is local to each PC; conversation sync does not transfer it.

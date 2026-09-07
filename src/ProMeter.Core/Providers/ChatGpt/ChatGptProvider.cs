@@ -217,6 +217,7 @@ public sealed class ChatGptProvider : IChatGptProvider
 
     public async Task<QuotaMetadataSet> TryGetQuotaMetadataAsync(CancellationToken cancellationToken = default)
     {
+        QuotaMetadataSet? initObservation = null;
         try
         {
             var init = await GetJsonAsync(
@@ -225,7 +226,8 @@ public sealed class ChatGptProvider : IChatGptProvider
                 """{"conversation_mode_kind":"primary_assistant"}""",
                 cancellationToken);
             var parsed = AccountParser.ParseQuotaMetadata(init);
-            if (parsed.Found || parsed.ProServerStatus.ServerObserved)
+            initObservation = parsed;
+            if (parsed.Found || parsed.ProServerStatus.ModelLimits.Count > 0)
             {
                 return parsed;
             }
@@ -242,7 +244,7 @@ public sealed class ChatGptProvider : IChatGptProvider
         {
             var models = await GetJsonAsync("GET", ChatGptEndpoints.Models, cancellationToken: cancellationToken);
             var parsed = AccountParser.ParseQuotaMetadata(models);
-            if (parsed.Found)
+            if (parsed.Found || parsed.ProServerStatus.ModelLimits.Count > 0)
             {
                 return parsed;
             }
@@ -255,7 +257,7 @@ public sealed class ChatGptProvider : IChatGptProvider
         {
         }
 
-        return new QuotaMetadataSet();
+        return initObservation ?? new QuotaMetadataSet();
     }
 
     public async Task<ConversationIndexResult> FetchIndexAsync(bool archived, double? minUpdateTime, CancellationToken cancellationToken)

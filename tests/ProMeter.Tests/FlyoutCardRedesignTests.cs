@@ -13,13 +13,11 @@ public class FlyoutCardRedesignTests
         try
         {
             Assert.Equal("History-based estimate", UiText.HistoryBasedEstimateBadge);
-            Assert.Equal("Server-based · accurate", UiText.ServerBasedAccurateBadge);
             Assert.Equal("Some history is being revalidated.", UiText.PartialRevalidationNotice);
             Assert.Equal("Used", UiText.CodexLegendUsed);
             Assert.Equal("Remaining", UiText.CodexLegendRemaining);
             UiText.SetLanguage(UiLanguage.Korean);
             Assert.Equal("기록 기반 추정", UiText.HistoryBasedEstimateBadge);
-            Assert.Equal("서버 기반 정확", UiText.ServerBasedAccurateBadge);
             Assert.Equal("일부 기록 재검증 중", UiText.PartialRevalidationNotice);
             Assert.Equal("사용", UiText.CodexLegendUsed);
             Assert.Equal("남음", UiText.CodexLegendRemaining);
@@ -73,52 +71,29 @@ public class FlyoutCardRedesignTests
     }
 
     [Fact]
-    public void FlyoutXaml_UsesCardLayoutWithRequiredElements()
+    public void FlyoutXaml_ContainsOnlyCodexCard()
     {
         var xaml = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml"));
-
-        // Four cards.
-        Assert.Contains("x:Name=\"GptProCard\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"CodexCard\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"ReasoningCard\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"StatusCard\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Style=\"{StaticResource FlyoutCard}\"", xaml, StringComparison.Ordinal);
-
-        // GPT Pro: unavailable/unhelpful rows must not be unconditionally present.
-        Assert.Contains("x:Name=\"GptProRestrictionBanner\" Visibility=\"Collapsed\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"ExactRemainingPanel\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"ReliabilityNoticeText\"", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("923", xaml, StringComparison.Ordinal);
-
-        // Codex ring primitives (no external chart library — Path/Ellipse only).
-        Assert.Contains("x:Name=\"CodexRingTrack\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"CodexRingArcPath\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ArcSegment", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"CodexRingFullCircle\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"CodexRingValueText\"", xaml, StringComparison.Ordinal);
-
-        // Sol Reasoning: plain circle (no progress arc) + count-comparison bars.
-        Assert.Contains("x:Name=\"ReasonWeekCenterValue\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"ReasonTodayBar\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"ReasonExtraBar\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("ExtraHighAccentBrush", xaml, StringComparison.Ordinal);
-
-        // No external UI/chart library — only WPF primitives.
-        Assert.DoesNotContain("http://schemas.microsoft.com/winfx/2006/xaml/presentation/oxyplot", xaml, StringComparison.OrdinalIgnoreCase);
+        foreach (var retired in new[] { "GptProCard", "ReasoningCard", "StatusCard", "ExactRemainingPanel", "ReasonTodayBar" })
+            Assert.DoesNotContain(retired, xaml, StringComparison.Ordinal);
+        foreach (var primitive in new[] { "CodexRingTrack", "CodexRingArcPath", "ArcSegment", "CodexRingFullCircle", "CodexRingValueText" })
+            Assert.Contains(primitive, xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("CodexBadge", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"OnSettingsClick\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("livecharts", xaml, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void FlyoutCodeBehind_HidesUnavailableRowsAndUsesPureHelpers()
+    public void FlyoutCodeBehind_UsesCodexOnlyPresentation()
     {
         var code = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
-        Assert.Contains("ExactRemainingPanel.Visibility = presentation.ExactRemainingAvailable", code, StringComparison.Ordinal);
-        Assert.Contains("GptProRestrictionBanner.Visibility = presentation.Restricted", code, StringComparison.Ordinal);
-        Assert.Contains("ProStatusPresentation.HasReliabilityConcern(snapshot)", code, StringComparison.Ordinal);
         Assert.Contains("CodexRingPresentation.From(snapshot)", code, StringComparison.Ordinal);
         Assert.Contains("RingGeometry.ComputeUsedArc(", code, StringComparison.Ordinal);
-        Assert.Contains("SolBarSet.Compute(reasoning)", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("UnresolvedPendingCount", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("CodexBadge", code, StringComparison.Ordinal);
+        Assert.Contains("SettingsRequested?.Invoke()", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProStatusPresentation", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ReasoningStats", code, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -319,7 +319,7 @@
       case "GetAccountCheck":
         return { ok: true, body: projectAccountCheck(node) };
       case "GetModels":
-        return { ok: true, body: projectModels(node) };
+        return { ok: true, body: Array.isArray(node) ? projectModels(node) : Object.assign(projectModels(node), projectQuota(node)) };
       case "GetConversationIndex":
       case "GetArchivedConversationIndex":
       case "GetProjectConversations":

@@ -1,3 +1,4 @@
+using ProMeter.Codex;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
@@ -13,7 +14,7 @@ namespace ProMeter.UI;
 
 public static class TrayIconRenderer
 {
-    public static Icon Render(QuotaSnapshot snapshot, TrayIconStyle style, int size)
+    public static Icon Render(CodexQuotaSnapshot snapshot, TrayIconStyle style, int size)
     {
         using var bitmap = new Bitmap(size, size);
         using var graphics = Graphics.FromImage(bitmap);
@@ -22,24 +23,13 @@ public static class TrayIconRenderer
         graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
         graphics.Clear(DrawingColor.Transparent);
 
-        var presentation = ProStatusPresentation.From(snapshot);
-        var exact = presentation.ExactRemainingAvailable;
-        var ratio = !exact || snapshot.Limit <= 0
-            ? 0
-            : snapshot.Remaining / (double)snapshot.Limit;
-        var fill = !presentation.ServerStatusKnown
+        var ring = CodexRingPresentation.From(snapshot);
+        var exact = ring.IsAvailable;
+        var ratio = (ring.UsedPercent ?? 0) / 100;
+        var fill = !exact || snapshot.Status != CodexQuotaStatus.Available
             ? DrawingColor.FromArgb(251, 191, 36)
-            : presentation.Restricted
-                ? DrawingColor.FromArgb(248, 113, 113)
-                : exact
-                    ? ratio switch
-                    {
-                        <= 0 => DrawingColor.FromArgb(248, 113, 113),
-                        <= 0.2 => DrawingColor.FromArgb(251, 191, 36),
-                        _ => DrawingColor.FromArgb(59, 130, 246)
-                    }
-                    : DrawingColor.FromArgb(59, 130, 246);
-        var text = presentation.TrayIconGlyph;
+            : ring.IsDangerLevel ? DrawingColor.FromArgb(248, 113, 113) : DrawingColor.FromArgb(59, 130, 246);
+        var text = exact ? CodexDisplayFormatting.PercentText(ring.UsedPercent).TrimEnd('%') : "?";
 
         if (style == TrayIconStyle.ProgressRing)
         {
@@ -52,10 +42,7 @@ public static class TrayIconRenderer
             {
                 graphics.DrawArc(fg, rect, -90, (float)(360 * ratio));
             }
-            else
-            {
-                graphics.DrawArc(fg, rect, -90, presentation.Restricted ? 360 : 220);
-            }
+
 
             DrawGlyph(graphics, text, size, DrawingColor.White);
         }

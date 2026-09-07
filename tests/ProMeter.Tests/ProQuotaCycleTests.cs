@@ -141,9 +141,8 @@ public class ProQuotaCycleTests
             Assert.DoesNotContain("확인 불가", presentation.ConfirmedRequestsText, StringComparison.Ordinal);
             Assert.Equal("이번 주기 확인 사용", UiText.ConfirmedProUsage);
             var display = DisplayFormatting.ResetDisplay(snapshot);
-            // No separate "Not confirmed" reset-time row alongside the estimate.
-            Assert.Equal("", display.TimeValue);
-            Assert.Equal(UiText.EstimatedNextReset, display.EstimateLabel);
+            Assert.Equal(UiText.NotConfirmed, display.TimeValue);
+            Assert.Null(display.EstimateLabel);
         }
         finally
         {
@@ -281,18 +280,12 @@ public class ProQuotaCycleTests
     }
 
     [Fact]
-    public void AppStartup_RegistersCompanionBeforePipeServerStart()
+    public void AppStartup_RetiresCompanionAndNeverStartsHistoryCollection()
     {
         var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
-        var ensure = app.IndexOf("EnsureCompanionHostRegistration();", StringComparison.Ordinal);
-        var start = app.IndexOf("_companionServer.Start();", StringComparison.Ordinal);
-        Assert.True(ensure >= 0 && start > ensure);
-        Assert.Contains("ProQuotaPeriodResolver.Resolve", File.ReadAllText(Find("src/ProMeter.Core/Services/QuotaEngine.cs")), StringComparison.Ordinal);
-        Assert.Contains("ProQuotaPeriodResolver.Resolve", File.ReadAllText(Find("src/ProMeter.Core/Services/SyncEngine.cs")), StringComparison.Ordinal);
-        Assert.Contains("KnownProServerStatus", app, StringComparison.Ordinal);
-        Assert.Contains("RecoverLastConfirmedFromSettings", app, StringComparison.Ordinal);
-        Assert.Contains("metadata.ProServerStatus = _proStatus.Current;", app, StringComparison.Ordinal);
-        Assert.DoesNotContain("if (_proStatus.Current.ServerObserved)", app, StringComparison.Ordinal);
+        Assert.Contains("LegacyCompanionCleanup.Unregister", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("_companionServer.Start", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("new SqliteStore", app, StringComparison.Ordinal);
     }
 
     private static QuotaSnapshot Engine(IReadOnlyList<UsageEvent> events, DateTimeOffset now, ProServerStatus status) =>

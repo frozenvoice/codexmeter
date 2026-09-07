@@ -11,6 +11,20 @@
   var PAGE_FILES = ["canonical.js", "operations.js", "project.js", "auth.js", "page-executor.js"];
   var NO_TAB = "Open/sign in to ChatGPT, then retry";
   var BRIDGE_UNAVAILABLE = "ChatGPT page bridge unavailable";
+  var INVOKE_TIMEOUT_MS = 55000;
+  var SETUP_TIMEOUT_MS = 5000;
+  var TIMEOUT_ERROR = "bridge request timed out";
+
+  async function bounded(pending, timeoutMs) {
+    var timer;
+    try {
+      return await Promise.race([pending, new Promise(function (_resolve, reject) {
+        timer = setTimeout(function () { reject(new Error(TIMEOUT_ERROR)); }, timeoutMs);
+      })]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   function isExactChatGptTabUrl(urlString) {
     if (!urlString || typeof urlString !== "string") {
@@ -33,6 +47,11 @@
       return null;
     }
     exact.sort(function (a, b) {
+      var aSuspended = a.discarded === true || a.frozen === true;
+      var bSuspended = b.discarded === true || b.frozen === true;
+      if (aSuspended !== bSuspended) {
+        return aSuspended ? 1 : -1;
+      }
       if (a.active !== b.active) {
         return a.active ? -1 : 1;
       }
@@ -94,6 +113,9 @@
   }
 
   async function runExecuteScript(chromeApi, details) {
+    // These modules do not depend on the DOM. Waiting for document_idle can
+    // stall every request behind an unrelated page resource that never finishes.
+    details.injectImmediately = true;
     var pending = chromeApi.scripting.executeScript(details);
     if (pending && typeof pending.then === "function") {
       return await pending;
@@ -110,27 +132,57 @@
     });
   }
 
-  async function ensurePageBridge(chromeApi, tabId) {
-    var probed = await runExecuteScript(chromeApi, {
+  function requireActive(state) {
+    if (state.expired) { throw new Error(TIMEOUT_ERROR); }
+  }
+
+  async function ensurePageBridge(chromeApi, tabId, setupTimeoutMs, state) {
+    requireActive(state);
+    var probed = await bounded(runExecuteScript(chromeApi, {
       target: { tabId: tabId },
       world: "MAIN",
       func: pageBridgeStatus,
       args: [PAGE_BRIDGE_VERSION]
-    });
+    }), setupTimeoutMs);
+    requireActive(state);
     var status = probed && probed[0] ? probed[0].result : null;
     if (status && status.ready === true) {
       return "reused";
     }
-    await runExecuteScript(chromeApi, {
+    await bounded(runExecuteScript(chromeApi, {
       target: { tabId: tabId },
       world: "MAIN",
       files: PAGE_FILES
-    });
+    }), setupTimeoutMs);
     return "injected";
   }
 
-  async function executeOnTab(chromeApi, tabId, operation, args) {
-    await ensurePageBridge(chromeApi, tabId);
+  async function wakeTab(chromeApi, tabId, setupTimeoutMs, state) {
+    requireActive(state);
+    // Activation thaws a suspended tab. Do not reload a user's conversation,
+    // navigate it elsewhere, or focus the browser window over their current app.
+    await bounded(chromeApi.tabs.update(tabId, { active: true }), setupTimeoutMs);
+    requireActive(state);
+  }
+
+  async function executeOnTab(chromeApi, tab, operation, args, setupTimeoutMs, state) {
+    var tabId = tab.id;
+    var canWake = typeof chromeApi.tabs.update === "function";
+    var woke = false;
+    if (canWake && (tab.frozen === true || tab.discarded === true)) {
+      await wakeTab(chromeApi, tabId, setupTimeoutMs, state);
+      woke = true;
+    }
+    try {
+      await ensurePageBridge(chromeApi, tabId, setupTimeoutMs, state);
+    } catch (error) {
+      // Edge may not report the sleeping state. Recover a timed-out probe once,
+      // before any backend operation has started; never replay an account fetch.
+      if (woke || !canWake || !error || error.message !== TIMEOUT_ERROR) { throw error; }
+      await wakeTab(chromeApi, tabId, setupTimeoutMs, state);
+      await ensurePageBridge(chromeApi, tabId, setupTimeoutMs, state);
+    }
+    requireActive(state);
     var results = await runExecuteScript(chromeApi, {
       target: { tabId: tabId },
       world: "MAIN",
@@ -140,18 +192,39 @@
     return results && results[0] ? results[0].result : null;
   }
 
-  async function invoke(operation, args, chromeApi) {
+  async function invoke(operation, args, chromeApi, hooks) {
+    hooks = hooks || {};
+    var state = { expired: false };
+    try {
+      return await bounded(invokeCore(operation, args, chromeApi, hooks, state), hooks.timeoutMs || INVOKE_TIMEOUT_MS);
+    } catch (error) {
+      return error && error.message === TIMEOUT_ERROR
+        ? { status: 0, error: TIMEOUT_ERROR, diagnostic: "PageBridgeTimeout" }
+        : { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
+    } finally {
+      // Late Chrome callbacks may resolve, but must never start another operation.
+      state.expired = true;
+    }
+  }
+
+  async function invokeCore(operation, args, chromeApi, hooks, state) {
     if (!chromeApi || !chromeApi.tabs || !chromeApi.scripting || typeof chromeApi.scripting.executeScript !== "function") {
       return { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
     }
 
     var tabs;
     try {
-      tabs = await queryChatGptTabs(chromeApi);
+      tabs = await bounded(queryChatGptTabs(chromeApi), hooks.setupTimeoutMs || SETUP_TIMEOUT_MS);
     } catch (error) {
+      if (error && error.message === TIMEOUT_ERROR) {
+        return { status: 0, error: TIMEOUT_ERROR, diagnostic: "PageBridgeTimeout" };
+      }
       return { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
     }
 
+    if (state.expired) {
+      return { status: 0, error: TIMEOUT_ERROR, diagnostic: "PageBridgeTimeout" };
+    }
     var tab = pickPreferredTab(tabs);
     if (!tab || typeof tab.id !== "number") {
       try {
@@ -163,12 +236,15 @@
     }
 
     try {
-      var result = await executeOnTab(chromeApi, tab.id, operation, args);
+      var result = await executeOnTab(chromeApi, tab, operation, args, hooks.setupTimeoutMs || SETUP_TIMEOUT_MS, state);
       if (!result || typeof result !== "object") {
         return { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
       }
       return result;
     } catch (error) {
+      if (error && error.message === TIMEOUT_ERROR) {
+        return { status: 0, error: TIMEOUT_ERROR, diagnostic: "PageBridgeTimeout" };
+      }
       return { status: 0, error: BRIDGE_UNAVAILABLE, diagnostic: "PageBridgeUnavailable" };
     }
   }
@@ -182,6 +258,7 @@
     NO_TAB: NO_TAB,
     BRIDGE_UNAVAILABLE: BRIDGE_UNAVAILABLE,
     PAGE_FILES: PAGE_FILES,
-    CHATGPT_HOME: CHATGPT_HOME
+    CHATGPT_HOME: CHATGPT_HOME,
+    INVOKE_TIMEOUT_MS: INVOKE_TIMEOUT_MS
   };
 });

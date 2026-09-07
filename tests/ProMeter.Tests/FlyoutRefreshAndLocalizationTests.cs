@@ -152,11 +152,12 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.Equal("Auto", columns[2]);
         Assert.Equal("Auto", columns[3]);
         Assert.Equal("Auto", columns[4]);
-        Assert.Equal(5, columns.Length);
+        Assert.Equal("Auto", columns[5]);
+        Assert.Equal(6, columns.Length);
         var title = header.Descendants(ns + "TextBlock")
             .Single(element => (string?)element.Attribute(x + "Name") == "TitleText");
         Assert.Equal("0", (string?)title.Attribute("Grid.Column"));
-        Assert.Equal("ProMeter", (string?)title.Attribute("Text") ?? title.Value.Trim());
+        Assert.Equal("CodexMeter", (string?)title.Attribute("Text") ?? title.Value.Trim());
         var statusHost = header.Elements(ns + "Grid").Single();
         Assert.Equal("1", (string?)statusHost.Attribute("Grid.Column"));
         var status = statusHost.Descendants(ns + "TextBlock")
@@ -173,8 +174,11 @@ public class FlyoutRefreshAndLocalizationTests
             .Single(element => (string?)element.Attribute(x + "Name") == "PinButton");
         var close = header.Descendants(ns + "Button")
             .Single(element => (string?)element.Attribute(x + "Name") == "CloseFlyoutButton");
-        Assert.Equal("3", (string?)pin.Attribute("Grid.Column"));
-        Assert.Equal("4", (string?)close.Attribute("Grid.Column"));
+        Assert.Equal("4", (string?)pin.Attribute("Grid.Column"));
+        Assert.Equal("5", (string?)close.Attribute("Grid.Column"));
+        var settings = header.Descendants(ns + "Button").Single(element => (string?)element.Attribute(x + "Name") == "SettingsButton");
+        Assert.Equal("3", (string?)settings.Attribute("Grid.Column"));
+        Assert.Equal("OnSettingsClick", (string?)settings.Attribute("Click"));
         Assert.NotEqual((string?)title.Attribute("Grid.Column"), (string?)statusHost.Attribute("Grid.Column"));
         Assert.NotEqual((string?)button.Attribute("Grid.Column"), (string?)statusHost.Attribute("Grid.Column"));
     }

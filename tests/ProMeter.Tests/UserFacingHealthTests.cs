@@ -477,29 +477,12 @@ public class UserFacingHealthTests
     }
 
     [Fact]
-    public void FlyoutSource_ShowsLowerBoundUsageAndHidesModelBreakdown()
+    public void FlyoutSource_HasNoReconstructedUsage()
     {
-        var xaml = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml"));
-        var code = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
-        Assert.Contains("ConfirmedUsagePanel", xaml, StringComparison.Ordinal);
-        Assert.Contains("ConfirmedUsageText", xaml, StringComparison.Ordinal);
-        Assert.Contains("HistoryLowerBoundCaption", xaml, StringComparison.Ordinal);
-        Assert.Contains("ShowHistoryLowerBound", code, StringComparison.Ordinal);
-        Assert.Contains("HistoryStatsPanel.Visibility = Visibility.Collapsed", code, StringComparison.Ordinal);
-        Assert.Contains("ModelRows.Visibility = Visibility.Collapsed", code, StringComparison.Ordinal);
-        Assert.Contains("CurrentCycleReconstructed", code, StringComparison.Ordinal);
-        Assert.Contains("ReconstructedObservedCaption", code, StringComparison.Ordinal);
-        Assert.Contains("RemainingCount", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("StatusLabel(snapshot)", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("ModelBreakdown", code, StringComparison.Ordinal);
-        Assert.DoesNotContain("ServerResetLabel", xaml, StringComparison.Ordinal);
-        Assert.Contains("ResetTimeLabel", xaml, StringComparison.Ordinal);
-        var statusIndex = xaml.IndexOf("StatusSectionTitle", StringComparison.Ordinal);
-        Assert.True(statusIndex > 0);
-        var statusXaml = xaml[statusIndex..];
-        Assert.DoesNotContain("ResetTimeLabel", statusXaml, StringComparison.Ordinal);
-        Assert.Contains("LastSyncLabel", statusXaml, StringComparison.Ordinal);
-        Assert.Contains("CoverageLabel", statusXaml, StringComparison.Ordinal);
+        var source = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml"));
+        Assert.DoesNotContain("ConfirmedUsagePanel", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ModelRows", source, StringComparison.Ordinal);
+        Assert.Contains("CodexRows", source, StringComparison.Ordinal);
     }
 
     private static CoverageInfo SystemicCoverage()

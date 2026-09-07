@@ -1,3 +1,25 @@
+# CodexMeter validation
+
+## Current release — Codex only
+
+- Release build: 0 warnings/errors; 865 tests passed, including shared-refresh ownership,
+  waiter cancellation, retry after failure, unknown-vs-zero and cached identity-state tests.
+- Single-file Windows x64 self-contained publish verified: exactly `CodexMeter.exe`,
+  with no browser extension, native host, WebView2 or external .NET runtime files.
+- WPF flyout/settings rendered in dark and light themes using stored Codex quota metadata.
+- Live standalone executable: refreshed successfully at 14:48:28 KST on 2026-09-07; server weekly usage 8%, remaining 92%. Chrome/Edge/Whale old native registrations absent; only CodexMeter process remained.
+- Taskbar recovery regression: a separate-process borderless window covering the primary
+  monitor kept a newly constructed strip hidden before its first HWND existed. Polling was
+  already active; after that window closed, four confirmed exit samples restored the strip.
+  Closing the strip stopped its timer. Actual YouTube/Netflix playback was not exercised.
+- Header setting action/localization, simplified captions and removed badge checked; updated
+  flyout/settings rendered in both themes. Legacy companion Node regressions pass.
+- Updated executable deployed successfully; local taskbar preference re-enabled at user request.
+- Runtime checks: verify actual Codex refresh, no ChatGPT HTTP/SQLite collector startup,
+  no native host registration, saved window position and tray/refresh behavior.
+- A fresh PC requires installed and signed-in Codex CLI; no browser pairing is part of setup.
+
+## Historical ChatGPT checks (retired; do not use as CodexMeter setup)
 # Manual validation
 
 ProMeter reconstructs usage from ChatGPT account history. These checks require a real signed-in Pro account. Live ChatGPT compatibility is not claimed until they pass.
@@ -89,3 +111,54 @@ Do not disable the browser VPN or proxy, switch browsers, or weaken browser secu
 7. If ChatGPT returns 403, the UI/log should say `ChatGPT rejected the page request (403)`, not `ChatGPT session expired`, unless the ChatGPT tab is independently signed out.
 8. If no ChatGPT tab exists, the status should be `Open/sign in to ChatGPT, then retry`.
 9. If MAIN-world page execution is blocked, the status should be `ChatGPT page bridge unavailable` rather than a silent service-worker fetch.
+
+
+## Browser page timeout recovery
+
+`node extension/test-companion.js` includes synthetic regressions for a hung session fetch,
+response body, backend body, and 401 refresh; shared authentication recovery; late session
+completion; injection before document idle; frozen/discarded tab preference; and late Chrome callbacks.
+No real account content or credentials are used in these tests.
+
+Live check after reloading the unpacked Edge extension:
+
+1. Activate an already signed-in ChatGPT tab, then run ProMeter's full manual history sync.
+2. Confirm account/index requests resume and the completed reconstruction is displayed.
+3. Repeat with a background ChatGPT tab and, separately, an Edge sleeping tab. The companion
+   should activate the same sleeping tab once and resume. It must not focus the browser window,
+   reload the user's conversation, disable VPN, or reset stored usage.
+4. Confirm stalled requests fail within the documented deadline and a later retry is not held by
+   the previous session promise. `Connection required` can also reflect a previous BridgeTimeout;
+   inspect the safe sync failure category rather than treating that label as proof of logout.
+
+Live result on 2026-09-07: after the user reloaded/reconnected the fixed-ID Edge companion,
+manual history sync completed at 13:28:36 +09:00 with `UpToDate`, `coverage=Estimated`,
+and zero failed conversations. This verifies history transport recovery, not an authoritative
+remaining-quota count. Subsequent 13:37–13:38 retries failed at page preparation, so this earlier success alone did not establish a complete fix. Version 5 adds bounded same-tab wake-up recovery; verify this with the deployed version.
+
+
+## Unknown-reset Monday regression
+
+- With no configured/confirmed reset, weekend Pro observations must remain in **Last 7 days reconstructed**
+  after Monday midnight. Never turn the default Monday preference into a quota reset.
+- No next-reset date is displayed until there is an applicable anchor. Server counts and configured
+  reset periods still follow their original rules; local-calendar Sol analytics are unchanged.
+- `RollingProHistoryTests` uses synthetic weekend, too-old, and future requests to verify the boundary.
+
+- Reset lookup fallback regression: empty init followed by model-limit metadata must recover reset timing; an ordinary model catalog must never manufacture a reset. Bridge version 6 requires extension Reload; live reset retrieval remains unverified.
+
+## Cross-PC verification, 2026-09-07
+
+- After extension Reload, live sync completed at 14:17:43 KST: UpToDate / Estimated,
+  34 loaded conversations, 0 failed; archived and 9 project indexes were checked.
+- Current local server-status metadata still has no model limits or retained reset.
+  Provider fallback did not recover a reset from this live response.
+- The user-referenced home conversation records a prior reset around
+  2026-09-06 14:20:14 KST and a reconstructed count of 12. The attached log examined
+  here did not independently establish that reset timestamp.
+- A read-only production QuotaEngine calculation over the freshly synchronized local
+  metadata produces 12 with that historical-chat anchor, versus 72 in the rolling
+  seven-day window. No server-status/settings values were overwritten from chat text.
+- Account-history collection supports cross-device reconstruction; identical current-cycle
+  displays on fresh PCs remain unverified until the same evidenced reset boundary is
+  available on each PC. A successful scan does not establish authoritative billed usage.

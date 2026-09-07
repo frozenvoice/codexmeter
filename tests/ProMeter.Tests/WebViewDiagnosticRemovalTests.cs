@@ -16,9 +16,9 @@ public class WebViewDiagnosticRemovalTests
         Assert.DoesNotContain("WebViewResultText", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("WebViewComparisonText", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("WebViewTechnicalDetailText", xaml, StringComparison.Ordinal);
-        Assert.Contains("TransportBox", xaml, StringComparison.Ordinal);
-        Assert.Contains("WebView2 fallback", xaml, StringComparison.Ordinal);
-        Assert.Contains("RegisterButton", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("TransportBox", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("WebView2 fallback", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("RegisterButton", xaml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -36,8 +36,8 @@ public class WebViewDiagnosticRemovalTests
         Assert.DoesNotContain("OnTestWebView", settings, StringComparison.Ordinal);
         Assert.DoesNotContain("OnFullWebViewVerification", settings, StringComparison.Ordinal);
         Assert.DoesNotContain("OnUseWebViewDefault", settings, StringComparison.Ordinal);
-        Assert.Contains("_ => _webViewTransport", app, StringComparison.Ordinal);
-        Assert.Contains("ShowLoginAsync", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("_ => _webViewTransport", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShowLoginAsync", app, StringComparison.Ordinal);
         Assert.Contains("AuthTransportKind.WebView2", File.ReadAllText(Find("src/ProMeter/UI/WelcomeWindow.xaml.cs")), StringComparison.Ordinal);
     }
 

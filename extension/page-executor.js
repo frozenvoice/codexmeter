@@ -102,7 +102,44 @@
     return value;
   }
 
+  var REQUEST_TIMEOUT_MS = 40000;
+  var TIMEOUT_ERROR = "bridge request timed out";
+
+  // Race both headers and body consumption against the same operation deadline.
+  // Abort alone is insufficient when an underlying promise never observes the signal.
+  function abortable(pending, signal) {
+    return new Promise(function (resolve, reject) {
+      function aborted() { reject(new Error(TIMEOUT_ERROR)); }
+      if (signal.aborted) {
+        // Still observe a late rejection from an already-started request.
+        Promise.resolve(pending).catch(function () {});
+        aborted();
+        return;
+      }
+      signal.addEventListener("abort", aborted, { once: true });
+      Promise.resolve(pending).then(resolve, reject).finally(function () {
+        signal.removeEventListener("abort", aborted);
+      });
+    });
+  }
+
   async function execute(operation, args, hooks) {
+    hooks = hooks || {};
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, hooks.timeoutMs || REQUEST_TIMEOUT_MS);
+    try {
+      return await abortable(executeCore(operation, args, hooks, controller.signal), controller.signal);
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return { status: 0, error: TIMEOUT_ERROR, diagnostic: "PageRequestTimeout" };
+      }
+      return { status: 0, error: "page executor failed" };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async function executeCore(operation, args, hooks, signal) {
     hooks = hooks || {};
     var origin = currentOrigin(hooks);
     if (origin !== EXPECTED_ORIGIN) {
@@ -128,7 +165,18 @@
           nextInit.headers[key] = authHeaders[key];
         });
       }
-      return fetchImpl(relative, nextInit);
+      if (signal.aborted) {
+        throw new Error(TIMEOUT_ERROR);
+      }
+      nextInit.signal = signal;
+      var response = await abortable(fetchImpl(relative, nextInit), signal);
+      // Only this small response interface is used by auth/project. Keep the raw
+      // response and credentials inside this page; no browser transport changes.
+      return {
+        status: response.status,
+        headers: response.headers,
+        text: function () { return abortable(response.text(), signal); }
+      };
     }
 
     try {
@@ -210,5 +258,5 @@
     }
   }
 
-  return { execute: execute, toRelativeUrl: toRelativeUrl, FORBIDDEN: FORBIDDEN };
+  return { execute: execute, toRelativeUrl: toRelativeUrl, FORBIDDEN: FORBIDDEN, REQUEST_TIMEOUT_MS: REQUEST_TIMEOUT_MS, TIMEOUT_ERROR: TIMEOUT_ERROR };
 });

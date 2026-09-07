@@ -150,23 +150,12 @@ public class CompanionBridgeFailureTests
     }
 
     [Fact]
-    public void AppWiresCompanionTransportLogAndGrace()
+    public void AppDoesNotWireRetiredCompanionTransport()
     {
         var app = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
-        Assert.Contains("new BrowserCompanionTransport(", app, StringComparison.Ordinal);
-        Assert.Contains("_log.Info(message)", app, StringComparison.Ordinal);
-        var transport = File.ReadAllText(Find("src/ProMeter.Core/Providers/ChatGpt/CompanionRequestHub.cs"));
-        Assert.Contains("CompanionReconnectGrace.WaitUntilConnectedAsync", transport, StringComparison.Ordinal);
-        Assert.Contains("sync waiting for companion reconnect", transport, StringComparison.Ordinal);
-        var engine = File.ReadAllText(Find("src/ProMeter.Core/Services/SyncEngine.cs"));
-        Assert.Contains("ex.IsCompanionDisconnected", engine, StringComparison.Ordinal);
-        Assert.Contains("ex.IsBridgeTimeout", engine, StringComparison.Ordinal);
-        Assert.Contains("ex.IsBridgeWriteFailed", engine, StringComparison.Ordinal);
-        var background = File.ReadAllText(Find("extension/background.js"));
-        Assert.Contains("companion-reconnect.js", background, StringComparison.Ordinal);
-        Assert.Contains("chrome.alarms", background, StringComparison.Ordinal);
-        Assert.DoesNotContain("pairingToken", background, StringComparison.Ordinal);
-        Assert.Equal(3, ProMeterCanonicalPageBridgeVersion());
+        Assert.DoesNotContain("new BrowserCompanionTransport", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("new WebViewTransport", app, StringComparison.Ordinal);
+        Assert.Contains("new CodexAppServerClient()", app, StringComparison.Ordinal);
     }
 
     private static int ProMeterCanonicalPageBridgeVersion()
