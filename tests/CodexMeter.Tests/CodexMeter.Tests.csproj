@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CodexMeter.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.11" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CodexMeter.Core\CodexMeter.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CodexMeter\UI\Themes.xaml" Link="Themes.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CodexMeter\UI\FlyoutWindow.xaml" Link="FlyoutWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CodexMeter\UI\CoverageWindow.xaml" Link="CoverageWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CodexMeter\UI\TaskbarStatusStripWindow.xaml" Link="TaskbarStatusStripWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CodexMeter\UI\FloatingWidget.xaml" Link="FloatingWidget.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\src\CodexMeter\UI\SettingsWindow.xaml" Link="SettingsWindow.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\fake-codex-app-server.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures\hang-codex-app-server.js" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

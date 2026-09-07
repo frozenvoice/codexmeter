@@ -1,0 +1,8 @@
+---
+description: CodexMeter metering correctness and evidence preservation
+alwaysApply: true
+---
+
+Before changing metering, reconstruction, quota periods, sync watermarks, or usage presentation, read `AGENTS.md`, `CLAUDE.md`, and `docs/metering-contract.md`.
+
+Do not hide inaccurate counts or relabel them as exact remaining. Preserve observations; reconcile canonical requests. Never persist prompts, responses, tokens, or cookies.

@@ -20,14 +20,17 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build ProMeter.sln -c Release
+        run: dotnet build CodexMeter.sln -c Release
 
       - name: Test
-        run: dotnet test ProMeter.sln -c Release --no-build
+        run: dotnet test CodexMeter.sln -c Release --no-build
+
+      - name: Validate desktop resources
+        run: dotnet run --project tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj -c Release --no-build
 
       - name: Publish win-x64
         run: >
-          dotnet publish src/ProMeter/ProMeter.csproj
+          dotnet publish src/CodexMeter/CodexMeter.csproj
           -c Release
           -r win-x64
           --self-contained true

@@ -1,4 +1,4 @@
-# ProMeter metering contract
+# Retained legacy metering contract
 
 This document defines reconstruction semantics. It is not a live ChatGPT API specification. Public plan limits cited here come from [GPT-5.6 in ChatGPT](https://help.openai.com/en/articles/20001354-gpt-56-in-chatgpt) and are not account-specific used/remaining observations.
 

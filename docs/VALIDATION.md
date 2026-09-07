@@ -4,7 +4,15 @@
 
 - Extension cleanup: restore, Release build (0 warnings/errors), all 903 remaining tests, and win-x64 self-contained single-file publish passed. Two obsolete extension-file consistency tests were removed; retained .NET regression tests remain.
 
-- Release build: 0 warnings/errors; 903 tests passed, including shared-refresh ownership,
+- Product rename: clean restore and Release build passed with 0 warnings/errors;
+  907 tests passed. New checks cover App Server client identity, both localized product
+  labels and unchanged legacy settings/cache/registry/mutex identifiers.
+- `CodexMeter.UiSmoke` loads production App/XAML without starting the app or accessing
+  an account. All 24 window renders passed across Korean/English and Dark/Light/System.
+  This smoke check also runs in Windows CI and the development launcher.
+- Renamed project win-x64 self-contained publish contains exactly `CodexMeter.exe`.
+  No live-account refresh was performed for this source/project rename.
+- Release build: 0 warnings/errors; 907 tests passed, including shared-refresh ownership,
   waiter cancellation, retry after failure, unknown-vs-zero and cached identity-state tests.
 - CI artifact-path parsing covers LF, CRLF, tab and space delimiters.
 - Single-file Windows x64 self-contained publish verified: exactly `CodexMeter.exe`,

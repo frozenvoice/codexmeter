@@ -44,11 +44,11 @@ Codex CLI 자체는 이 배포 파일에 포함하지 않습니다.
 
 ## 개발
 
-저장소와 제품 이름은 `CodexMeter`로 전환했지만, 솔루션 `ProMeter.sln`, 프로젝트 파일과 내부 네임스페이스는 아직 이전 이름입니다.
-`src/ProMeter`는 현재 WPF 앱, `src/ProMeter.Core`는 Codex 로직과 남아 있는 레거시 로직,
-`src/ProMeter.CompanionHost`는 배포되지 않는 이전 Native Messaging 호스트입니다.
-소스 폴더명은 설정 호환성의 필수 조건이 아니며, 변경하려면 솔루션·프로젝트 참조·스크립트·테스트 경로를 함께 정리해야 합니다.
-기존 사용자 설정과 캐시를 찾는 `%LOCALAPPDATA%\ProMeter` 경로는 별도로 유지해야 합니다.
+솔루션은 `CodexMeter.sln`이며 프로젝트·폴더·네임스페이스도 `CodexMeter`로 통일했습니다.
+`src/CodexMeter`는 현재 WPF 앱, `src/CodexMeter.Core`는 Codex 로직과 남아 있는 레거시 로직,
+`tests/CodexMeter.Tests`는 회귀 테스트입니다. `src/CodexMeter.CompanionHost`는 배포되지 않는 이전 Native Messaging 호스트입니다.
+이전 설치의 데이터 경로와 레지스트리·프로세스 식별자는 `LegacyInstallation`에 모아 유지합니다.
+이 값은 현재 제품명이 아니라 기존 데이터 접근과 이전 설치 정리를 위한 호환성 키입니다.
 
 ```powershell
 .\dev-run.ps1

@@ -36,9 +36,10 @@ function Invoke-Dotnet([string[]]$Arguments) {
 foreach ($target in @($StagingDir, $LocalDir, $BackupDir)) { Assert-OwnedDirectory $target }
 if (Test-Path -LiteralPath $StagingDir) { Remove-Item -LiteralPath $StagingDir -Recurse -Force }
 Invoke-Dotnet -Arguments @('restore')
-Invoke-Dotnet -Arguments @('build', 'ProMeter.sln', '-c', 'Release')
-if (!$Fast) { Invoke-Dotnet -Arguments @('test', 'ProMeter.sln', '-c', 'Release', '--no-build') }
-Invoke-Dotnet -Arguments @('publish', 'src/ProMeter/ProMeter.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $StagingDir)
+Invoke-Dotnet -Arguments @('build', 'CodexMeter.sln', '-c', 'Release')
+if (!$Fast) { Invoke-Dotnet -Arguments @('test', 'CodexMeter.sln', '-c', 'Release', '--no-build') }
+Invoke-Dotnet -Arguments @('run', '--project', 'tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj', '-c', 'Release', '--no-build')
+Invoke-Dotnet -Arguments @('publish', 'src/CodexMeter/CodexMeter.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $StagingDir)
 $files = @(Get-ChildItem -LiteralPath $StagingDir -File -Recurse)
 if ($files.Count -ne 1 -or $files[0].Name -ne 'CodexMeter.exe') { throw 'Publish must contain exactly CodexMeter.exe' }
 Write-Host 'Publish artifacts verified: CodexMeter.exe only'

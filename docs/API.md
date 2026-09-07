@@ -1,6 +1,6 @@
 # ChatGPT provider notes
 
-ProMeter does not invent unofficial fields. The live provider reads JSON defensively and treats unknown shapes as `Provider schema mismatch` instead of crashing.
+The retained legacy provider does not invent unofficial fields. It reads JSON defensively and treats unknown shapes as `Provider schema mismatch` instead of crashing. This document covers retired ChatGPT collection, not the active Codex App Server integration.
 
 ## Confirmed model slugs
 

@@ -17,12 +17,14 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Existing settings/cache paths are retained; history is neither read nor deleted.
   Startup removes only known native-host registrations matching the old owned manifest path.
   The browser extension must be removed via the browser's extension manager.
-- Repository and local checkout are named `codexmeter`; internal namespaces/solution name have not yet been renamed from ProMeter.
-- The internal rename is incomplete: `src/ProMeter` is the active WPF app,
-  `src/ProMeter.Core` contains active Codex and retained legacy logic, and
-  `src/ProMeter.CompanionHost` is a retired host still built by the solution for legacy tests,
-  but never published with CodexMeter. Source/project names can be migrated independently
-  of the persisted `%LOCALAPPDATA%\ProMeter` compatibility path.
+- The solution is `CodexMeter.sln`; all source/test projects and namespaces use CodexMeter.
+  `src/CodexMeter` is the WPF app, `src/CodexMeter.Core` holds active and retained legacy logic,
+  `tests/CodexMeter.Tests` holds regression tests, and `src/CodexMeter.CompanionHost` is the
+  retired host, still built for legacy checks but never published with the app.
+- `LegacyInstallation` centralizes persisted data, registry, mutex, pipe and backup identifiers.
+  These retain their old values so upgrades continue finding settings/cache and safely removing
+  previous registrations. The shared mutex also prevents old and new builds running together.
+  The development launcher retains the old executable name only for scoped replacement.
 - The retired `extension/` source and its CI validation step have been removed. Extension-only
   file consistency tests were removed; retained .NET transport and manifest fixture tests remain.
   Previous extension sources are available in Git history.

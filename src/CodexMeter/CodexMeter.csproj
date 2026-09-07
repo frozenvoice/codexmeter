@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RootNamespace>CodexMeter</RootNamespace>
+    <AssemblyName>CodexMeter</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Description>Windows tray monitor for Codex account usage</Description>
+    <Product>CodexMeter</Product>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CodexMeter.Core\CodexMeter.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\codexmeter.ico" Condition="Exists('Assets\codexmeter.ico')" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Services\ToastNotificationService.cs;WebView\**\*.cs;Companion\**\*.cs;UI\WelcomeWindow.xaml.cs;UI\MainWindow.xaml.cs;UI\CoverageWindow.xaml.cs;UI\TaskbarStatusStripWindow.xaml.cs;UI\TaskbarWin32.cs" />
+    <Page Remove="UI\WelcomeWindow.xaml;UI\MainWindow.xaml;UI\CoverageWindow.xaml;UI\TaskbarStatusStripWindow.xaml" />
+  </ItemGroup>
+</Project>

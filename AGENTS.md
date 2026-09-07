@@ -1,6 +1,6 @@
 # CodexMeter agent instructions
 
-Repository/solution: `codexmeter` / `ProMeter.sln`. Product: **CodexMeter**.
+Repository/solution: `codexmeter` / `CodexMeter.sln`. Product: **CodexMeter**.
 Windows-only .NET 8 WPF tray app, distributed as one `CodexMeter.exe`.
 
 ## Active product direction
@@ -92,10 +92,10 @@ Windows-only .NET 8 WPF tray app, distributed as one `CodexMeter.exe`.
 - Browser companion authentication is owned by the extension. ChatGPT access tokens may exist only in chatgpt.com page-local memory and must never cross Native Messaging, named pipes, logs, settings, SQLite, or exports.
 - Page-context modules must not be reinitialized for every operation when doing so destroys authentication state.
 - ChatGPT access tokens remain page-local only and must never cross the extension/native boundary.
-- ProMeter must work with the user's normal browser networking configuration, including a browser VPN/proxy, when chatgpt.com itself works in that browser.
+- The retained legacy collector must work with the user's normal browser networking configuration, including a browser VPN/proxy, when chatgpt.com itself works in that browser.
 - Do not instruct users to disable VPN as a product requirement.
 - Browser Companion ChatGPT requests should execute in the authenticated chatgpt.com page context when extension service-worker fetches do not share equivalent site/session context.
-- ChatGPT credentials, cookies, access tokens and Cloudflare/session material must never cross into Native Messaging or ProMeter.
+- ChatGPT credentials, cookies, access tokens and Cloudflare/session material must never cross into Native Messaging or the desktop app.
 - Page-context execution must remain operation-allowlisted and metadata-only.
 - The browser bridge is read-only except for narrowly approved requests that are indispensable to usage reconstruction.
 - Arbitrary HTTP methods and arbitrary /backend-api paths are forbidden.
