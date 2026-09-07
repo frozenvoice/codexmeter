@@ -32,7 +32,7 @@ public class DevRunScriptGuardTests
         var workflowText = File.ReadAllText(WorkflowPath);
         var devRunText = File.ReadAllText(DevRunScriptPath);
 
-        var workflowArtifacts = ExtractQuotedRelativePaths(workflowText, "publish/win-x64/");
+        var workflowArtifacts = ExtractWorkflowRelativePaths(workflowText, "publish/win-x64/");
         Assert.NotEmpty(workflowArtifacts);
 
         foreach (var artifact in workflowArtifacts)
@@ -42,6 +42,17 @@ public class DevRunScriptGuardTests
                 devRunText.Contains(artifact, StringComparison.Ordinal) || devRunText.Contains(backslash, StringComparison.Ordinal),
                 $"dev-run.ps1 does not validate required artifact '{artifact}'");
         }
+    }
+
+    [Theory]
+    [InlineData("\n")]
+    [InlineData("\r\n")]
+    [InlineData("\t")]
+    [InlineData(" ")]
+    public void ArtifactPaths_StopAtWhitespace(string separator)
+    {
+        var paths = ExtractWorkflowRelativePaths("path: publish/win-x64/CodexMeter.exe" + separator + "next: value", "publish/win-x64/");
+        Assert.Equal(new[] { "CodexMeter.exe" }, paths);
     }
 
     [Fact]
@@ -128,7 +139,7 @@ public class DevRunScriptGuardTests
         return flags.Distinct(StringComparer.Ordinal).ToList();
     }
 
-    private static List<string> ExtractQuotedRelativePaths(string workflowText, string prefix)
+    private static List<string> ExtractWorkflowRelativePaths(string workflowText, string prefix)
     {
         var results = new List<string>();
         var searchStart = 0;
@@ -141,7 +152,8 @@ public class DevRunScriptGuardTests
             }
 
             var end = index + prefix.Length;
-            while (end < workflowText.Length && workflowText[end] is not (')' or ' ' or '"'))
+            while (end < workflowText.Length && !char.IsWhiteSpace(workflowText[end])
+                   && workflowText[end] is not (')' or '"' or '\''))
             {
                 end++;
             }

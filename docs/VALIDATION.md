@@ -2,8 +2,9 @@
 
 ## Current release — Codex only
 
-- Release build: 0 warnings/errors; 865 tests passed, including shared-refresh ownership,
+- Release build: 0 warnings/errors; 869 tests passed, including shared-refresh ownership,
   waiter cancellation, retry after failure, unknown-vs-zero and cached identity-state tests.
+- CI artifact-path parsing covers LF, CRLF, tab and space delimiters.
 - Single-file Windows x64 self-contained publish verified: exactly `CodexMeter.exe`,
   with no browser extension, native host, WebView2 or external .NET runtime files.
 - WPF flyout/settings rendered in dark and light themes using stored Codex quota metadata.
