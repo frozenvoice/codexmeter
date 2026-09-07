@@ -7,6 +7,8 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 
 - Tray, flyout, widget and timer all share one bounded refresh. Cancelling a
   waiting caller does not cancel the active owner's work. File/process work runs off the UI thread.
+  Successful-check timestamps use completion time, while attempt timestamps retain start time.
+  Automatic checks use the newest attempt/completion for a two-minute cooldown; manual checks remain available.
 - Only Codex is visible: actual provided periods, used/remaining percentages, reset times,
   reset-credit metadata and last refresh. Signed-out/missing CLI states do not display cached
   percentages as current; stale data is explicitly marked.
@@ -33,6 +35,13 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   polling. Its old JSON settings remain compatible but startup/save disable the overlay.
 - Settings has General, Widget and Connection tabs with themed switches, sliders and explicit
   Save/Cancel behavior. Korean/English and dark/light themes use the existing resources.
+  Writes flush a same-directory temporary file before atomic replacement, retaining the previous
+  valid primary as `.bak`. Missing or corrupt primary files recover from backup; corrupt data never replaces it.
+  System theme and display events marshal through the owning Dispatcher and unsubscribe on exit.
+  Fixed themes ignore system theme changes. Widgets recover into connected work areas after
+  startup, size/DPI or monitor changes; position reset is applied only on Settings Save.
+  Local installation retries bounded file operations and restores/restarts the old executable
+  when deployment or startup fails. Failed pre-backup moves never restore a stale backup.
 - Reset rows show server reset time plus remaining days/hours. A one-minute UI-only timer
   refreshes countdowns; account refresh remains every five minutes.
 - Last checked combines the local successful-refresh time with elapsed minutes/hours/days.

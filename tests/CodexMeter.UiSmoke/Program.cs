@@ -21,6 +21,9 @@ internal static class Program
         try
         {
             app.InitializeComponent();
+            CheckEnvironmentCallbacks(app);
+            CheckWidgetRecovery();
+            CheckPositionReset();
             var applyTheme = typeof(App).GetMethod("ApplyTheme", BindingFlags.Static | BindingFlags.NonPublic)
                 ?? throw new MissingMethodException("App.ApplyTheme");
             var count = 0;
@@ -130,4 +133,100 @@ internal static class Program
         if (changes.Count != 6) throw new InvalidOperationException("Zoom saves must occur only on changes.");
         flyout.ZoomChanged -= changes.Add;
     }
+
+    private static void CheckPositionReset()
+    {
+        var settings = new AppSettings { WidgetLeft = 777, WidgetTop = 888 };
+        var window = new SettingsWindow(settings);
+        try
+        {
+            var button = (System.Windows.Controls.Button)window.FindName("ResetWidgetPositionButton");
+            button.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+            if (!window.ResetWidgetPositionOnSave || settings.WidgetLeft != 777 || settings.WidgetTop != 888)
+                throw new InvalidOperationException("Position reset must remain pending until Save.");
+        }
+        finally { window.Close(); }
+    }
+
+    private static void CheckWidgetRecovery()
+    {
+        var widget = new FloatingWidget { Left = 9000, Top = 9000 };
+        try
+        {
+            var changes = 0;
+            widget.Moved += (left, top) =>
+            {
+                changes++;
+                if (left != 40 || top != 40) throw new InvalidOperationException("Incorrect recovered coordinates.");
+            };
+            widget.RecoverPosition([new ScreenRect(0, 0, 1920, 1040)]);
+            widget.RecoverPosition([new ScreenRect(0, 0, 1920, 1040)]);
+            if (widget.Left != 40 || widget.Top != 40 || changes != 1)
+                throw new InvalidOperationException("Widget recovery must persist one position change.");
+        }
+        finally { widget.Close(); }
+    }
+
+    private static void CheckEnvironmentCallbacks(App app)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try { CheckDispatcherCallbacks(); }
+            catch (Exception ex) { failure = ex; }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        if (!thread.Join(TimeSpan.FromSeconds(10))) throw new TimeoutException("Dispatcher test timed out.");
+        if (failure is not null) throw new InvalidOperationException("Dispatcher test failed.", failure);
+
+        var settingsField = typeof(App).GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var settings = (AppSettings)settingsField.GetValue(app)!;
+        var themeChanged = typeof(App).GetMethod("OnSystemThemeChanged", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        foreach (var theme in Enum.GetValues<AppTheme>())
+        {
+            settings.Theme = theme;
+            var sentinel = new SolidColorBrush(Colors.Magenta);
+            app.Resources["TextBrush"] = sentinel;
+            themeChanged.Invoke(app, null);
+            var replaced = !ReferenceEquals(sentinel, app.Resources["TextBrush"]);
+            if (replaced != (theme == AppTheme.System)) throw new InvalidOperationException("System change overrode a fixed theme.");
+        }
+    }
+
+    private static void CheckDispatcherCallbacks()
+    {
+        // Pump a separate STA dispatcher so production App startup never runs.
+        var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+        var owner = Environment.CurrentManagedThreadId;
+        var themeCalls = 0;
+        var displayCalls = 0;
+        void CheckThread()
+        {
+            if (Environment.CurrentManagedThreadId != owner)
+                throw new InvalidOperationException("Desktop event escaped the WPF dispatcher.");
+        }
+        using var monitor = new DesktopEnvironmentMonitor(dispatcher,
+            () => { CheckThread(); themeCalls++; }, () => { CheckThread(); displayCalls++; }, false);
+        Task.Run(() => { monitor.NotifyThemeChanged(); monitor.NotifyDisplayChanged(); }).GetAwaiter().GetResult();
+        if (themeCalls != 0 || displayCalls != 0) throw new InvalidOperationException("Desktop event ran on a worker.");
+        PumpDispatcher(dispatcher);
+        if (themeCalls != 1 || displayCalls != 1) throw new InvalidOperationException("Desktop event was lost.");
+        monitor.NotifyThemeChanged();
+        monitor.NotifyDisplayChanged();
+        monitor.Dispose();
+        monitor.NotifyThemeChanged();
+        PumpDispatcher(dispatcher);
+        if (themeCalls != 1 || displayCalls != 1) throw new InvalidOperationException("Disposed callbacks executed.");
+
+        dispatcher.InvokeShutdown();
+    }
+
+    private static void PumpDispatcher(System.Windows.Threading.Dispatcher dispatcher)
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        dispatcher.BeginInvoke(() => frame.Continue = false, System.Windows.Threading.DispatcherPriority.Background);
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
+    }
+
 }

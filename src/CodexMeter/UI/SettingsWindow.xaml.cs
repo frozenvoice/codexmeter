@@ -8,6 +8,7 @@ public partial class SettingsWindow : Window
     private readonly AppSettings _settings;
     public event Action<AppSettings>? Saved;
     public event Action? OpenLogsRequested;
+    public bool ResetWidgetPositionOnSave { get; private set; }
 
     public SettingsWindow(AppSettings settings)
     {
@@ -34,6 +35,8 @@ public partial class SettingsWindow : Window
         TrayHint.Text = UiText.T("Usage appears in the Windows notification area. Click the icon for details.",
             "Windows 알림 영역에 사용률을 표시합니다. 아이콘을 누르면 상세 카드가 열립니다.");
         WidgetTitle.Text = UiText.T("Desktop widget", "바탕화면 위젯");
+        ResetWidgetPositionButton.Content = UiText.T("Reset widget position", "위젯 위치 초기화");
+        ResetWidgetPositionButton.ToolTip = UiText.T("Move the widget to the primary screen when you save.", "저장하면 위젯을 기본 화면으로 이동합니다.");
         WidgetHint.Text = UiText.T("Keep a small usage display on your desktop. Drag it to move.", "작은 사용률 표시를 바탕화면에 둡니다. 드래그해서 위치를 옮길 수 있습니다.");
         WidgetLabel.Text = UiText.T("Show widget", "위젯 표시");
         WidgetBox.IsChecked = settings.FloatingWidgetEnabled;
@@ -102,6 +105,11 @@ public partial class SettingsWindow : Window
             WidgetOpacityValue.Text = $"{Math.Round(WidgetOpacityBox.Value * 100)}%";
     }
     private void OnCancel(object sender, RoutedEventArgs e) => Close();
+    private void OnResetWidgetPosition(object sender, RoutedEventArgs e)
+    {
+        ResetWidgetPositionOnSave = true;
+        ResetWidgetPositionButton.Content = UiText.T("Position will reset on save", "저장 시 위치가 초기화됩니다");
+    }
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key == Key.Escape) { e.Handled = true; Close(); }

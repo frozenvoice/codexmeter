@@ -10,6 +10,7 @@ public sealed class CodexQuotaService
     private readonly CodexSnapshotStore _store;
     private readonly string _clientVersion;
     private readonly Action<string>? _log;
+    private readonly Services.IClock _clock;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private CodexQuotaSnapshot _snapshot = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
     private string? _lastFailureSignature;
@@ -19,13 +20,15 @@ public sealed class CodexQuotaService
         CodexAppServerClient client,
         CodexSnapshotStore store,
         string clientVersion,
-        Action<string>? log = null)
+        Action<string>? log = null,
+        Services.IClock? clock = null)
     {
         _locator = locator;
         _client = client;
         _store = store;
         _clientVersion = clientVersion;
         _log = log;
+        _clock = clock ?? Services.SystemClock.Instance;
         _snapshot = store.Load() ?? _snapshot;
     }
 
@@ -41,7 +44,8 @@ public sealed class CodexQuotaService
             return false;
         }
 
-        var last = snapshot.LastSuccessfulRefresh ?? snapshot.LastAttemptedRefresh;
+        var last = snapshot.LastSuccessfulRefresh;
+        if (snapshot.LastAttemptedRefresh is { } attempt && (last is null || attempt > last)) last = attempt;
         return last is null || now - last.Value >= FlyoutRefreshAge;
     }
 
@@ -54,7 +58,7 @@ public sealed class CodexQuotaService
 
         IsRefreshing = true;
         Publish(_snapshot.AsRefreshing());
-        var attempted = DateTimeOffset.Now;
+        var attempted = _clock.UtcNow;
         try
         {
             var command = _locator.Locate(configuredPath);
@@ -72,7 +76,7 @@ public sealed class CodexQuotaService
                     var success = new CodexQuotaSnapshot(
                         CodexQuotaStatus.Available,
                         parsed.PlanType,
-                        attempted,
+                        _clock.UtcNow,
                         attempted,
                         parsed.OrdinaryUsageAllowed,
                         parsed.RateLimitReachedType,

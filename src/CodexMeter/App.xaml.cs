@@ -25,6 +25,7 @@ public partial class App : Application
     private readonly OnceEventSubscription _widgetEvents = new();
     private FlyoutWindow? _flyout;
     private FloatingWidget? _widget;
+    private DesktopEnvironmentMonitor? _environment;
     public bool IsExiting { get; private set; }
 
     protected override void OnStartup(StartupEventArgs e)
@@ -38,6 +39,7 @@ public partial class App : Application
         var firstUse = !_settings.FirstRunCompleted;
         UiText.SetLanguage(_settings.UiLanguage);
         _log = new AppLog();
+        if (_settingsStore.RecoveredFromBackup) _log.Warn("Settings restored from backup");
         DispatcherUnhandledException += (_, args) =>
         {
             _log.Error("unhandled UI exception", args.Exception);
@@ -76,19 +78,21 @@ public partial class App : Application
         _codex.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
         _refresh.StateChanged += () => Dispatcher.BeginInvoke(RefreshSnapshot);
         _codexTimer.Interval = CodexQuotaService.TaskbarRefreshInterval;
-        _codexTimer.Tick += async (_, _) => await RefreshCodexAsync();
+        _codexTimer.Tick += async (_, _) => await RefreshCodexAsync(automatic: true);
         _codexTimer.Start();
         _displayTimer.Tick += (_, _) => RefreshSnapshot();
         _displayTimer.Start();
         RefreshSnapshot();
         ApplyWidget();
+        _environment = new DesktopEnvironmentMonitor(Dispatcher, OnSystemThemeChanged, OnDisplayChanged);
         if (firstUse || e.Args.Contains("--show", StringComparer.Ordinal)) ShowMain();
         _ = RefreshCodexAsync();
     }
 
-    private async Task RefreshCodexAsync()
+    private async Task RefreshCodexAsync(bool automatic = false)
     {
         if (IsExiting) return;
+        if (automatic && !CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now)) return;
         try { await _refresh.RefreshAsync(_lifetime.Token); }
         catch (OperationCanceledException) { }
         catch (Exception ex) { _log.Error("Codex refresh failed", ex); }
@@ -112,7 +116,7 @@ public partial class App : Application
         PlaceFlyout(_flyout);
         _flyout.Activate();
         if (CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now))
-            _ = RefreshCodexAsync();
+            _ = RefreshCodexAsync(automatic: true);
     }
 
     private void EnsureFlyout()
@@ -145,6 +149,12 @@ public partial class App : Application
         if (_flyout?.IsVisible == true) window.Owner = _flyout;
         window.Saved += settings =>
         {
+            if (window.ResetWidgetPositionOnSave)
+            {
+                var work = SystemParameters.WorkArea;
+                settings.WidgetLeft = work.Left + 40;
+                settings.WidgetTop = work.Top + 40;
+            }
             _settings = settings;
             _settingsStore.Save(settings);
             UiText.SetLanguage(settings.UiLanguage);
@@ -233,6 +243,20 @@ public partial class App : Application
         app.Resources["CheckBoxDisabledCheckedBrush"] = new SolidColorBrush(dark ? MediaColor(59, 82, 122) : MediaColor(147, 197, 253));
     }
 
+    private void OnSystemThemeChanged()
+    {
+        if (IsExiting || _settings.Theme != AppTheme.System) return;
+        ApplyTheme(AppTheme.System);
+        RefreshSnapshot();
+    }
+
+    private void OnDisplayChanged()
+    {
+        if (IsExiting) return;
+        _widget?.RecoverPosition();
+        _flyout?.RefreshWorkArea();
+    }
+
     private static Color MediaColor(byte r, byte g, byte b) => Color.FromRgb(r, g, b);
 
     private static bool IsSystemDark()
@@ -252,6 +276,7 @@ public partial class App : Application
     {
         if (IsExiting) return;
         IsExiting = true;
+        _environment?.Dispose();
         _codexTimer.Stop();
         _displayTimer.Stop();
         _lifetime.Cancel();
@@ -267,6 +292,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _environment?.Dispose();
         if (_ownsMutex) _mutex?.ReleaseMutex();
         _mutex?.Dispose();
         base.OnExit(e);

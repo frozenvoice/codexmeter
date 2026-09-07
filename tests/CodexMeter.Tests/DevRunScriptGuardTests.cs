@@ -85,7 +85,7 @@ public class DevRunScriptGuardTests
         var text = File.ReadAllText(DevRunScriptPath);
         var noLaunchExitIndex = text.IndexOf("if ($NoLaunch)", StringComparison.Ordinal);
         var stopProcessIndex = text.IndexOf("Stop-Process", StringComparison.Ordinal);
-        var moveToLocalIndex = text.IndexOf("Move-Item -LiteralPath $StagingDir -Destination $LocalDir", StringComparison.Ordinal);
+        var moveToLocalIndex = text.IndexOf("Install-StagedApp -StagingDir", StringComparison.Ordinal);
 
         Assert.True(noLaunchExitIndex >= 0, "dev-run.ps1 does not branch on -NoLaunch.");
         Assert.True(stopProcessIndex >= 0 && moveToLocalIndex >= 0);

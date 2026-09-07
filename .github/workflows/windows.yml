@@ -28,6 +28,9 @@ jobs:
       - name: Validate desktop resources
         run: dotnet run --project tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj -c Release --no-build
 
+      - name: Installer recovery tests
+        run: ./tests/LocalInstall.Tests.ps1
+
       - name: Publish win-x64
         run: >
           dotnet publish src/CodexMeter/CodexMeter.csproj

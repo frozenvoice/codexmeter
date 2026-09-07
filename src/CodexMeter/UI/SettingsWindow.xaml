@@ -165,6 +165,8 @@
                                 <Grid Margin="0,20,0,8"><TextBlock x:Name="WidgetOpacityLabel"/><TextBlock x:Name="WidgetOpacityValue" HorizontalAlignment="Right" Foreground="{DynamicResource MutedBrush}"/></Grid>
                                 <Slider x:Name="WidgetOpacityBox" Minimum="0.25" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True" ValueChanged="OnOpacityChanged"/>
                             </StackPanel>
+                            <Button x:Name="ResetWidgetPositionButton" Style="{StaticResource SettingsAction}"
+                                    HorizontalAlignment="Left" Margin="0,20,0,0" Click="OnResetWidgetPosition"/>
                         </StackPanel>
                     </ScrollViewer>
                 </TabItem>

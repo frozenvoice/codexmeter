@@ -38,6 +38,7 @@ if (Test-Path -LiteralPath $StagingDir) { Remove-Item -LiteralPath $StagingDir -
 Invoke-Dotnet -Arguments @('restore')
 Invoke-Dotnet -Arguments @('build', 'CodexMeter.sln', '-c', 'Release')
 if (!$Fast) { Invoke-Dotnet -Arguments @('test', 'CodexMeter.sln', '-c', 'Release', '--no-build') }
+& (Join-Path $RepoRoot 'tests/LocalInstall.Tests.ps1')
 Invoke-Dotnet -Arguments @('run', '--project', 'tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj', '-c', 'Release', '--no-build')
 Invoke-Dotnet -Arguments @('publish', 'src/CodexMeter/CodexMeter.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $StagingDir)
 $files = @(Get-ChildItem -LiteralPath $StagingDir -File -Recurse)
@@ -53,16 +54,5 @@ foreach ($process in @(Get-Process -Name 'prometer', 'CodexMeter' -ErrorAction S
         Wait-Process -Id $process.Id -Timeout 10 -ErrorAction SilentlyContinue
     }
 }
-foreach ($target in @($StagingDir, $LocalDir, $BackupDir)) { Assert-OwnedDirectory $target }
-if (Test-Path -LiteralPath $BackupDir) { Remove-Item -LiteralPath $BackupDir -Recurse -Force }
-if (Test-Path -LiteralPath $LocalDir) { Rename-Item -LiteralPath $LocalDir -NewName (Split-Path $BackupDir -Leaf) }
-try { Move-Item -LiteralPath $StagingDir -Destination $LocalDir }
-catch {
-    if (Test-Path -LiteralPath $BackupDir) { Move-Item -LiteralPath $BackupDir -Destination $LocalDir }
-    throw
-}
-$exe = Join-Path $LocalDir 'CodexMeter.exe'
-$running = Start-Process -FilePath $exe -ArgumentList @('--show') -WorkingDirectory $LocalDir -WindowStyle Hidden -PassThru
-Start-Sleep -Seconds 2
-if ($running.HasExited) { throw "CodexMeter exited at startup: $($running.ExitCode)" }
-Write-Host "CodexMeter running: $exe (PID $($running.Id))"
+. (Join-Path $RepoRoot 'scripts/LocalInstall.ps1')
+Install-StagedApp -StagingDir $StagingDir -LocalDir $LocalDir -BackupDir $BackupDir -Validate ${function:Assert-OwnedDirectory}

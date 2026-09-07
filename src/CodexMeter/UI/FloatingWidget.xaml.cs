@@ -14,10 +14,13 @@ public partial class FloatingWidget : Window
 
     private WidgetDragSession? _drag;
     private System.Windows.Media.Matrix _dragFromDevice;
+    private bool _recoveringPosition;
 
     public FloatingWidget()
     {
         InitializeComponent();
+        SizeChanged += (_, _) => RecoverPosition();
+        DpiChanged += (_, _) => Dispatcher.BeginInvoke(() => RecoverPosition());
     }
 
     public void Bind(CodexQuotaSnapshot snapshot)
@@ -32,12 +35,31 @@ public partial class FloatingWidget : Window
 
     public void Apply(AppSettings settings)
     {
-        Left = settings.WidgetLeft;
-        Top = settings.WidgetTop;
+        Left = double.IsFinite(settings.WidgetLeft) ? settings.WidgetLeft : 40;
+        Top = double.IsFinite(settings.WidgetTop) ? settings.WidgetTop : 40;
         Opacity = settings.WidgetOpacity;
         Topmost = settings.WidgetAlwaysOnTop;
         SetClickThrough(settings.WidgetClickThrough);
         Cursor = settings.WidgetClickThrough ? System.Windows.Input.Cursors.Arrow : System.Windows.Input.Cursors.SizeAll;
+        RecoverPosition();
+    }
+
+    public void RecoverPosition(IReadOnlyList<ScreenRect>? workAreas = null)
+    {
+        if (_recoveringPosition || _drag is not null) return;
+        _recoveringPosition = true;
+        try
+        {
+            var content = (FrameworkElement)Content;
+            content.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+            var position = WidgetPlacement.Recover(Left, Top, content.DesiredSize.Width, content.DesiredSize.Height,
+                workAreas ?? DesktopWorkAreas.For(this));
+            if (position.Left == Left && position.Top == Top) return;
+            Left = position.Left;
+            Top = position.Top;
+            Moved?.Invoke(Left, Top);
+        }
+        finally { _recoveringPosition = false; }
     }
 
     private System.Windows.Point PointerOnScreen(System.Windows.Input.MouseEventArgs e) =>

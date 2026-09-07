@@ -25,6 +25,7 @@ public partial class FlyoutWindow : Window
         InitializeComponent();
         ApplyLocalizedTexts();
         SourceInitialized += (_, _) => FitContentToWorkArea();
+        DpiChanged += (_, _) => Dispatcher.BeginInvoke(RefreshWorkArea);
         ToolTipService.SetIsEnabled(CreditHelpButton, false);
         IsVisibleChanged += (_, _) =>
         {
@@ -343,6 +344,12 @@ public partial class FlyoutWindow : Window
         FlyoutScale.ScaleX = FlyoutScale.ScaleY = scale;
         Width = 440 * scale;
         FlyoutContentScroll.MaxHeight = Math.Max(0, (size.Y - 24) / scale - 104);
+    }
+
+    public void RefreshWorkArea()
+    {
+        FitContentToWorkArea();
+        if (IsVisible) RestorePosition(Left, Top);
     }
 
     private void SetZoom(int percent, bool notify)

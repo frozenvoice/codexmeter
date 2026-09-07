@@ -2,6 +2,17 @@
 
 ## Current release — Codex only
 
+- Reliability improvements: restore, Release build (0 warnings/errors), 955 tests,
+  36 WPF renders and five isolated PowerShell installer scenarios passed. Completion timestamps,
+  recent-failure cooldown boundaries, invalid/off-screen widget positions, atomic settings writes,
+  corrupt/missing primary recovery and locked replacement are covered. WPF checks also cover
+  dispatcher ownership/disposal, fixed versus System themes, widget recovery persistence and
+  reset-on-save intent without mutating settings on Cancel. Installer tests cover transient/permanent
+  locks, staging failure and failed startup with previous-version restart. Single-file publish and
+  actual local replacement/startup passed in one launcher invocation.
+  Physical monitor removal/DPI changes and live Windows theme toggles remain manual checks;
+  account access uses the existing protocol and was not separately revalidated for these changes.
+
 - Popup zoom: restore, Release build (0 warnings/errors), 934 tests and 36 WPF renders
   passed. Shortcut logic covers Ctrl +/-/0, shifted plus and keypad keys; normal keys
   and Ctrl+Alt are ignored. Settings default/round-trip/bounds and refresh preservation
