@@ -2,7 +2,7 @@
 
 ## Current release — Codex only
 
-- Release build: 0 warnings/errors; 890 tests passed, including shared-refresh ownership,
+- Release build: 0 warnings/errors; 901 tests passed, including shared-refresh ownership,
   waiter cancellation, retry after failure, unknown-vs-zero and cached identity-state tests.
 - CI artifact-path parsing covers LF, CRLF, tab and space delimiters.
 - Single-file Windows x64 self-contained publish verified: exactly `CodexMeter.exe`,
@@ -17,8 +17,14 @@
   counts, root-container precedence and old-cache loading covered by regression tests.
 - Read-only live App Server check returned three available credit expiry timestamps;
   the bounded client reported child-process cleanup. Only projected quota metadata was used.
-- Flyout renders reset countdowns and three credit expiry dates; exact times remain in tooltip.
-- Sliding refresh bar removed. WPF probe confirms identical 339.91 DIP height before, during
+- Flyout renders the supplied two-card layout in dark/light and Korean/English. Quota labels
+  and values pass overlap checks; eight expiry groups scroll without truncation. Multiple
+  windows, stale, signed-out and unavailable states were rendered.
+- Widget pure tests cover click jitter, successive screen deltas, negative coordinates and
+  returning to the start after a drag. WPF gesture-handler tests with injected coordinates
+  verify 80x40 DIP movement, one save, no accidental open, click opening and capture-loss handling.
+  Physical mouse automation was unavailable: its kernel failed at sandbox ACL initialization.
+- Sliding refresh bar removed. WPF probe confirms identical 623.33 DIP height before, during
   and after refresh for the same snapshot in dark/light and Korean/English; busy button stays disabled.
 - Runtime checks: verify actual Codex refresh, no ChatGPT HTTP/SQLite collector startup,
   no native host registration, saved window position and tray/refresh behavior.

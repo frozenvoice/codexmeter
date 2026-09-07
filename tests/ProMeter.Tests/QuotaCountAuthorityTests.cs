@@ -152,7 +152,7 @@ public class QuotaCountAuthorityTests
         var source = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
         Assert.DoesNotContain("UsesServerWeeklyCount", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ProCountText", source, StringComparison.Ordinal);
-        Assert.Contains("CodexDisplayFormatting.Rows(snapshot)", source, StringComparison.Ordinal);
+        Assert.Contains("CodexDisplayFormatting.Rows(snapshot, includeResetCredits: false)", source, StringComparison.Ordinal);
     }
 
     private static AppSettings Pro200()

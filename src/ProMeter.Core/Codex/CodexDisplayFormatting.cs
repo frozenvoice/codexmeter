@@ -60,7 +60,7 @@ public static class CodexDisplayFormatting
         _ => UiText.CodexUnavailable
     };
 
-    public static IReadOnlyList<CodexDisplayRow> Rows(CodexQuotaSnapshot snapshot, DateTimeOffset? now = null)
+    public static IReadOnlyList<CodexDisplayRow> Rows(CodexQuotaSnapshot snapshot, DateTimeOffset? now = null, bool includeResetCredits = true)
     {
         if (snapshot.Status is CodexQuotaStatus.CodexNotFound or CodexQuotaStatus.SignedOut
             || (!snapshot.HasUsablePercentages
@@ -89,7 +89,7 @@ public static class CodexDisplayFormatting
                 CodexDeadlineFormatting.Remaining(window.ResetsAt, at)));
         }
 
-        if (snapshot.ResetCreditsAvailable is int credits)
+        if (includeResetCredits && snapshot.ResetCreditsAvailable is int credits)
         {
             var expiry = CodexDeadlineFormatting.CreditExpiry(snapshot, at);
             rows.Add(new CodexDisplayRow(UiText.ResetCredits, credits.ToString(CultureInfo.InvariantCulture), false, expiry.Detail, expiry.Tooltip));

@@ -20,6 +20,7 @@ public partial class FlyoutWindow : Window
     {
         InitializeComponent();
         ApplyLocalizedTexts();
+        SourceInitialized += (_, _) => FitContentToWorkArea();
         IsVisibleChanged += (_, _) => ApplyRefreshVisuals();
         Activated += (_, _) => ApplyRefreshVisuals();
         ContentRendered += (_, _) => ApplyRefreshVisuals();
@@ -50,8 +51,10 @@ public partial class FlyoutWindow : Window
     public void Bind(CodexQuotaSnapshot snapshot, bool refreshing = false)
     {
         ApplyLocalizedTexts();
-        StatusText.Text = CodexMeterPresentation.StatusLabel(snapshot);
+        StatusText.Text = snapshot.Status == CodexQuotaStatus.Available ? UiText.T("Up to date", "정상 작동 중") : CodexMeterPresentation.StatusLabel(snapshot);
+        StatusDot.Fill = (Brush)FindResource(refreshing ? "AccentBrush" : snapshot.Status == CodexQuotaStatus.Available ? "OkBrush" : "MutedBrush");
         BindCodex(snapshot);
+        BindCreditCard(snapshot);
         SetRefreshPresentation(new FlyoutRefreshPresentation(!refreshing, refreshing,
             refreshing ? UiText.CodexRefreshing : ""));
     }
@@ -59,7 +62,7 @@ public partial class FlyoutWindow : Window
     public void SetRefreshPresentation(FlyoutRefreshPresentation presentation)
     {
         RefreshAllButton.IsEnabled = presentation.Enabled;
-        RefreshAllIcon.Foreground = presentation.Active
+        RefreshAllIcon.Stroke = presentation.Active
             ? (Brush)FindResource("AccentBrush")
             : (Brush)FindResource("TextBrush");
         RefreshProgressText.Text = presentation.ProgressText;
@@ -132,7 +135,9 @@ public partial class FlyoutWindow : Window
     public void ApplyLocalizedTexts()
     {
         Title = UiText.ProductName;
-        CodexSectionTitle.Text = CodexDisplayFormatting.SectionTitle;
+        ResetCreditsTitle.Text = UiText.ResetCredits;
+        CreditHelpButton.ToolTip = MakeTooltip(UiText.T("Reset credits can renew your Codex usage limits. This app only shows their availability and expiry dates.", "리셋권으로 Codex 사용 한도를 갱신할 수 있습니다. 이 앱에서는 보유 수와 만료일만 확인합니다."));
+        System.Windows.Automation.AutomationProperties.SetName(CreditHelpButton, UiText.T("About reset credits", "리셋권 안내"));
         SettingsButton.ToolTip = UiText.Settings;
         System.Windows.Automation.AutomationProperties.SetName(SettingsButton, UiText.Settings);
         RefreshAllButton.ToolTip = UiText.RefreshAll;
@@ -179,8 +184,8 @@ public partial class FlyoutWindow : Window
         Top = top;
     }
 
-    private const double CodexRingDiameter = 92;
-    private const double CodexRingStrokeThickness = 9;
+    private const double CodexRingDiameter = 168;
+    private const double CodexRingStrokeThickness = 15;
     private const double CodexRingRadius = (CodexRingDiameter - CodexRingStrokeThickness) / 2;
     private const double CodexRingCenter = CodexRingDiameter / 2;
 
@@ -191,9 +196,9 @@ public partial class FlyoutWindow : Window
             ? Visibility.Collapsed
             : Visibility.Visible;
         CodexRows.Items.Clear();
-        foreach (var item in CodexDisplayFormatting.Rows(snapshot))
+        foreach (var item in CodexDisplayFormatting.Rows(snapshot, includeResetCredits: false))
         {
-            var row = new Grid { Margin = new Thickness(0, 5, 0, 0) };
+            var row = new Grid { Margin = new Thickness(0, 13, 0, 13), MinHeight = 20 };
             if (item.Tooltip is not null)
             {
                 row.ToolTip = new System.Windows.Controls.ToolTip
@@ -207,14 +212,14 @@ public partial class FlyoutWindow : Window
             row.Children.Add(new TextBlock
             {
                 Text = item.Label,
-                Margin = new Thickness(0, 0, 8, 0),
+                Margin = new Thickness(0, 0, 12, 0), FontSize = 15, VerticalAlignment = VerticalAlignment.Center,
                 Foreground = (Brush)FindResource("MutedBrush")
             });
             var values = new StackPanel { HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
             Grid.SetColumn(values, 1);
             values.Children.Add(new TextBlock
             {
-                Text = item.Value,
+                Text = item.Value, FontSize = 17,
                 HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
                 Style = (Style)FindResource("FlyoutValueText"),
                 Foreground = item.EmphasizeDanger ? (Brush)FindResource("DangerBrush") : (Brush)FindResource("TextBrush")
@@ -223,16 +228,83 @@ public partial class FlyoutWindow : Window
             {
                 values.Children.Add(new TextBlock
                 {
-                    Text = item.Detail, FontSize = 11, Margin = new Thickness(0, 2, 0, 2),
+                    Text = item.Detail, FontSize = 13, Margin = new Thickness(0, 2, 0, 2),
                     TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Right,
                     Foreground = (Brush)FindResource("MutedBrush")
                 });
             }
             row.Children.Add(values);
-            CodexRows.Items.Add(row);
+            CodexRows.Items.Add(new Border
+            {
+                Child = row, BorderBrush = (Brush)FindResource("LineBrush"),
+                BorderThickness = CodexRows.Items.Count == 0 ? new Thickness(0) : new Thickness(0, 1, 0, 0)
+            });
         }
 
         ApplyCodexRing(snapshot);
+    }
+
+    private void BindCreditCard(CodexQuotaSnapshot snapshot)
+    {
+        var credits = CodexCreditCard.From(snapshot, DateTimeOffset.Now);
+        ResetCreditsCount.Text = credits.CountText;
+        CreditExpiryRows.Items.Clear();
+        for (var index = 0; index < credits.Rows.Count; index++)
+        {
+            var item = credits.Rows[index];
+            var row = new Grid { MinHeight = 50 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.Children.Add(new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse("M3,5 L19,5 L19,20 L3,20 Z M3,9 L19,9 M7,2 L7,6 M15,2 L15,6"),
+                Width = 19, Height = 20, Stretch = Stretch.Uniform,
+                Stroke = (Brush)FindResource("MutedBrush"), StrokeThickness = 1.5,
+                VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left
+            });
+            var text = new TextBlock
+            {
+                Text = item.Text, FontSize = 15, Margin = new Thickness(10, 10, 4, 10),
+                TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
+                Foreground = (Brush)FindResource("MutedBrush")
+            };
+            Grid.SetColumn(text, 1); row.Children.Add(text);
+            row.ToolTip = MakeTooltip(item.Tooltip);
+            CreditExpiryRows.Items.Add(new Border
+            {
+                Child = row, BorderBrush = (Brush)FindResource("LineBrush"),
+                BorderThickness = index + 1 < credits.Rows.Count ? new Thickness(0, 0, 0, 1) : new Thickness(0)
+            });
+        }
+        CreditListBorder.Visibility = credits.Rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        CreditExpiryNotice.Text = credits.Notice;
+        CreditExpiryNotice.Visibility = credits.Notice is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private System.Windows.Controls.ToolTip MakeTooltip(string text) => new()
+    {
+        Background = (Brush)FindResource("CardBrush"), BorderBrush = (Brush)FindResource("LineBrush"),
+        Content = new TextBlock { Text = text, MaxWidth = 320, TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("TextBrush") }
+    };
+
+    private void OnCreditHelpClick(object sender, RoutedEventArgs e)
+    {
+        if (CreditHelpButton.ToolTip is System.Windows.Controls.ToolTip tip)
+        {
+            tip.PlacementTarget = CreditHelpButton;
+            tip.IsOpen = true;
+        }
+    }
+
+    private void FitContentToWorkArea()
+    {
+        var source = PresentationSource.FromVisual(this);
+        var fromDevice = source?.CompositionTarget?.TransformFromDevice ?? Matrix.Identity;
+        var cursor = System.Windows.Forms.Control.MousePosition;
+        var work = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
+        var size = fromDevice.Transform(new System.Windows.Vector(work.Width, work.Height));
+        Width = Math.Min(560, Math.Max(360, size.X - 24));
+        FlyoutContentScroll.MaxHeight = Math.Max(180, size.Y - 128);
     }
 
     private void ApplyCodexRing(CodexQuotaSnapshot snapshot)

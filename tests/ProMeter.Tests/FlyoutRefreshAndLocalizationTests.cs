@@ -27,12 +27,12 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.Contains("DisabledBrush", xaml, StringComparison.Ordinal);
         Assert.Contains("AutomationProperties.Name", document.ToString(), StringComparison.Ordinal);
         Assert.Null(button.Attribute("Visibility"));
-        Assert.Contains("CODEX", document.ToString(), StringComparison.Ordinal);
+        Assert.Contains("ResetCreditsCard", document.ToString(), StringComparison.Ordinal);
         Assert.Contains("CodexRows", document.ToString(), StringComparison.Ordinal);
         Assert.Contains("RefreshProgressText", document.ToString(), StringComparison.Ordinal);
-        var icon = document.Descendants(ns + "TextBlock")
+        var icon = document.Descendants(ns + "Path")
             .Single(element => (string?)element.Attribute(x + "Name") == "RefreshAllIcon");
-        Assert.Equal("↻", (string?)icon.Attribute("Text") ?? icon.Value.Trim());
+        Assert.NotNull(icon.Attribute("Data"));
         Assert.DoesNotContain("RotateTransform", icon.ToString(), StringComparison.Ordinal);
         var spinner = document.Descendants(ns + "Viewbox")
             .Single(element => (string?)element.Attribute(x + "Name") == "RefreshSpinner");
@@ -156,7 +156,7 @@ public class FlyoutRefreshAndLocalizationTests
         Assert.Equal(6, columns.Length);
         var title = header.Descendants(ns + "TextBlock")
             .Single(element => (string?)element.Attribute(x + "Name") == "TitleText");
-        Assert.Equal("0", (string?)title.Attribute("Grid.Column"));
+        Assert.Equal("0", (string?)title.Parent!.Attribute("Grid.Column"));
         Assert.Equal("CodexMeter", (string?)title.Attribute("Text") ?? title.Value.Trim());
         var statusHost = header.Elements(ns + "Grid").Single();
         Assert.Equal("1", (string?)statusHost.Attribute("Grid.Column"));

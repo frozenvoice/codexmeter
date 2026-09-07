@@ -41,7 +41,8 @@ public class WidgetInteractionTests
         Assert.Contains("FlyoutRequested", widgetCode, StringComparison.Ordinal);
         Assert.Contains("RefreshRequested", widgetCode, StringComparison.Ordinal);
         Assert.Contains("ContextMenuRequested", widgetCode, StringComparison.Ordinal);
-        Assert.Contains("WidgetInteraction.IsDrag", widgetCode, StringComparison.Ordinal);
+        Assert.Contains("WidgetDragSession", widgetCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("DragMove()", widgetCode, StringComparison.Ordinal);
         Assert.Contains("MouseButton.Middle", widgetCode, StringComparison.Ordinal);
         var appCode = File.ReadAllText(Find("src/ProMeter/App.xaml.cs"));
         Assert.Contains("_widgetEvents.TrySubscribe", appCode, StringComparison.Ordinal);

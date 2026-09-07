@@ -28,7 +28,13 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Root reset-credit metadata takes precedence as one container. Available Codex reset credits
   are deduplicated transiently by ID and projected to nullable expiry timestamps only.
   The additive cache field preserves older snapshots; missing/partial expiries stay explicit.
-  Credit rows show up to three date groups with full timestamp detail in the tooltip.
+  The separate reset-credit card shows every date group in a bounded scrolling list, with exact times in tooltips.
+- Flyout follows the supplied two-card layout: large usage ring, separated quota rows, and a
+  reset-credit list below. Its 560 DIP width and scrollable body fit the current work area.
+  Fresh/refreshing/stale/identity-failure states stay distinct; credit unknown is never zero.
+- Widget drag uses captured screen-coordinate deltas, independent of the moving window.
+  Crossing the movement threshold suppresses click-to-open; release or capture loss emits
+  one position-save event. Click-through remains an explicit setting and disables input.
 - Flyout refresh uses only the header status and fixed-size spinning button; no sliding progress
   bar or duplicate in-card refreshing message changes the card height.
 - Flyout header exposes refresh, settings, pin and close. Settings is owned by the visible

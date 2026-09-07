@@ -12,9 +12,8 @@ public partial class FloatingWidget : Window
     public event Action? RefreshRequested;
     public event Action? ContextMenuRequested;
 
-    private System.Windows.Point _dragStart;
-    private bool _dragging;
-    private bool _leftDown;
+    private WidgetDragSession? _drag;
+    private System.Windows.Media.Matrix _dragFromDevice;
 
     public FloatingWidget()
     {
@@ -36,52 +35,61 @@ public partial class FloatingWidget : Window
         Opacity = settings.WidgetOpacity;
         Topmost = settings.WidgetAlwaysOnTop;
         SetClickThrough(settings.WidgetClickThrough);
+        Cursor = settings.WidgetClickThrough ? System.Windows.Input.Cursors.Arrow : System.Windows.Input.Cursors.SizeAll;
     }
+
+    private System.Windows.Point PointerOnScreen(System.Windows.Input.MouseEventArgs e) =>
+        _dragFromDevice.Transform(PointToScreen(e.GetPosition(this)));
 
     private void OnPreviewLeftDown(object sender, MouseButtonEventArgs e)
     {
-        _leftDown = true;
-        _dragging = false;
-        _dragStart = e.GetPosition(this);
-        CaptureMouse();
+        _dragFromDevice = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice
+            ?? System.Windows.Media.Matrix.Identity;
+        var pointer = PointerOnScreen(e);
+        BeginDrag(pointer);
+        e.Handled = true;
     }
 
     private void OnPreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
     {
-        if (!_leftDown || e.LeftButton != MouseButtonState.Pressed)
-        {
-            return;
-        }
-
-        var current = e.GetPosition(this);
-        if (!_dragging && WidgetInteraction.IsDrag(_dragStart.X, _dragStart.Y, current.X, current.Y))
-        {
-            _dragging = true;
-            DragMove();
-            Moved?.Invoke(Left, Top);
-        }
+        if (_drag is null) return;
+        if (e.LeftButton != MouseButtonState.Pressed) { FinishDrag(false); return; }
+        var pointer = PointerOnScreen(e);
+        UpdateDragPosition(pointer);
+        e.Handled = true;
     }
 
     private void OnPreviewLeftUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_leftDown)
-        {
-            return;
-        }
-
-        _leftDown = false;
-        ReleaseMouseCapture();
-        if (!_dragging)
-        {
-            FlyoutRequested?.Invoke();
-        }
-        else
-        {
-            Moved?.Invoke(Left, Top);
-        }
-
-        _dragging = false;
+        if (_drag is null) return;
+        var pointer = PointerOnScreen(e);
+        UpdateDragPosition(pointer);
+        FinishDrag(true);
         e.Handled = true;
+    }
+
+    private void OnLostMouseCapture(object sender, System.Windows.Input.MouseEventArgs e) => FinishDrag(false);
+
+    private void BeginDrag(System.Windows.Point pointer)
+    {
+        _drag = new WidgetDragSession(Left, Top, pointer.X, pointer.Y);
+        if (!CaptureMouse()) _drag = null;
+    }
+
+    private void UpdateDragPosition(System.Windows.Point pointer)
+    {
+        if (_drag is null) return;
+        var position = _drag.Move(pointer.X, pointer.Y);
+        if (_drag.IsDragging) { Left = position.Left; Top = position.Top; }
+    }
+
+    private void FinishDrag(bool allowClick)
+    {
+        var gesture = _drag;
+        _drag = null;
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        if (gesture?.IsDragging == true) Moved?.Invoke(Left, Top);
+        else if (gesture is not null && allowClick) FlyoutRequested?.Invoke();
     }
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)

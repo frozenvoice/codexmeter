@@ -224,7 +224,7 @@ public class GptProEstimatedPeriodPresentationTests
     {
         var source = File.ReadAllText(Find("src/ProMeter/UI/FlyoutWindow.xaml.cs"));
         Assert.DoesNotContain("ResetDisplay(snapshot)", source, StringComparison.Ordinal);
-        Assert.Contains("CodexDisplayFormatting.Rows(snapshot)", source, StringComparison.Ordinal);
+        Assert.Contains("CodexDisplayFormatting.Rows(snapshot, includeResetCredits: false)", source, StringComparison.Ordinal);
     }
 
     [Fact]

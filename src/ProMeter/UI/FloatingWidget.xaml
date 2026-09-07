@@ -12,7 +12,7 @@
         PreviewMouseLeftButtonDown="OnPreviewLeftDown"
         PreviewMouseMove="OnPreviewMouseMove"
         PreviewMouseLeftButtonUp="OnPreviewLeftUp"
-        MouseDown="OnMouseDown">
+        LostMouseCapture="OnLostMouseCapture" MouseDown="OnMouseDown">
     <Border Background="{DynamicResource CardBrush}"
             CornerRadius="10"
             Padding="10,8"
