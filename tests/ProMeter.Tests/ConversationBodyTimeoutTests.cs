@@ -78,6 +78,19 @@ public class ConversationBodyTimeoutTests
     }
 
     [Fact]
+    public async Task RateLimitExhaustingBodyBudget_AbortsSyncInsteadOfBodyTimeout()
+    {
+        var (engine, provider, settings) = CreateHarness((_, _) =>
+            throw new ChatGptProviderException("Too Many Requests", 429));
+        engine.ConversationBodyTimeout = TimeSpan.FromMilliseconds(50);
+        engine.RetryBaseDelay = TimeSpan.FromMilliseconds(500);
+        engine.RetryAttempts = 5;
+        var outcome = await engine.SyncAsync(provider, settings, SyncRunOptions.ManualIncremental);
+        Assert.Equal(AppSyncStatus.RateLimited, outcome.Status);
+        Assert.Equal(1, provider.BodyFetches);
+    }
+
+    [Fact]
     public async Task UserCancellation_StillCancels()
     {
         using var cts = new CancellationTokenSource();

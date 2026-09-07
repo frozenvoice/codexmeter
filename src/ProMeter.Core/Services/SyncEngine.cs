@@ -607,7 +607,8 @@ public sealed class SyncEngine
                     load = await ExecuteWithRetry(
                         () => provider.GetConversationMessagesAsync(item.Id, bodyCts.Token),
                         "conversation",
-                        bodyCts.Token);
+                        bodyCts.Token,
+                        cancellationToken);
                     entry.BodyFetched = true;
                     _consecutiveBodyTimeouts = 0;
                 }
@@ -1084,8 +1085,13 @@ public sealed class SyncEngine
         return Rank(incoming) > Rank(current) ? incoming : current;
     }
 
-    private async Task<T> ExecuteWithRetry<T>(Func<Task<T>> action, string operation, CancellationToken cancellationToken)
+    private async Task<T> ExecuteWithRetry<T>(
+        Func<Task<T>> action,
+        string operation,
+        CancellationToken cancellationToken,
+        CancellationToken? realCancellationToken = null)
     {
+        var abortToken = realCancellationToken ?? cancellationToken;
         var delay = RetryBaseDelay;
         var attempts = Math.Max(1, RetryAttempts);
         for (var attempt = 0; attempt < attempts; attempt++)
@@ -1107,7 +1113,19 @@ public sealed class SyncEngine
                 var wait = ParseRetryAfter(ex.RetryAfter) ?? delay;
                 if (wait > TimeSpan.Zero)
                 {
-                    await Task.Delay(wait, cancellationToken);
+                    try
+                    {
+                        await Task.Delay(wait, cancellationToken);
+                    }
+                    catch (OperationCanceledException) when (!abortToken.IsCancellationRequested)
+                    {
+                        // The per-conversation body budget expired while we were waiting
+                        // out a rate limit/server error, not because of a real cancellation.
+                        // Surface the original condition so the caller aborts the whole
+                        // sync (AGENTS.md: fatal 429/5xx must abort, not become a
+                        // per-conversation BodyTimeout that hides sustained throttling).
+                        throw ex;
+                    }
                 }
 
                 delay = TimeSpan.FromMilliseconds(Math.Min(Math.Max(delay.TotalMilliseconds, 1) * 2, 60_000));
