@@ -163,6 +163,32 @@ Coverage는 `Good` / `Estimated` / `Incomplete` 등으로 표시됩니다. 공�
 
 Settings → **Open logs**로 rolling log를 엽니다.
 
+## Local development / local test run
+
+매번 GitHub Actions artifact ZIP을 내려받아 테스트할 필요는 없습니다. Repo root에서:
+
+```powershell
+.\dev-run.ps1
+```
+
+한 번으로 Release build → 전체 tests → local publish → 기존 ProMeter 종료 → 새 로컬 빌드 실행까지 수행합니다. 실행 파일은 `publish\local\prometer.exe`이며, build/test/publish 중 하나라도 실패하면 실행 중인 ProMeter는 건드리지 않습니다.
+
+빠른 UI 반복 확인 (전체 tests 생략, build/publish/restart는 그대로 수행):
+
+```powershell
+.\dev-run.ps1 -Fast
+```
+
+실행하지 않고 build/test/publish만 확인:
+
+```powershell
+.\dev-run.ps1 -NoLaunch
+```
+
+GitHub Actions는 clean-machine/release 검증용으로 계속 유효하며, 평소 로컬 테스트에는 필요하지 않습니다.
+
+`extension/` 코드를 바꿨다면 Chrome/Edge의 unpacked 확장을 Reload해야 합니다. Core/WPF만 바꾼 경우에는 필요 없습니다.
+
 ## Development build
 
 ```powershell
