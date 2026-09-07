@@ -97,7 +97,9 @@ public static class CodexDisplayFormatting
 
         if (snapshot.LastSuccessfulRefresh is { } checkedAt)
         {
-            rows.Add(new CodexDisplayRow(UiText.LastChecked, TimeOfDay(checkedAt), false));
+            var elapsed = CodexDeadlineFormatting.Elapsed(checkedAt, at);
+            var value = elapsed is null ? TimeOfDay(checkedAt) : $"{TimeOfDay(checkedAt)} · {elapsed}";
+            rows.Add(new CodexDisplayRow(UiText.LastChecked, value, false));
         }
 
         return rows;

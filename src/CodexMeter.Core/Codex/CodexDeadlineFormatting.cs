@@ -5,6 +5,19 @@ namespace CodexMeter.Codex;
 
 public static class CodexDeadlineFormatting
 {
+    public static string? Elapsed(DateTimeOffset? timestamp, DateTimeOffset now)
+    {
+        if (timestamp is null || timestamp > now) return null;
+        var elapsed = now - timestamp.Value;
+        if (elapsed.TotalDays >= 1)
+            return UiText.T($"{elapsed.Days}d ago", $"{elapsed.Days}일 전");
+        if (elapsed.TotalHours >= 1)
+            return UiText.T($"{(int)elapsed.TotalHours}h ago", $"{(int)elapsed.TotalHours}시간 전");
+        if (elapsed.TotalMinutes >= 1)
+            return UiText.T($"{(int)elapsed.TotalMinutes}m ago", $"{(int)elapsed.TotalMinutes}분 전");
+        return UiText.T("Just now", "방금 전");
+    }
+
     public static string? Remaining(DateTimeOffset? deadline, DateTimeOffset now)
     {
         if (deadline is null) return null;

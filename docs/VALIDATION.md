@@ -2,6 +2,12 @@
 
 ## Current release — Codex only
 
+- Last-checked elapsed time: Release build (0 warnings/errors), 918 tests and 24 WPF
+  renders passed. Unit tests cover minute/hour/day boundaries, Korean/English, future
+  timestamps and last-success vs failed-attempt timing. WPF checks use the real card
+  width and reject overlapping last-checked text. Single-file publish and local app
+  replacement/startup passed (the first replacement hit a transient folder lock; retry succeeded).
+
 - Extension cleanup: restore, Release build (0 warnings/errors), all 903 remaining tests, and win-x64 self-contained single-file publish passed. Two obsolete extension-file consistency tests were removed; retained .NET regression tests remain.
 
 - Product rename: clean restore and Release build passed with 0 warnings/errors;

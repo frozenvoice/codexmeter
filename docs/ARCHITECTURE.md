@@ -35,6 +35,9 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   Save/Cancel behavior. Korean/English and dark/light themes use the existing resources.
 - Reset rows show server reset time plus remaining days/hours. A one-minute UI-only timer
   refreshes countdowns; account refresh remains every five minutes.
+- Last checked combines the local successful-refresh time with elapsed minutes/hours/days.
+  The same display timer updates it without a request. Failed attempts do not reset its age;
+  missing or future timestamps never produce an invented elapsed value.
 - Root reset-credit metadata takes precedence as one container. Available Codex reset credits
   are deduplicated transiently by ID and projected to nullable expiry timestamps only.
   The additive cache field preserves older snapshots; missing/partial expiries stay explicit.

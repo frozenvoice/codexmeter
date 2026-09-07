@@ -30,7 +30,9 @@ internal static class Program
                 applyTheme.Invoke(null, [theme]);
                 var flyout = new FlyoutWindow();
                 var widget = new FloatingWidget();
-                var snapshot = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable);
+                var now = DateTimeOffset.Now;
+                var snapshot = new CodexQuotaSnapshot(CodexQuotaStatus.Available, "pro", now.AddMinutes(-3), now,
+                    null, null, 3, [new CodexQuotaWindow("codex", 28, 10080, now.AddDays(7), CodexWindowKind.Weekly)], null);
                 flyout.Bind(snapshot);
                 widget.Bind(snapshot);
                 Window[] windows = [flyout, widget,
@@ -40,9 +42,21 @@ internal static class Program
                     try
                     {
                         var content = (FrameworkElement)window.Content;
-                        content.Measure(new Size(900, 900));
+                        content.Measure(new Size(double.IsFinite(window.Width) ? window.Width : 900, 900));
                         content.Arrange(new Rect(new Point(), content.DesiredSize));
                         content.UpdateLayout();
+                        if (window is FlyoutWindow)
+                        {
+                            var rows = (System.Windows.Controls.ItemsControl)window.FindName("CodexRows");
+                            var last = (System.Windows.Controls.Border)rows.Items[rows.Items.Count - 1];
+                            var grid = (System.Windows.Controls.Grid)last.Child;
+                            var label = (FrameworkElement)grid.Children[0];
+                            var value = (FrameworkElement)grid.Children[1];
+                            var labelRight = label.TranslatePoint(new Point(label.ActualWidth, 0), grid).X;
+                            var valueLeft = value.TranslatePoint(new Point(), grid).X;
+                            if (valueLeft < labelRight || valueLeft + value.ActualWidth > grid.ActualWidth + 1)
+                                throw new InvalidOperationException("Last checked text overlaps or overflows.");
+                        }
                         if (content.ActualWidth <= 0 || content.ActualHeight <= 0)
                             throw new InvalidOperationException($"Empty layout: {window.GetType().Name}");
                         var bitmap = new RenderTargetBitmap((int)Math.Ceiling(content.ActualWidth),
