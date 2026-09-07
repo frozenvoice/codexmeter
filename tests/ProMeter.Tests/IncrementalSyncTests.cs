@@ -54,7 +54,8 @@ public class IncrementalSyncTests
         var dir = NewTempDir();
         using var store = new SqliteStore(Path.Combine(dir, "iso.db"));
         var models = new ModelNormalizer();
-        var engine = new SyncEngine(store, new ConversationParser(models), models, new AppLog(Path.Combine(dir, "logs")));
+        var clock = new MutableClock(DateTimeOffset.Parse("2026-09-04T00:00:00Z"));
+        var engine = new SyncEngine(store, new ConversationParser(models), models, new AppLog(Path.Combine(dir, "logs")), clock);
         var firstIso = "2026-09-01T12:00:00Z";
         var secondIso = "2026-09-03T15:30:00.250Z";
         var firstUnix = TimestampParser.ToUnixSeconds(TimestampParser.Parse(firstIso));
