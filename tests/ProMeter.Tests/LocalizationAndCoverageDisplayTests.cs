@@ -77,7 +77,7 @@ public class LocalizationAndCoverageDisplayTests
             var korean = DisplayFormatting.ResetDisplay(snapshot);
             Assert.Equal("", korean.TimeLabel);
             Assert.Equal("", korean.TimeValue);
-            Assert.Equal("추정 다음 리셋", korean.EstimateLabel);
+            Assert.Equal("예상 다음 리셋", korean.EstimateLabel);
             Assert.Contains("9월 7일 00:00", korean.EstimateValue, StringComparison.Ordinal);
             Assert.Equal("지금 동기화", UiText.SyncNow);
             Assert.Equal("데이터 상태", UiText.DataStatus);

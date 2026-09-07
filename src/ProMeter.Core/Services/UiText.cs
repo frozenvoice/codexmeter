@@ -53,6 +53,7 @@ public static class UiText
         "기록 집계 · 추정");
     public static string ReconstructedCount(int count) => T($"{count} · estimated", $"{count}회 · 추정");
     public static string CurrentCycleReconstructed => T("This cycle reconstructed", "이번 주기 기록 집계");
+    public static string EstimatedPeriodReconstructed => T("Estimated period reconstructed", "예상 주기 기록 집계");
     public static string UnresolvedPending => T("Unresolved", "확인 보류");
     public static string MigrationBackupFailed => T(
         "ProMeter could not create a verified backup of the usage database, so it stopped before migrating it. Your data was not changed.",
@@ -75,10 +76,10 @@ public static class UiText
     public static string Reset => T("Reset", "리셋");
     public static string ResetTime => T("Reset time", "리셋 시각");
     public static string Estimate => T("Estimate", "추정 기준");
-    public static string EstimatedNextReset => T("Estimated next reset", "추정 다음 리셋");
+    public static string EstimatedNextReset => T("Estimated next reset", "예상 다음 리셋");
     public static string EstimatedPeriodFooter => T(
         "Reconstructed from conversation history using an estimated period boundary. Not an official remaining quota.",
-        "대화 기록에서 재구성한 값이며 주기 경계는 추정입니다. 공식 잔여 사용량이 아닙니다.");
+        "예상 주기 경계를 기준으로 대화 기록에서 재구성한 통계입니다. 공식 잔여 한도가 아닙니다.");
     public static string NotConfirmed => T("Not confirmed", "확인되지 않음");
     public static string NotAvailable => T("Not available", "확인되지 않음");
     public static string Limit => T("Limit", "한도");

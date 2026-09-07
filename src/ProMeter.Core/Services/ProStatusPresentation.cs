@@ -1,5 +1,24 @@
 namespace ProMeter.Services;
 
+/// <summary>
+/// The four mutually exclusive states GPT Pro reconstructed usage can be presented in.
+/// Kept separate from any WPF code-behind so the metering semantics stay in one
+/// place and are directly testable: "is the count usable" and "is the cycle boundary
+/// confirmed" are independent questions that must not be conflated into a single
+/// Unavailable/available toggle.
+/// </summary>
+public enum ReconstructionDisplayState
+{
+    /// <summary>Reconstruction itself is unusable (e.g. DisplayUsageUnavailable).</summary>
+    Unavailable,
+    /// <summary>Usable reconstruction, and the cycle/period boundary is known/confirmed.</summary>
+    EstimatedKnownCycle,
+    /// <summary>Usable reconstruction, but only an estimated fallback period boundary.</summary>
+    EstimatedFallbackPeriod,
+    /// <summary>Server-provided authoritative weekly count.</summary>
+    AuthoritativeServerCount
+}
+
 public sealed class ProStatusPresentation
 {
     public required string ProStateText { get; init; }
@@ -17,6 +36,8 @@ public sealed class ProStatusPresentation
     public required string CountSourceText { get; init; }
     public required string HistoryLowerBoundCaption { get; init; }
     public required string Headline { get; init; }
+    public required string ReconstructedLabel { get; init; }
+    public ReconstructionDisplayState DisplayState { get; init; }
     public bool ExactRemainingAvailable { get; init; }
     public bool ShowHistoryLowerBound { get; init; }
     public bool Restricted { get; init; }
@@ -27,6 +48,30 @@ public sealed class ProStatusPresentation
     public DateTimeOffset? ServerResetAt { get; init; }
     public int UnresolvedCount { get; init; }
 
+    /// <summary>
+    /// Resolves which of the four reconstruction display states a snapshot is in.
+    /// "Is the count usable" (DisplayUsageUnavailable) and "is the cycle boundary
+    /// confirmed" (CurrentCycleKnown) are independent questions - a snapshot can have
+    /// a perfectly usable reconstructed count for an estimated fallback period, and
+    /// that must never collapse into Unavailable.
+    /// </summary>
+    public static ReconstructionDisplayState ResolveDisplayState(QuotaSnapshot snapshot)
+    {
+        if (snapshot.UsesServerWeeklyCount && !snapshot.DisplayUsageUnavailable)
+        {
+            return ReconstructionDisplayState.AuthoritativeServerCount;
+        }
+
+        if (snapshot.DisplayUsageUnavailable)
+        {
+            return ReconstructionDisplayState.Unavailable;
+        }
+
+        return snapshot.CurrentCycleKnown
+            ? ReconstructionDisplayState.EstimatedKnownCycle
+            : ReconstructionDisplayState.EstimatedFallbackPeriod;
+    }
+
     public static ProStatusPresentation From(QuotaSnapshot snapshot)
     {
         var status = snapshot.ProServerStatus ?? ProServerStatus.Unknown();
@@ -35,8 +80,12 @@ public sealed class ProStatusPresentation
         var stale = status.Stale;
         var ambiguous = status.HasAmbiguousResets || status.ResetConfidence == ServerResetConfidence.Ambiguous;
         var hasServerReset = status.ResetConfidence == ServerResetConfidence.Server && status.ResetAt is not null;
-        var exact = snapshot.UsesServerWeeklyCount && !snapshot.DisplayUsageUnavailable;
+        var displayState = ResolveDisplayState(snapshot);
+        var exact = displayState == ReconstructionDisplayState.AuthoritativeServerCount;
         var reconstructed = FormatReconstructedCount(snapshot);
+        var reconstructedLabel = displayState == ReconstructionDisplayState.EstimatedFallbackPeriod
+            ? UiText.EstimatedPeriodReconstructed
+            : UiText.CurrentCycleReconstructed;
         var stateText = status.RestrictionState switch
         {
             ProRestrictionState.CorrelatedRestriction => UiText.ProRestricted,
@@ -71,7 +120,7 @@ public sealed class ProStatusPresentation
                 : known
                     ? "P"
                     : "?";
-        var lowerBoundCaption = !snapshot.CurrentCycleKnown && !snapshot.DisplayUsageUnavailable
+        var lowerBoundCaption = displayState == ReconstructionDisplayState.EstimatedFallbackPeriod
             ? UiText.EstimatedPeriodFooter
             : SupportsLowerBound(snapshot)
                 ? UiText.HistoryBasedLowerBound
@@ -115,18 +164,21 @@ public sealed class ProStatusPresentation
             HistoryLowerBoundCaption = exact ? "" : lowerBoundCaption,
             Headline = headline,
             ShowHistoryLowerBound = !exact,
-            UnresolvedCount = snapshot.UnresolvedCount
+            UnresolvedCount = snapshot.UnresolvedCount,
+            ReconstructedLabel = reconstructedLabel,
+            DisplayState = displayState
         };
     }
 
     public static string FormatReconstructedCount(QuotaSnapshot snapshot)
     {
-        if (snapshot.DisplayUsageUnavailable)
+        var state = ResolveDisplayState(snapshot);
+        if (state == ReconstructionDisplayState.Unavailable)
         {
             return "?";
         }
 
-        if (!snapshot.CurrentCycleKnown)
+        if (state == ReconstructionDisplayState.EstimatedFallbackPeriod)
         {
             // The reset/cycle boundary is unconfirmed, but the reconstruction itself is
             // usable for the estimated fallback period - show it as an explicit estimate
@@ -165,13 +217,14 @@ public sealed class ProStatusPresentation
 
     public static string CompactReconstructedToken(QuotaSnapshot snapshot)
     {
-        if (snapshot.DisplayUsageUnavailable)
+        var state = ResolveDisplayState(snapshot);
+        if (state == ReconstructionDisplayState.Unavailable)
         {
             return "";
         }
 
         var n = snapshot.ReconstructedUsed.ToString(CultureInfo.InvariantCulture);
-        if (!snapshot.CurrentCycleKnown)
+        if (state == ReconstructionDisplayState.EstimatedFallbackPeriod)
         {
             // Only the period boundary is estimated; never claim a mathematical lower
             // bound ("+") when the boundary itself isn't confirmed.

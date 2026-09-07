@@ -59,6 +59,7 @@ public partial class FlyoutWindow : Window
         var presentation = ProStatusPresentation.From(snapshot);
         StatusText.Text = DisplayFormatting.FlyoutHeader(snapshot);
 
+        ConfirmedUsageLabel.Text = presentation.ReconstructedLabel;
         ConfirmedUsageText.Text = presentation.ConfirmedRequestsText;
         GptProBadge.Visibility = presentation.ExactRemainingAvailable ? Visibility.Collapsed : Visibility.Visible;
         HistoryLowerBoundCaption.Visibility = presentation.ShowHistoryLowerBound ? Visibility.Visible : Visibility.Collapsed;
