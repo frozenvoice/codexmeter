@@ -35,6 +35,18 @@ internal static class Program
                     null, null, 3, [new CodexQuotaWindow("codex", 28, 10080, now.AddDays(7), CodexWindowKind.Weekly)], null);
                 flyout.Bind(snapshot);
                 widget.Bind(snapshot);
+                var notice = (System.Windows.Controls.TextBlock)widget.FindName("HistoryValue");
+                foreach (var status in Enum.GetValues<CodexQuotaStatus>())
+                {
+                    widget.Bind(snapshot with { Status = status });
+                    var attention = status is not (CodexQuotaStatus.Available or CodexQuotaStatus.Refreshing);
+                    if (notice.Visibility != (attention ? Visibility.Visible : Visibility.Collapsed)
+                        || string.IsNullOrEmpty(notice.Text) == attention)
+                        throw new InvalidOperationException($"Incorrect widget notice for {status}.");
+                }
+                widget.Bind(snapshot); // Recovery must remove the old failure text and its space.
+                if (notice.Visibility != Visibility.Collapsed || notice.Text.Length != 0)
+                    throw new InvalidOperationException("Widget notice remains after recovery.");
                 Window[] windows = [flyout, widget,
                     new SettingsWindow(AppSettings.CreateDefaults()), new AboutWindow("1.0.0", "synthetic")];
                 foreach (var window in windows)

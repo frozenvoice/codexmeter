@@ -2,6 +2,10 @@
 
 ## Current release — Codex only
 
+- Widget normal-state notice is collapsed, including its margin. All quota statuses
+  and recovery to normal are checked in the WPF smoke suite across both languages and
+  three themes. Restore, Release build (0 warnings/errors), 925 unit tests and 24 renders passed.
+
 - Combined used/remaining row: restore, Release build (0 warnings/errors), 925 tests,
   24 WPF renders with row-overlap checks, single-file publish and local app startup passed.
   Korean/English weekly and five-hour labels, 0/100% and unknown percentages are covered.

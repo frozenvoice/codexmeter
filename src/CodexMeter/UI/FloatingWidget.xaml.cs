@@ -24,7 +24,9 @@ public partial class FloatingWidget : Window
     {
         CodexLabel.Text = CodexDisplayFormatting.CompactWindowKindLabel(snapshot.CompactWindow);
         CodexValue.Text = CodexMeterPresentation.CompactText(snapshot).Replace("Codex ", "", StringComparison.Ordinal);
-        HistoryValue.Text = CodexMeterPresentation.StatusLabel(snapshot);
+        var needsAttention = snapshot.Status is not (CodexQuotaStatus.Available or CodexQuotaStatus.Refreshing);
+        HistoryValue.Text = needsAttention ? CodexMeterPresentation.StatusLabel(snapshot) : "";
+        HistoryValue.Visibility = needsAttention ? Visibility.Visible : Visibility.Collapsed;
         ToolTip = CodexMeterPresentation.Tooltip(snapshot);
     }
 
