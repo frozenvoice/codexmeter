@@ -29,7 +29,7 @@ A native Windows tray app for checking Codex usage, remaining percentages, reset
 
 - **Usage in the tray.** A Windows notification-area icon keeps the meter within reach. Click for the detailed card; pin it to keep it visible.
 - **Clear quota windows.** See Pro account usage and remaining percentages, the server's reset time, and a countdown for the windows reported by the server.
-- **Reset credits.** View the available count and expiry dates when the server supplies them. Missing expiry information stays explicitly unknown.
+- **Reset credits.** View the available count and expiry times when the server supplies them. Use an individual reset after confirmation. Missing expiry information stays explicitly unknown.
 - **Optional desktop widget.** A compact, draggable meter with adjustable opacity, always-on-top, and click-through options. Off-screen positions recover automatically.
 - **Your preferred appearance.** Dark, Light, or live System theme; English and Korean; keyboard zoom from 80% to 150%.
 - **Honest refresh states.** Automatic checks every five minutes, visible manual-refresh progress, and distinct fresh, stale, signed-out, and unavailable states.

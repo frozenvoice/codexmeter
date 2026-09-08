@@ -23,6 +23,7 @@ public partial class App : Application
     private readonly DispatcherTimer _codexTimer = new();
     private readonly DispatcherTimer _displayTimer = new() { Interval = TimeSpan.FromMinutes(1) };
     private readonly OnceEventSubscription _widgetEvents = new();
+    private Task _creditUseTask = Task.CompletedTask;
     private FlyoutWindow? _flyout;
     private FloatingWidget? _widget;
     private DesktopEnvironmentMonitor? _environment;
@@ -123,6 +124,17 @@ public partial class App : Application
     {
         if (_flyout is not null) return;
         _flyout = new FlyoutWindow();
+        _flyout.RedeemCredit = async creditId =>
+        {
+            if (IsExiting) return CreditRedemptionOutcome.Unavailable;
+            var useTask = Task.Run(() => _codex.ConsumeCreditAsync(creditId, _settings.CodexExePath, _lifetime.Token));
+            _creditUseTask = useTask;
+            var outcome = await useTask;
+            if (IsExiting) return outcome;
+            await _refresh.WaitForIdleAsync();
+            await RefreshCodexAsync();
+            return outcome;
+        };
         _flyout.SyncRequested += () => _ = RefreshCodexAsync();
         _flyout.SettingsRequested += ShowSettings;
         _flyout.PinChanged += pinned => { _settings.FlyoutPinned = pinned; _settingsStore.Save(_settings); };
@@ -152,6 +164,8 @@ public partial class App : Application
             if (window.ResetWidgetPositionOnSave)
             {
                 var work = SystemParameters.WorkArea;
+                settings.WidgetPixelLeft = null;
+                settings.WidgetPixelTop = null;
                 settings.WidgetLeft = work.Left + 40;
                 settings.WidgetTop = work.Top + 40;
             }
@@ -212,6 +226,11 @@ public partial class App : Application
             {
                 _settings.WidgetLeft = left;
                 _settings.WidgetTop = top;
+                if (_widget.PixelPosition is { } pixels)
+                {
+                    _settings.WidgetPixelLeft = pixels.X;
+                    _settings.WidgetPixelTop = pixels.Y;
+                }
                 _settingsStore.Save(_settings);
             };
             _widget.FlyoutRequested += ToggleFlyout;
@@ -283,7 +302,7 @@ public partial class App : Application
         _flyout?.Hide();
         _widget?.Hide();
         // Let the existing bounded client stop and reap its app-server process.
-        try { await _refresh.WaitForIdleAsync().WaitAsync(TimeSpan.FromSeconds(15)); }
+        try { await Task.WhenAll(_refresh.WaitForIdleAsync(), _creditUseTask).WaitAsync(TimeSpan.FromSeconds(15)); }
         catch (OperationCanceledException) { }
         catch (TimeoutException) { _log.Warn("Codex shutdown wait timed out"); }
         _tray.Dispose();

@@ -9,6 +9,11 @@ namespace CodexMeter.UI;
 public partial class FlyoutWindow : Window
 {
     public event Action? SyncRequested;
+    public Func<string, Task<CreditRedemptionOutcome>>? RedeemCredit { get; set; }
+    private bool _redeemingCredit;
+    private CodexQuotaSnapshot? _creditSnapshot;
+    // Injectable only for offline UI tests. Production always asks the user.
+    internal Func<string, bool>? ConfirmCreditForTest { get; set; }
     public event Action? SettingsRequested;
     public event Action<bool>? PinChanged;
     public event Action<double, double>? PositionChanged;
@@ -61,6 +66,8 @@ public partial class FlyoutWindow : Window
 
     public void Bind(CodexQuotaSnapshot snapshot, bool refreshing = false)
     {
+        _creditSnapshot = snapshot;
+        _refreshActive = refreshing;
         ApplyLocalizedTexts();
         StatusText.Text = snapshot.Status == CodexQuotaStatus.Available ? UiText.T("Up to date", "정상 작동 중") : CodexMeterPresentation.StatusLabel(snapshot);
         StatusDot.Fill = (Brush)FindResource(refreshing ? "AccentBrush" : snapshot.Status == CodexQuotaStatus.Available ? "OkBrush" : "MutedBrush");
@@ -148,7 +155,7 @@ public partial class FlyoutWindow : Window
         Title = UiText.ProductName;
         ResetCreditsTitle.Text = UiText.ResetCredits;
         ApplyCreditExpansion();
-        var helpText = UiText.T("Reset credits can renew your Codex usage limits. This app only shows their availability and expiry dates.", "리셋권으로 Codex 사용 한도를 갱신할 수 있습니다. 이 앱에서는 보유 수와 만료일만 확인합니다.");
+        var helpText = UiText.T("Reset credits can renew your Codex usage limits. Select Use reset beside a credit to redeem it after confirmation.", "리셋권으로 Codex 사용 한도를 갱신할 수 있습니다. 리셋권 옆의 초기화 사용을 누르고 확인하면 해당 리셋권을 사용합니다.");
         _creditHelpTip ??= MakeTooltip(helpText);
         ((TextBlock)_creditHelpTip.Content).Text = helpText;
         _creditHelpTip.Background = (Brush)FindResource("CardBrush");
@@ -287,6 +294,18 @@ public partial class FlyoutWindow : Window
                 Foreground = (Brush)FindResource("MutedBrush")
             };
             Grid.SetColumn(text, 1); row.Children.Add(text);
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var use = new System.Windows.Controls.Button
+            {
+                Content = _redeemingCredit ? UiText.T("Processing…", "처리 중…") : UiText.T("Use reset", "초기화 사용"),
+                Style = (Style)FindResource("CreditUseButton"), FontSize = 12,
+                Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(6, 2, 0, 2),
+                IsEnabled = !_redeemingCredit && !_refreshActive && snapshot.Status == CodexQuotaStatus.Available
+                    && item.CreditId is not null && RedeemCredit is not null,
+                ToolTip = item.CreditId is null ? UiText.T("Refresh to enable use.", "새로고침 후 사용할 수 있습니다.") : item.Text
+            };
+            use.Click += async (_, _) => await UseCreditAsync(item);
+            Grid.SetColumn(use, 2); row.Children.Add(use);
             row.ToolTip = MakeTooltip(item.Tooltip);
             CreditExpiryRows.Items.Add(new Border
             {
@@ -299,6 +318,52 @@ public partial class FlyoutWindow : Window
         CreditExpiryNotice.Visibility = credits.Notice is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
+    private async Task UseCreditAsync(CodexCreditExpiryRow item)
+    {
+        if (_redeemingCredit || _refreshActive || item.CreditId is null || RedeemCredit is null
+            || _creditSnapshot?.Status != CodexQuotaStatus.Available) return;
+        _redeemingCredit = true; // Own the guard before opening a modal nested dispatcher.
+        try
+        {
+            BindCreditCard(_creditSnapshot);
+            var prompt = UiText.T($@"Use this reset credit?
+{item.Text}
+One credit will be consumed.",
+                $@"이 리셋권으로 사용 한도를 초기화할까요?
+{item.Text}
+리셋권 1개가 소모됩니다.");
+            var confirmed = ConfirmCreditForTest?.Invoke(prompt)
+                ?? (System.Windows.MessageBox.Show(this, prompt, UiText.T("Use reset", "초기화 사용"),
+                    MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes);
+            if (!confirmed) return;
+            var outcome = await RedeemCredit(item.CreditId);
+            CreditExpiryNotice.Text = outcome switch
+            {
+                CreditRedemptionOutcome.Reset or CreditRedemptionOutcome.AlreadyRedeemed =>
+                    UiText.T("Reset applied. Check the current limit status above.", "초기화가 적용되었습니다. 갱신된 상태를 위에서 확인하세요."),
+                CreditRedemptionOutcome.NothingToReset => UiText.T("No eligible usage limit to reset.", "초기화할 수 있는 사용 한도가 없습니다."),
+                CreditRedemptionOutcome.NoCredit => UiText.T("This reset credit is no longer available.", "이 리셋권은 더 이상 사용할 수 없습니다."),
+                CreditRedemptionOutcome.Unknown => UiText.T("Result unconfirmed. Refresh before retrying this credit.", "처리 결과를 확인하지 못했습니다. 새로고침 후 같은 리셋권을 재확인하세요."),
+                _ => UiText.T("Could not use the reset. Refresh and try again.", "초기화를 실행하지 못했습니다. 새로고침 후 다시 시도하세요.")
+            };
+            CreditExpiryNotice.Visibility = Visibility.Visible;
+        }
+        catch
+        {
+            CreditExpiryNotice.Text = UiText.T("Result unconfirmed. Refresh before retrying.", "처리 결과를 확인하지 못했습니다. 새로고침 후 재확인하세요.");
+            CreditExpiryNotice.Visibility = Visibility.Visible;
+        }
+        finally
+        {
+            _redeemingCredit = false;
+            // Preserve the result notice while restoring row button state.
+            var notice = CreditExpiryNotice.Text;
+            var visibility = CreditExpiryNotice.Visibility;
+            if (_creditSnapshot is not null) BindCreditCard(_creditSnapshot);
+            CreditExpiryNotice.Text = notice;
+            CreditExpiryNotice.Visibility = visibility;
+        }
+    }
     private System.Windows.Controls.ToolTip MakeTooltip(string text) => new()
     {
         Background = (Brush)FindResource("CardBrush"), BorderBrush = (Brush)FindResource("LineBrush"),

@@ -12,15 +12,25 @@ namespace CodexMeter.UiSmoke;
 
 internal static class Program
 {
+    // Pumping WPF for native-window tests must never run production startup/account access.
+    private sealed class OfflineApp : App
+    {
+        protected override void OnStartup(StartupEventArgs e) { }
+    }
+
     [STAThread]
     private static int Main(string[] args)
     {
-        // Load the production App/XAML without Run: no startup, account access,
+        // Load production WPF views/resources with startup overridden: no account access,
         // settings writes, tray registration or background refresh occurs.
-        var app = new App();
+        var app = new OfflineApp();
         try
         {
-            app.InitializeComponent();
+            app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            app.Resources.MergedDictionaries.Add(new ResourceDictionary
+            {
+                Source = new Uri("/CodexMeter;component/UI/Themes.xaml", UriKind.Relative)
+            });
             if (args is ["--screenshots", var directory])
             {
                 DocumentationScreenshots.Export(directory);
@@ -28,6 +38,7 @@ internal static class Program
             }
             CheckEnvironmentCallbacks(app);
             CheckWidgetRecovery();
+            CheckWidgetRestart();
             CheckPositionReset();
             var applyTheme = typeof(App).GetMethod("ApplyTheme", BindingFlags.Static | BindingFlags.NonPublic)
                 ?? throw new MissingMethodException("App.ApplyTheme");
@@ -42,6 +53,7 @@ internal static class Program
                 var now = DateTimeOffset.Now;
                 var snapshot = new CodexQuotaSnapshot(CodexQuotaStatus.Available, "pro", now.AddMinutes(-3), now,
                     null, null, 3, [new CodexQuotaWindow("codex", 28, 10080, now.AddDays(7), CodexWindowKind.Weekly)], null);
+                CheckCreditUse(flyout, snapshot);
                 flyout.Bind(snapshot);
                 CheckZoomShortcuts(flyout);
                 widget.Bind(snapshot);
@@ -170,6 +182,81 @@ internal static class Program
         finally { window.Close(); }
     }
 
+    private static void CheckWidgetRestart()
+    {
+        var settings = new AppSettings { WidgetLeft = 9000, WidgetTop = 9000,
+            WidgetPixelLeft = 100, WidgetPixelTop = 100, WidgetOpacity = 0.3 };
+        var secondary = System.Windows.Forms.Screen.AllScreens.FirstOrDefault(x => !x.Primary);
+        if (secondary is not null)
+        {
+            // First calibrate the actual target-monitor size; the next instance tests its bottom edge.
+            settings.WidgetPixelLeft = secondary.WorkingArea.Right - 178;
+            settings.WidgetPixelTop = secondary.WorkingArea.Bottom - 100;
+        }
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            var widget = new FloatingWidget { ShowActivated = false };
+            try
+            {
+                var saved = 0;
+                widget.Moved += (_, _) => saved++;
+                widget.Apply(settings);
+                widget.RecoverPosition();
+                if (saved != 0) throw new InvalidOperationException("Startup overwrote widget position before layout/DPI initialization.");
+                widget.Show();
+                PumpDispatcher(widget.Dispatcher);
+                // ContentRendered is dispatched at input priority; pump a bounded second pass.
+                PumpDispatcher(widget.Dispatcher);
+                if (widget.PixelPosition != (settings.WidgetPixelLeft!.Value, settings.WidgetPixelTop!.Value))
+                    throw new InvalidOperationException($"Widget physical position changed on restart: {widget.PixelPosition}.");
+                if (secondary is not null && attempt == 0)
+                    settings.WidgetPixelTop = secondary.WorkingArea.Bottom
+                        - (int)Math.Ceiling(widget.ActualHeight * VisualTreeHelper.GetDpi(widget).DpiScaleY) - 5;
+            }
+            finally { widget.Close(); }
+        }
+    }
+
+    private static void CheckCreditUse(FlyoutWindow flyout, CodexQuotaSnapshot snapshot)
+    {
+        // Offline only: synthetic identity and injected handler. No App.OnStartup or Codex client.
+        var credit = new CodexResetCredit("synthetic-ui-credit", DateTimeOffset.Now.AddDays(2));
+        snapshot = snapshot with { ResetCreditsAvailable = 1, RedeemableCredits = [credit] };
+        var confirmation = typeof(FlyoutWindow).GetProperty("ConfirmCreditForTest", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var method = typeof(FlyoutWindow).GetMethod("UseCreditAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        var row = CodexCreditCard.From(snapshot, DateTimeOffset.Now).Rows.Single();
+        var calls = 0;
+        flyout.RedeemCredit = id => { calls++; return Task.FromResult(CreditRedemptionOutcome.Reset); };
+        confirmation.SetValue(flyout, (Func<string, bool>)(_ => false));
+        flyout.Bind(snapshot);
+        ((Task)method.Invoke(flyout, [row])!).GetAwaiter().GetResult();
+        if (calls != 0) throw new InvalidOperationException("Cancelled confirmation consumed a credit.");
+
+        var pending = new TaskCompletionSource<CreditRedemptionOutcome>();
+        flyout.RedeemCredit = id =>
+        {
+            if (id != credit.Id) throw new InvalidOperationException("Wrong credit selected.");
+            calls++;
+            return pending.Task;
+        };
+        confirmation.SetValue(flyout, (Func<string, bool>)(_ => true));
+        var first = (Task)method.Invoke(flyout, [row])!;
+        var duplicate = (Task)method.Invoke(flyout, [row])!;
+        flyout.Bind(snapshot); // Timer/refresh binding must retain busy state.
+        var rows = (System.Windows.Controls.ItemsControl)flyout.FindName("CreditExpiryRows");
+        var grid = (System.Windows.Controls.Grid)((System.Windows.Controls.Border)rows.Items[0]).Child;
+        var button = (System.Windows.Controls.Button)grid.Children[2];
+        if (button.IsEnabled || calls != 1 || !duplicate.IsCompleted)
+            throw new InvalidOperationException("Credit use is not single-flight.");
+        pending.SetResult(CreditRedemptionOutcome.Reset);
+        PumpDispatcher(flyout.Dispatcher);
+        first.GetAwaiter().GetResult();
+        flyout.Bind(snapshot with { Status = CodexQuotaStatus.Stale });
+        ((Task)method.Invoke(flyout, [row])!).GetAwaiter().GetResult();
+        if (calls != 1) throw new InvalidOperationException("Stale data allowed credit use.");
+        confirmation.SetValue(flyout, null);
+        flyout.RedeemCredit = null;
+    }
     private static void CheckWidgetRecovery()
     {
         var widget = new FloatingWidget { Left = 9000, Top = 9000 };
@@ -247,7 +334,7 @@ internal static class Program
     private static void PumpDispatcher(System.Windows.Threading.Dispatcher dispatcher)
     {
         var frame = new System.Windows.Threading.DispatcherFrame();
-        dispatcher.BeginInvoke(() => frame.Continue = false, System.Windows.Threading.DispatcherPriority.Background);
+        dispatcher.BeginInvoke(() => frame.Continue = false, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         System.Windows.Threading.Dispatcher.PushFrame(frame);
     }
 

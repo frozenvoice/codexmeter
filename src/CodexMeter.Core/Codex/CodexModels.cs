@@ -45,6 +45,10 @@ public sealed record CodexQuotaSnapshot(
     string? TechnicalDetail,
     IReadOnlyList<DateTimeOffset?>? ResetCreditExpirations = null)
 {
+    // Live identity is required for an explicit redemption; never serialize credit IDs.
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<CodexResetCredit> RedeemableCredits { get; init; } = [];
+
     public static CodexQuotaSnapshot Empty(CodexQuotaStatus status, string? detail = null) =>
         new(status, null, null, null, null, null, null, [], detail);
 
@@ -102,3 +106,5 @@ public static class CodexWindowClassifier
         _ => CodexWindowKind.Other
     };
 }
+
+public sealed record CodexResetCredit(string Id, DateTimeOffset? ExpiresAt);

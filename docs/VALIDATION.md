@@ -2,6 +2,16 @@
 
 ## Current release — Codex only
 
+- Widget restart/credit actions: restore and Release build passed (0 warnings/errors), 972 unit
+  tests passed, 36 WPF renders plus offline confirmation/cancellation/single-flight checks passed,
+  five installer scenarios passed, and publish produced one self-contained win-x64 executable.
+  The WPF harness suppresses production startup and uses the production DPI manifest.
+  An actual secondary-monitor edge-position regression was reproduced; after correction the
+  installed widget retained its original physical position across replacement and another process
+  restart. Reset redemption was tested only with synthetic processes/delegates: selected ID,
+  idempotency, malformed outcomes, failed handshake, cancellation, refresh/use serialization,
+  stale blocking and exclusion of credit IDs from cache. No real reset credit was consumed.
+
 - Widget alignment/DPI: removed the first row's asymmetric 6 DIP top margin and reused
   AppWindow pixel rounding, device snapping and Display text formatting. WPF startup now
   declares PerMonitorV2 in the executable manifest. Regression checks cover centered text

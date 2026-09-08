@@ -26,6 +26,10 @@ public static class WidgetPlacement
             }
             if (largestOverlap == 0) { left = area.X + 40; top = area.Y + 40; }
         }
+        // A fully visible widget is already valid, even within the flyout's 8px edge margin.
+        // Do not move a user-positioned widget just because the application restarted.
+        if (left >= area.X && top >= area.Y && left + width <= area.Right && top + height <= area.Bottom)
+            return (left, top);
         return FlyoutPlacement.ClampToWorkArea(left, top, width, height, area);
     }
 }

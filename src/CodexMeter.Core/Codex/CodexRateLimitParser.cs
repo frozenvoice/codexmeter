@@ -226,6 +226,24 @@ public static class CodexRateLimitParser
             && value >= 0 && value <= int.MaxValue && value == Math.Truncate(value) ? (int)value : null;
     }
 
+    public static IReadOnlyList<CodexResetCredit> ReadRedeemableCredits(JsonNode? result)
+    {
+        var container = ResetCreditContainer(UnwrapResult(result)) ?? ResetCreditContainer(SelectBucket(result));
+        if (container?["credits"] is not JsonArray credits) return [];
+        var items = new List<CodexResetCredit>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var node in credits)
+        {
+            if (node is not JsonObject credit) return [];
+            var id = ReadString(credit, "id");
+            if (string.IsNullOrWhiteSpace(id) || !seen.Add(id)) return [];
+            if (ReadString(credit, "status") == "available"
+                && ReadString(credit, "resetType", "reset_type") == "codexRateLimits")
+                items.Add(new(id, ReadUnixSeconds(credit, "expiresAt", "expires_at")));
+        }
+        return items;
+    }
+
     private static IReadOnlyList<DateTimeOffset?>? ReadCreditExpirations(JsonObject? container)
     {
         if (container?["credits"] is not JsonArray credits) return null;

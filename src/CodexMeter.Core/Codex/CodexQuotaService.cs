@@ -83,7 +83,7 @@ public sealed class CodexQuotaService
                         parsed.ResetCreditsAvailable,
                         parsed.Windows,
                         SafeDetail(session, parsed.Detail),
-                        parsed.ResetCreditExpirations);
+                        parsed.ResetCreditExpirations) { RedeemableCredits = CodexRateLimitParser.ReadRedeemableCredits(session.RateLimitsResult) };
                     _store.Save(success);
                     Publish(success);
                     _lastFailureSignature = null;
@@ -116,6 +116,35 @@ public sealed class CodexQuotaService
             IsRefreshing = false;
             _gate.Release();
         }
+    }
+
+    private readonly Dictionary<string, string> _redemptionKeys = new(StringComparer.Ordinal);
+
+    // Called only after the user's explicit confirmation. Refresh and redemption share the gate.
+    public async Task<CreditRedemptionOutcome> ConsumeCreditAsync(string creditId, string? configuredPath,
+        CancellationToken cancellationToken)
+    {
+        if (!await _gate.WaitAsync(0, cancellationToken).ConfigureAwait(false))
+            return CreditRedemptionOutcome.Busy;
+        try
+        {
+            if (_snapshot.Status != CodexQuotaStatus.Available
+                || !_snapshot.RedeemableCredits.Any(x => x.Id == creditId))
+                return CreditRedemptionOutcome.Unavailable;
+            var command = _locator.Locate(configuredPath);
+            if (command is null) return CreditRedemptionOutcome.Unavailable;
+            if (!_redemptionKeys.TryGetValue(creditId, out var key))
+                _redemptionKeys[creditId] = key = Guid.NewGuid().ToString();
+            var outcome = await _client.ConsumeCreditAsync(command, _clientVersion, creditId, key, cancellationToken)
+                .ConfigureAwait(false);
+            if (outcome is CreditRedemptionOutcome.NothingToReset or CreditRedemptionOutcome.NoCredit
+                or CreditRedemptionOutcome.Unavailable) _redemptionKeys.Remove(creditId);
+            // Do not log IDs, protocol errors, or server response bodies.
+            _log?.Invoke($"codex credit redemption outcome={outcome}");
+            Publish(_snapshot with { Status = CodexQuotaStatus.Stale, RedeemableCredits = [] });
+            return outcome;
+        }
+        finally { _gate.Release(); }
     }
 
     private CodexRefreshResult PersistFailure(

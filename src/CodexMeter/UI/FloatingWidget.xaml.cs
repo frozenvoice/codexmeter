@@ -15,10 +15,22 @@ public partial class FloatingWidget : Window
     private WidgetDragSession? _drag;
     private System.Windows.Media.Matrix _dragFromDevice;
     private bool _recoveringPosition;
+    private bool _positionReady;
+    private bool _applying;
+    private bool _restoringPixels;
+    private bool _closed;
+    private (int X, int Y)? _savedPixels;
 
     public FloatingWidget()
     {
         InitializeComponent();
+        ContentRendered += (_, _) =>
+        {
+            if (_positionReady) return;
+            _positionReady = true;
+            RestoreAfterLayout();
+        };
+        Closed += (_, _) => _closed = true;
         SizeChanged += (_, _) => RecoverPosition();
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(() => RecoverPosition());
     }
@@ -35,18 +47,31 @@ public partial class FloatingWidget : Window
 
     public void Apply(AppSettings settings)
     {
-        Left = double.IsFinite(settings.WidgetLeft) ? settings.WidgetLeft : 40;
-        Top = double.IsFinite(settings.WidgetTop) ? settings.WidgetTop : 40;
-        Opacity = settings.WidgetOpacity;
-        Topmost = settings.WidgetAlwaysOnTop;
-        SetClickThrough(settings.WidgetClickThrough);
-        Cursor = settings.WidgetClickThrough ? System.Windows.Input.Cursors.Arrow : System.Windows.Input.Cursors.SizeAll;
+        _applying = true;
+        try
+        {
+            _savedPixels = settings.WidgetPixelLeft is int x && settings.WidgetPixelTop is int y ? (x, y) : null;
+            Left = double.IsFinite(settings.WidgetLeft) ? settings.WidgetLeft : 40;
+            Top = double.IsFinite(settings.WidgetTop) ? settings.WidgetTop : 40;
+            Opacity = settings.WidgetOpacity;
+            Topmost = settings.WidgetAlwaysOnTop;
+            SetClickThrough(settings.WidgetClickThrough);
+            Cursor = settings.WidgetClickThrough ? System.Windows.Input.Cursors.Arrow : System.Windows.Input.Cursors.SizeAll;
+            if (_positionReady) RestoreAfterLayout();
+        }
+        finally { _applying = false; }
         RecoverPosition();
     }
 
     public void RecoverPosition(IReadOnlyList<ScreenRect>? workAreas = null)
     {
-        if (_recoveringPosition || _drag is not null) return;
+        if (_recoveringPosition || _drag is not null || _applying || _restoringPixels || _closed) return;
+        if (workAreas is null)
+        {
+            if (!_positionReady) return;
+            RecoverPhysicalPosition();
+            return;
+        }
         _recoveringPosition = true;
         try
         {
@@ -61,6 +86,66 @@ public partial class FloatingWidget : Window
         }
         finally { _recoveringPosition = false; }
     }
+
+    public (int X, int Y)? PixelPosition
+    {
+        get
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            return hwnd != IntPtr.Zero && GetWindowRect(hwnd, out var rect) ? (rect.Left, rect.Top) : null;
+        }
+    }
+
+    private void RestoreAfterLayout()
+    {
+        // Moving onto a different DPI monitor can temporarily retain the old pixel size.
+        // Never clamp/persist that intermediate rectangle near a work-area edge.
+        _restoringPixels = true;
+        RestorePixels();
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() =>
+        {
+            if (_closed) return;
+            RestorePixels();
+            _restoringPixels = false;
+            RecoverPosition();
+            Moved?.Invoke(Left, Top);
+        }));
+    }
+
+    private void RestorePixels()
+    {
+        if (_savedPixels is { } pixels) SetPixelPosition(pixels.X, pixels.Y);
+    }
+
+    private void SetPixelPosition(int x, int y)
+    {
+        SetWindowPos(new WindowInteropHelper(this).Handle, IntPtr.Zero, x, y, 0, 0,
+            0x0001 | 0x0004 | 0x0010); // NOSIZE | NOZORDER | NOACTIVATE
+    }
+
+    private void RecoverPhysicalPosition()
+    {
+        var hwnd = new WindowInteropHelper(this).Handle;
+        if (!GetWindowRect(hwnd, out var rect)) return;
+        var areas = System.Windows.Forms.Screen.AllScreens.OrderByDescending(x => x.Primary)
+            .Select(x => new ScreenRect(x.WorkingArea.X, x.WorkingArea.Y, x.WorkingArea.Width, x.WorkingArea.Height)).ToArray();
+        var next = WidgetPlacement.Recover(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top, areas);
+        if ((int)next.Left == rect.Left && (int)next.Top == rect.Top) return;
+        _recoveringPosition = true;
+        try
+        {
+            SetPixelPosition((int)next.Left, (int)next.Top);
+            Moved?.Invoke(Left, Top);
+        }
+        finally { _recoveringPosition = false; }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect { public int Left, Top, Right, Bottom; }
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hwnd, out NativeRect rect);
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
 
     private System.Windows.Point PointerOnScreen(System.Windows.Input.MouseEventArgs e) =>
         _dragFromDevice.Transform(PointToScreen(e.GetPosition(this)));

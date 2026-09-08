@@ -2,6 +2,15 @@
 
 ## Active product — Codex only (2026-09-07)
 
+- Widget positions persist physical screen pixels alongside legacy DIP coordinates. Initial
+  restoration waits for target-monitor DPI/layout to settle before recovery or persistence.
+  A fully visible widget keeps its exact position, including within 8 pixels of an edge.
+- Each live reset-credit row has an explicit, confirmed Use reset action. The service serializes
+  redemption with reads, sends the selected opaque ID and a per-attempt idempotency key through
+  the installed App Server, then the app reads fresh limits. Uncertain retries reuse the same
+  key in memory; no automatic redemption/retry occurs. Cached/stale rows cannot redeem.
+  App exit cancels and waits for the bounded redemption process as well as active refreshes.
+
 `CodexMeter.exe` → shared `CodexRefreshCoordinator` → `CodexQuotaService` →
 installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit metadata.
 
@@ -52,7 +61,7 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   Work-area bounds cap effective width, and the body scroll limit accounts for the scale.
   Loading settings and repeated keys at a limit do not trigger redundant saves.
 - Root reset-credit metadata takes precedence as one container. Available Codex reset credits
-  are deduplicated transiently by ID and projected to nullable expiry timestamps only.
+  are deduplicated by ID. IDs for explicit redemption live only in memory; the cache contains nullable expiry timestamps only.
   The additive cache field preserves older snapshots; missing/partial expiries stay explicit.
   The separate reset-credit card shows each credit in a bounded scrolling list, with local expiry date and HH:mm always visible.
 - Flyout follows the supplied two-card layout: large usage ring, separated quota rows, and a

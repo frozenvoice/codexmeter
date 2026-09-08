@@ -3,7 +3,7 @@ using CodexMeter.Services;
 
 namespace CodexMeter.Codex;
 
-public sealed record CodexCreditExpiryRow(string Text, string Tooltip);
+public sealed record CodexCreditExpiryRow(string Text, string Tooltip, string? CreditId = null);
 
 public sealed record CodexCreditCard(string CountText, IReadOnlyList<CodexCreditExpiryRow> Rows, string? Notice)
 {
@@ -16,12 +16,18 @@ public sealed record CodexCreditCard(string CountText, IReadOnlyList<CodexCredit
         var countText = count.ToString(CultureInfo.InvariantCulture) + UiText.T("", "개");
         if (count == 0) return new(countText, [], UiText.T("No reset credits available", "사용 가능한 리셋권이 없습니다"));
         var dates = snapshot.ResetCreditExpirations?.Where(x => x.HasValue).Select(x => x!.Value).OrderBy(x => x).ToList() ?? [];
-        var rows = dates.Select(expiry =>
+        var entries = snapshot.Status == CodexQuotaStatus.Available && snapshot.RedeemableCredits.Count > 0
+            ? snapshot.RedeemableCredits.OrderBy(x => x.ExpiresAt).ToList()
+            : dates.Select(x => new CodexResetCredit("", x)).ToList();
+        var rows = entries.Select(credit =>
         {
+            if (credit.ExpiresAt is not { } expiry)
+                return new CodexCreditExpiryRow(UiText.T("Expiry not provided", "만료일 미제공"),
+                    UiText.T("Expiry not provided", "만료일 미제공"), credit.Id);
             var date = CodexDeadlineFormatting.DateStamp(expiry, now);
             var time = expiry.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
             var text = UiText.T($"{date} {time} expires", $"{date} {time} 만료");
-            return new CodexCreditExpiryRow(text, text);
+            return new CodexCreditExpiryRow(text, text, string.IsNullOrEmpty(credit.Id) ? null : credit.Id);
         }).ToList();
         var notices = new List<string>();
         if (dates.Count == 0) notices.Add(UiText.T("Expiry not provided", "만료일 미제공"));

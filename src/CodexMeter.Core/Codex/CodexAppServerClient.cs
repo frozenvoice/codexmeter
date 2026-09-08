@@ -13,7 +13,7 @@ public sealed record CodexProtocolSession(
     bool ProcessCleanedUp,
     bool KillCalled);
 
-public sealed class CodexAppServerClient
+public sealed partial class CodexAppServerClient
 {
     private readonly ICodexProcessFactory _processes;
 

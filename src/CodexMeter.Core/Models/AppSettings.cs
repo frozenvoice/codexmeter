@@ -33,6 +33,9 @@ public sealed class AppSettings
     public string? CodexExePath { get; set; }
     public double WidgetLeft { get; set; } = 40;
     public double WidgetTop { get; set; } = 40;
+    // Physical screen coordinates are stable across mixed-DPI process restarts.
+    public int? WidgetPixelLeft { get; set; }
+    public int? WidgetPixelTop { get; set; }
     public double WidgetOpacity { get; set; } = 0.92;
     public bool WidgetAlwaysOnTop { get; set; } = true;
     public bool WidgetClickThrough { get; set; }

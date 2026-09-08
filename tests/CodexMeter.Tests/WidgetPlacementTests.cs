@@ -13,6 +13,13 @@ public class WidgetPlacementTests
     public void MissingMonitorOrInvalidPositionReturnsToPrimary(double left, double top) =>
         Assert.Equal((40d, 40d), WidgetPlacement.Recover(left, top, 180, 60, [Primary]));
 
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(1740, 980)]
+    [InlineData(1737, 977)]
+    public void FullyVisibleEdgePositionDoesNotAcquireFlyoutMargin(double left, double top) =>
+        Assert.Equal((left, top), WidgetPlacement.Recover(left, top, 180, 60, [Primary]));
+
     [Fact]
     public void NegativeCoordinateMonitorIsPreserved() =>
         Assert.Equal((-1500d, 50d), WidgetPlacement.Recover(-1500, 50, 180, 60,
