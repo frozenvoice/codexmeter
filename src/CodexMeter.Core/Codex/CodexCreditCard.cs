@@ -16,13 +16,12 @@ public sealed record CodexCreditCard(string CountText, IReadOnlyList<CodexCredit
         var countText = count.ToString(CultureInfo.InvariantCulture) + UiText.T("", "개");
         if (count == 0) return new(countText, [], UiText.T("No reset credits available", "사용 가능한 리셋권이 없습니다"));
         var dates = snapshot.ResetCreditExpirations?.Where(x => x.HasValue).Select(x => x!.Value).OrderBy(x => x).ToList() ?? [];
-        var rows = dates.GroupBy(x => x.ToLocalTime().Date).Select(group =>
+        var rows = dates.Select(expiry =>
         {
-            var date = CodexDeadlineFormatting.DateStamp(group.First(), now);
-            var text = UiText.T($"{date} · {group.Count()} " + (group.Count() == 1 ? "expires" : "expire"), $"{date} 만료 · {group.Count()}개");
-            var tooltip = string.Join(Environment.NewLine, group.GroupBy(x => x).Select(exact =>
-                $"{CodexDeadlineFormatting.DateStamp(exact.Key, now)} {exact.Key.ToLocalTime():HH:mm} · {exact.Count()}" + UiText.T(" credits", "개")));
-            return new CodexCreditExpiryRow(text, tooltip);
+            var date = CodexDeadlineFormatting.DateStamp(expiry, now);
+            var time = expiry.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
+            var text = UiText.T($"{date} {time} expires", $"{date} {time} 만료");
+            return new CodexCreditExpiryRow(text, text);
         }).ToList();
         var notices = new List<string>();
         if (dates.Count == 0) notices.Add(UiText.T("Expiry not provided", "만료일 미제공"));

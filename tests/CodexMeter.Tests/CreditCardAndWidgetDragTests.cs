@@ -36,16 +36,22 @@ public class CreditCardAndWidgetDragTests
     }
 
     [Fact]
-    public void CreditCard_GroupsAllDatesAndKeepsExactTimes()
+    public void CreditCard_ShowsEachCreditTimeWithoutRedundantCount()
     {
-        var snapshot = Snapshot(5, [Now.AddDays(1), Now.AddDays(1).AddHours(1), Now.AddDays(2), Now.AddDays(3), Now.AddDays(4)]);
-        var card = CodexCreditCard.From(snapshot, Now);
-        Assert.Equal(4, card.Rows.Count);
-        Assert.Contains("2", card.Rows[0].Text);
-        Assert.Equal(2, card.Rows[0].Tooltip.Split(Environment.NewLine).Length);
+        var early = Now.AddDays(1);
+        var late = early.AddHours(1);
+        var card = CodexCreditCard.From(Snapshot(3, [late, early, early]), Now);
+        Assert.Equal(3, card.Rows.Count);
+        Assert.Equal(UiText.T("3", "3개"), card.CountText);
+        var date = CodexDeadlineFormatting.DateStamp(early, Now);
+        var earlyTime = early.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        var lateTime = late.ToLocalTime().ToString("HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(UiText.T($"{date} {earlyTime} expires", $"{date} {earlyTime} 만료"), card.Rows[0].Text);
+        Assert.Equal(card.Rows[0], card.Rows[1]);
+        Assert.Equal(UiText.T($"{date} {lateTime} expires", $"{date} {lateTime} 만료"), card.Rows[2].Text);
+        Assert.All(card.Rows, row => Assert.DoesNotContain("·", row.Text));
         Assert.Null(card.Notice);
     }
-
     [Fact]
     public void CreditCard_PartialExpiryAndStaleDataRemainExplicit()
     {

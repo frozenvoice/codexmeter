@@ -54,7 +54,7 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Root reset-credit metadata takes precedence as one container. Available Codex reset credits
   are deduplicated transiently by ID and projected to nullable expiry timestamps only.
   The additive cache field preserves older snapshots; missing/partial expiries stay explicit.
-  The separate reset-credit card shows every date group in a bounded scrolling list, with exact times in tooltips.
+  The separate reset-credit card shows each credit in a bounded scrolling list, with local expiry date and HH:mm always visible.
 - Flyout follows the supplied two-card layout: large usage ring, separated quota rows, and a
   reset-credit list below. Its 440 DIP width and scrollable body fit the current work area.
   Fresh/refreshing/stale/identity-failure states stay distinct; credit unknown is never zero.
@@ -65,7 +65,7 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   one position-save event. Click-through remains an explicit setting and disables input.
 - The final supplied sample removes the redundant ring legend and places the credit count in
   a badge beside its title. The badge opens help; the right chevron toggles the expiry list.
-  Expansion defaults on, survives refresh, and keeps a 108 DIP list viewport for 1+ date groups.
+  Expansion defaults on, survives refresh, and keeps a 108 DIP list viewport for 1+ credits.
 - Reset-credit help is click-toggled on one reused tooltip instance. Refresh keeps its state;
   hiding the detail window closes it. Automatic hover opening is disabled for this button.
 - Flyout refresh uses only the header status and fixed-size spinning button; no sliding progress
