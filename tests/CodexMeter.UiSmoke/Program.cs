@@ -76,6 +76,8 @@ internal static class Program
                             content.Measure(new Size(double.IsFinite(window.Width) ? window.Width : 900, 900));
                             content.Arrange(new Rect(new Point(), content.DesiredSize));
                             content.UpdateLayout();
+                            if (window is FloatingWidget compactWidget)
+                                CheckWidgetTextLayout(compactWidget, content);
                             if (window is FlyoutWindow)
                             {
                                 var rows = (System.Windows.Controls.ItemsControl)window.FindName("CodexRows");
@@ -110,6 +112,21 @@ internal static class Program
             return 1;
         }
         finally { app.Shutdown(); }
+    }
+
+    private static void CheckWidgetTextLayout(FloatingWidget widget, FrameworkElement content)
+    {
+        foreach (var name in new[] { "CodexLabel", "CodexValue" })
+        {
+            var text = (System.Windows.Controls.TextBlock)widget.FindName(name);
+            var top = text.TranslatePoint(new Point(), content).Y;
+            var bottom = content.ActualHeight - top - text.ActualHeight;
+            if (Math.Abs(top - bottom) > 1)
+                throw new InvalidOperationException($"Widget {name} is not vertically centered: {top}/{bottom}.");
+            if (!text.UseLayoutRounding || !text.SnapsToDevicePixels
+                || TextOptions.GetTextFormattingMode(text) != TextFormattingMode.Display)
+                throw new InvalidOperationException("Widget text must use pixel-aligned display formatting.");
+        }
     }
 
     private static void CheckZoomShortcuts(FlyoutWindow flyout)

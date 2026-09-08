@@ -2,6 +2,15 @@
 
 ## Current release — Codex only
 
+- Widget alignment/DPI: removed the first row's asymmetric 6 DIP top margin and reused
+  AppWindow pixel rounding, device snapping and Display text formatting. WPF startup now
+  declares PerMonitorV2 in the executable manifest. Regression checks cover centered text
+  and inherited rendering options in both languages/three themes, plus manifest wiring.
+  Restore, Release build (0 warnings/errors), 956 tests, 36 WPF renders and win-x64
+  self-contained single-file publish passed. Synthetic widget preview was visually checked.
+  Physical mixed-DPI monitor transitions and transparent-window text clarity remain manual checks;
+  no live-account access was needed.
+
 - Public documentation: English README, Korean companion guide and four production WPF
   previews were prepared with synthetic quota data. The PNGs were visually inspected in
   dark/light themes; README relative links resolve. The exporter does not start the app
