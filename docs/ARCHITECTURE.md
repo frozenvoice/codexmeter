@@ -2,6 +2,9 @@
 
 ## Active product — Codex only (2026-09-07)
 
+- The widget centers its complete status stack within the actual native window height.
+  `SizeToContent` does not guarantee that the allocated height equals the requested content
+  height; extra native-window space must be shared above and below the text.
 - Widget positions persist physical screen pixels alongside legacy DIP coordinates. Initial
   restoration waits for target-monitor DPI/layout to settle before recovery or persistence.
   A fully visible widget keeps its exact position, including within 8 pixels of an edge.

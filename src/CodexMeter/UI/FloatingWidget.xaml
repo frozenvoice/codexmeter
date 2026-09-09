@@ -19,7 +19,8 @@
             BorderBrush="{DynamicResource LineBrush}"
             BorderThickness="1"
             MinWidth="168">
-        <StackPanel>
+        <!-- The native window can be taller than DesiredSize; center within its actual height. -->
+        <StackPanel VerticalAlignment="Center">
             <DockPanel>
                 <TextBlock x:Name="CodexValue"
                            DockPanel.Dock="Right"

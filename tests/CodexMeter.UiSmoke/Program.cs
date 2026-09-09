@@ -31,6 +31,11 @@ internal static class Program
             {
                 Source = new Uri("/CodexMeter;component/UI/Themes.xaml", UriKind.Relative)
             });
+            if (args is ["--widget-dpi", var dpiDirectory])
+            {
+                WidgetDpiChecks.Run(dpiDirectory);
+                return 0;
+            }
             if (args is ["--screenshots", var directory])
             {
                 DocumentationScreenshots.Export(directory);
@@ -39,6 +44,7 @@ internal static class Program
             CheckEnvironmentCallbacks(app);
             CheckWidgetRecovery();
             CheckWidgetRestart();
+            WidgetDpiChecks.Run();
             CheckPositionReset();
             var applyTheme = typeof(App).GetMethod("ApplyTheme", BindingFlags.Static | BindingFlags.NonPublic)
                 ?? throw new MissingMethodException("App.ApplyTheme");

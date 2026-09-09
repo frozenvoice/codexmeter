@@ -2,6 +2,17 @@
 
 ## Current release — Codex only
 
+- Widget native-height alignment: reproduced on the home PC's three 4K monitors at 100% DPI:
+  the shown window/content was 39 DIP high despite a 33 DIP content request, leaving 9 DIP
+  above the status row and 15 below. Centering the status stack fixes the allocated-height
+  case. The new regression failed before the fix and passed after it. 180 offline renders
+  cover 100/125/150/175/200% layout DPI, both languages, all three themes, extra allocated
+  height and available/stale/recovered states; native window checks pass on all three monitors.
+  Korean dark previews at 100% and 150% were visually checked. This is layout validation
+  with synthetic metadata; no real reset credit was consumed. Restore, Release build
+  (0 warnings/errors), 972 unit tests, 36 existing WPF renders, five installer scenarios,
+  single-file win-x64 publish and local replacement/startup also passed.
+
 - Widget restart/credit actions: restore and Release build passed (0 warnings/errors), 972 unit
   tests passed, 36 WPF renders plus offline confirmation/cancellation/single-flight checks passed,
   five installer scenarios passed, and publish produced one self-contained win-x64 executable.
