@@ -3,7 +3,7 @@ namespace CodexMeter.Codex;
 public sealed class CodexQuotaService
 {
     public static readonly TimeSpan FlyoutRefreshAge = TimeSpan.FromMinutes(2);
-    public static readonly TimeSpan TaskbarRefreshInterval = TimeSpan.FromMinutes(5);
+
 
     private readonly CodexExecutableLocator _locator;
     private readonly CodexAppServerClient _client;
@@ -37,7 +37,7 @@ public sealed class CodexQuotaService
 
     public event Action<CodexQuotaSnapshot>? Changed;
 
-    public static bool ShouldRefreshOnFlyoutOpen(CodexQuotaSnapshot snapshot, DateTimeOffset now)
+    public static bool ShouldRefreshOnFlyoutOpen(CodexQuotaSnapshot snapshot, DateTimeOffset now, TimeSpan? refreshInterval = null)
     {
         if (snapshot.Status == CodexQuotaStatus.Refreshing)
         {
@@ -46,7 +46,10 @@ public sealed class CodexQuotaService
 
         var last = snapshot.LastSuccessfulRefresh;
         if (snapshot.LastAttemptedRefresh is { } attempt && (last is null || attempt > last)) last = attempt;
-        return last is null || now - last.Value >= FlyoutRefreshAge;
+        var age = refreshInterval ?? FlyoutRefreshAge;
+        // Short schedules must not turn failures into rapid automatic retries.
+        if (snapshot.Status != CodexQuotaStatus.Available && age < FlyoutRefreshAge) age = FlyoutRefreshAge;
+        return last is null || now - last.Value >= age;
     }
 
     public async Task<CodexRefreshResult> RefreshAsync(string? configuredPath, CancellationToken cancellationToken)

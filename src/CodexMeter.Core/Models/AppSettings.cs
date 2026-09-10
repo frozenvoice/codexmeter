@@ -31,6 +31,13 @@ public sealed class AppSettings
     // Deprecated JSON compatibility only; unsafe taskbar overlays are never created.
     public bool TaskbarStatusEnabled { get; set; }
     public string? CodexExePath { get; set; }
+    public static IReadOnlyList<int> CodexRefreshIntervals { get; } = Array.AsReadOnly(new[] { 1, 2, 5, 10, 30, 60 });
+    private int _codexRefreshIntervalMinutes = 5;
+    public int CodexRefreshIntervalMinutes
+    {
+        get => _codexRefreshIntervalMinutes;
+        set => _codexRefreshIntervalMinutes = CodexRefreshIntervals.Contains(value) ? value : 5;
+    }
     public double WidgetLeft { get; set; } = 40;
     public double WidgetTop { get; set; } = 40;
     // Physical screen coordinates are stable across mixed-DPI process restarts.

@@ -186,7 +186,11 @@
                             </Grid>
                             <TextBlock x:Name="CodexPathHint" Style="{StaticResource SettingsHint}" Margin="0,10,0,0"/>
                             <Border Height="1" Background="{DynamicResource LineBrush}" Margin="0,28"/>
-                            <TextBlock x:Name="RefreshScheduleTitle" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                            <Grid Style="{StaticResource SettingsRow}">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="184"/></Grid.ColumnDefinitions>
+                                <TextBlock x:Name="RefreshScheduleTitle" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="RefreshIntervalBox" Grid.Column="1" Style="{StaticResource SettingsChoice}"/>
+                            </Grid>
                             <TextBlock x:Name="RefreshScheduleHint" Style="{StaticResource SettingsHint}"/>
                         </StackPanel>
                     </ScrollViewer>

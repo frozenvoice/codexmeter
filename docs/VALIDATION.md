@@ -2,6 +2,15 @@
 
 ## Current release — Codex only
 
+- Selectable automatic refresh: defaults to five minutes and persists 1/2/5/10/30/60-minute
+  choices independently of retired history-sync settings. Restore, Release build (0 warnings/errors),
+  993 unit tests (21 new schedule cases), 36 production WPF renders, 180 widget DPI renders,
+  five installer scenarios and win-x64 single-file publish passed. WPF checks cover all choices,
+  Save/Cancel, live timer updates and compact-window scroll access in both languages/all themes.
+  Korean dark and English light connection-tab renders were visually checked. Successful refresh
+  completion restarts the timer; failed automatic attempts retain a two-minute minimum cooldown.
+  Live-account polling over real minute intervals was not exercised for this change.
+
 - Widget native-height alignment: reproduced on the home PC's three 4K monitors at 100% DPI:
   the shown window/content was 39 DIP high despite a 33 DIP content request, leaving 9 DIP
   above the status row and 15 below. Centering the status stack fixes the allocated-height

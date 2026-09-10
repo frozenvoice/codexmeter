@@ -54,6 +54,7 @@ internal static class Program
             {
                 UiText.SetLanguage(language);
                 applyTheme.Invoke(null, [theme]);
+                CheckRefreshSettings(app, $"{language}-{theme}");
                 var flyout = new FlyoutWindow();
                 var widget = new FloatingWidget();
                 var now = DateTimeOffset.Now;
@@ -132,6 +133,63 @@ internal static class Program
         finally { app.Shutdown(); }
     }
 
+    private static void CheckRefreshSettings(App app, string previewName)
+    {
+        var settings = new AppSettings();
+        var cancel = new SettingsWindow(settings);
+        var choice = (System.Windows.Controls.ComboBox)cancel.FindName("RefreshIntervalBox");
+        if (choice.SelectedIndex != 2 || choice.Items.Count != 6)
+            throw new InvalidOperationException("Refresh choices/default are incorrect.");
+        choice.SelectedIndex = 0;
+        ((System.Windows.Controls.Button)cancel.FindName("CancelButton")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+        if (settings.CodexRefreshIntervalMinutes != 5) throw new InvalidOperationException("Cancel changed the refresh schedule.");
+        foreach (var minutes in AppSettings.CodexRefreshIntervals)
+        {
+            var window = new SettingsWindow(settings);
+            try
+            {
+                ((System.Windows.Controls.TabItem)window.FindName("ConnectionTab")).IsSelected = true;
+                var box = (System.Windows.Controls.ComboBox)window.FindName("RefreshIntervalBox");
+                box.SelectedIndex = AppSettings.CodexRefreshIntervals.ToList().IndexOf(minutes);
+                var content = (FrameworkElement)window.Content;
+                content.Measure(new Size(580, 480));
+                content.Arrange(new Rect(0, 0, 580, 480));
+                content.UpdateLayout();
+                var scroller = (System.Windows.Controls.ScrollViewer)((System.Windows.Controls.TabItem)window.FindName("ConnectionTab")).Content;
+                scroller.ScrollToEnd();
+                content.UpdateLayout();
+                var bounds = box.TransformToAncestor(scroller).TransformBounds(new Rect(box.RenderSize));
+                if (bounds.Top < 0 || bounds.Bottom > scroller.ActualHeight || box.ActualWidth < 170 || box.ActualHeight < 30)
+                    throw new InvalidOperationException("Refresh selector is hidden or clipped.");
+                if (minutes == 5)
+                {
+                    content.Measure(new Size(640, 590));
+                    content.Arrange(new Rect(0, 0, 640, 590));
+                    scroller.ScrollToTop();
+                    content.UpdateLayout();
+                    var bitmap = new RenderTargetBitmap(640, 590, 96, 96, PixelFormats.Pbgra32);
+                    bitmap.Render(content);
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                    System.IO.Directory.CreateDirectory("artifacts/refresh-settings");
+                    using var stream = System.IO.File.Create($"artifacts/refresh-settings/{previewName}.png");
+                    encoder.Save(stream);
+                }
+                var saved = false;
+                window.Saved += value => saved = value.CodexRefreshIntervalMinutes == minutes;
+                ((System.Windows.Controls.Button)window.FindName("SaveButton")).RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                if (!saved || settings.CodexRefreshIntervalMinutes != minutes)
+                    throw new InvalidOperationException("Save lost the selected refresh interval.");
+                typeof(App).GetField("_settings", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(app, settings);
+                typeof(App).GetMethod("ApplyRefreshSchedule", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(app, null);
+                var timer = (System.Windows.Threading.DispatcherTimer)typeof(App).GetField("_codexTimer", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(app)!;
+                if (!timer.IsEnabled || timer.Interval != TimeSpan.FromMinutes(minutes))
+                    throw new InvalidOperationException("Schedule did not apply to the running timer.");
+                timer.Stop();
+            }
+            finally { window.Close(); }
+        }
+    }
     private static void CheckWidgetTextLayout(FloatingWidget widget, FrameworkElement content)
     {
         foreach (var name in new[] { "CodexLabel", "CodexValue" })

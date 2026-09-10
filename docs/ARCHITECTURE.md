@@ -20,7 +20,7 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Tray, flyout, widget and timer all share one bounded refresh. Cancelling a
   waiting caller does not cancel the active owner's work. File/process work runs off the UI thread.
   Successful-check timestamps use completion time, while attempt timestamps retain start time.
-  Automatic checks use the newest attempt/completion for a two-minute cooldown; manual checks remain available.
+  Automatic checks use the newest attempt/completion and the saved interval, with a minimum two-minute cooldown after failures; manual checks remain available.
 - Only Codex is visible: actual provided periods, used/remaining percentages, reset times,
   reset-credit metadata and last refresh. Signed-out/missing CLI states do not display cached
   percentages as current; stale data is explicitly marked.
@@ -55,7 +55,7 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   Local installation retries bounded file operations and restores/restarts the old executable
   when deployment or startup fails. Failed pre-backup moves never restore a stale backup.
 - Reset rows show server reset time plus remaining days/hours. A one-minute UI-only timer
-  refreshes countdowns; account refresh remains every five minutes.
+  refreshes countdowns; account refresh uses the saved 1/2/5/10/30/60-minute schedule (default five minutes).
 - Last checked combines the local successful-refresh time with elapsed minutes/hours/days.
   The same display timer updates it without a request. Failed attempts do not reset its age;
   missing or future timestamps never produce an invented elapsed value.

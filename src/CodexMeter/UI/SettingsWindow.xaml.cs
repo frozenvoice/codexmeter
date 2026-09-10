@@ -54,7 +54,12 @@ public partial class SettingsWindow : Window
         CodexExeBox.Text = settings.CodexExePath ?? "";
         AutoDetectHint.Text = UiText.T("Detect automatically", "자동으로 찾기");
         CodexPathHint.Text = UiText.T("Leave empty for automatic detection. Set an absolute path only if Codex cannot be found.", "보통은 비워 두면 됩니다. Codex를 찾지 못할 때만 실행 파일의 전체 경로를 입력하세요.");
-        RefreshScheduleTitle.Text = UiText.T("Automatic refresh · every 5 minutes", "자동 확인 · 5분마다");
+        RefreshScheduleTitle.Text = UiText.T("Automatic refresh", "자동 확인");
+        RefreshIntervalBox.ItemsSource = AppSettings.CodexRefreshIntervals.Select(minutes =>
+            minutes == 5 ? UiText.T("5 minutes (default)", "5분 (기본값)") :
+            minutes == 1 ? UiText.T("1 minute", "1분") : UiText.T($"{minutes} minutes", $"{minutes}분")).ToArray();
+        RefreshIntervalBox.SelectedIndex = AppSettings.CodexRefreshIntervals.ToList().IndexOf(settings.CodexRefreshIntervalMinutes);
+        SetName(RefreshIntervalBox, RefreshScheduleTitle.Text);
         RefreshScheduleHint.Text = UiText.T("You can refresh at any time from the usage card.", "사용량 카드에서 언제든 새로고침할 수 있습니다.");
         LogsButton.Content = UiText.T("Open logs", "로그 열기");
         SaveButton.Content = new System.Windows.Controls.TextBlock
@@ -85,6 +90,8 @@ public partial class SettingsWindow : Window
     private void OnSave(object sender, RoutedEventArgs e)
     {
         _settings.CodexExePath = string.IsNullOrWhiteSpace(CodexExeBox.Text) ? null : CodexExeBox.Text.Trim();
+        _settings.CodexRefreshIntervalMinutes = AppSettings.CodexRefreshIntervals[
+            Math.Clamp(RefreshIntervalBox.SelectedIndex, 0, AppSettings.CodexRefreshIntervals.Count - 1)];
         _settings.Theme = (AppTheme)Math.Clamp(ThemeBox.SelectedIndex, 0, 2);
         _settings.UiLanguage = LanguageBox.SelectedIndex == 0 ? UiLanguage.Korean : UiLanguage.English;
         _settings.TrayIconStyle = (TrayIconStyle)Math.Clamp(IconBox.SelectedIndex, 0, 1);

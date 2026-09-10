@@ -77,10 +77,14 @@ public partial class App : Application
             new CodexSnapshotStore(), Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0", _log.Info);
         _refresh = new CodexRefreshCoordinator(ct => Task.Run(() => _codex.RefreshAsync(_settings.CodexExePath, ct), ct));
         _codex.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
-        _refresh.StateChanged += () => Dispatcher.BeginInvoke(RefreshSnapshot);
-        _codexTimer.Interval = CodexQuotaService.TaskbarRefreshInterval;
+        _refresh.StateChanged += () => Dispatcher.BeginInvoke(() =>
+        {
+            if (!_refresh.IsRefreshing && !IsExiting) ApplyRefreshSchedule();
+            RefreshSnapshot();
+        });
+        ApplyRefreshSchedule();
         _codexTimer.Tick += async (_, _) => await RefreshCodexAsync(automatic: true);
-        _codexTimer.Start();
+
         _displayTimer.Tick += (_, _) => RefreshSnapshot();
         _displayTimer.Start();
         RefreshSnapshot();
@@ -90,10 +94,17 @@ public partial class App : Application
         _ = RefreshCodexAsync();
     }
 
+    private void ApplyRefreshSchedule()
+    {
+        _codexTimer.Stop();
+        _codexTimer.Interval = TimeSpan.FromMinutes(_settings.CodexRefreshIntervalMinutes);
+        if (!IsExiting) _codexTimer.Start();
+    }
+
     private async Task RefreshCodexAsync(bool automatic = false)
     {
         if (IsExiting) return;
-        if (automatic && !CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now)) return;
+        if (automatic && !CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now, _codexTimer.Interval)) return;
         try { await _refresh.RefreshAsync(_lifetime.Token); }
         catch (OperationCanceledException) { }
         catch (Exception ex) { _log.Error("Codex refresh failed", ex); }
@@ -116,7 +127,7 @@ public partial class App : Application
         _flyout.Show();
         PlaceFlyout(_flyout);
         _flyout.Activate();
-        if (CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now))
+        if (CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now, _codexTimer.Interval))
             _ = RefreshCodexAsync(automatic: true);
     }
 
@@ -171,6 +182,7 @@ public partial class App : Application
             }
             _settings = settings;
             _settingsStore.Save(settings);
+            ApplyRefreshSchedule();
             UiText.SetLanguage(settings.UiLanguage);
             ApplyTheme(settings.Theme);
             StartupConsent.ApplyIfPermitted(new WindowsStartupService(), settings);
