@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using CodexMeter.Codex;
+using CodexMeter.Providers.Usage;
 
 namespace CodexMeter.UI;
 
@@ -72,6 +73,8 @@ public partial class FlyoutWindow : Window
     {
         _creditSnapshot = snapshot;
         _refreshActive = refreshing;
+        SelectedProviderBadge.Provider = snapshot.Provider;
+        ResetCreditsCard.Visibility = snapshot.Provider == UsageProviderId.Codex ? Visibility.Visible : Visibility.Collapsed;
         ApplyLocalizedTexts();
         StatusText.Text = snapshot.Status == CodexQuotaStatus.Available ? UiText.T("Up to date", "정상 작동 중") : CodexMeterPresentation.StatusLabel(snapshot);
         StatusDot.Fill = (Brush)FindResource(refreshing ? "AccentBrush" : snapshot.Status == CodexQuotaStatus.Available ? "OkBrush" : "MutedBrush");
@@ -96,10 +99,10 @@ public partial class FlyoutWindow : Window
                     () => { if (!_redeemingCredit) AccountSelected?.Invoke(account.Profile.Id); }));
         AccountSelectionHint.Text = accounts.Count > 1
             ? UiText.T("Select an account for details, tray and widget.", "계정을 선택하면 상세 카드·트레이·위젯에 표시됩니다.")
-            : UiText.T("Add an account or connect an existing Codex sign-in.", "계정을 추가하거나 기존 Codex 로그인을 연결하세요.");
+            : UiText.T("Connect a Codex account or a Claude Code statusLine profile.", "Codex 계정이나 Claude Code statusLine 프로필을 연결하세요.");
         SelectedAccountText.Text = selected?.DisplayName ?? UiText.T("Add your first account", "첫 계정을 추가하세요");
         SelectedAccountText.Visibility = Visibility.Visible;
-        SelectedAccountText.ToolTip = selected?.Email ?? selected?.Profile.HomePath;
+        SelectedAccountText.ToolTip = selected?.Email ?? selected?.DisplayName;
         var failed = accounts.Count(a => a.Snapshot.Status != CodexQuotaStatus.Available);
         if (accounts.Count > 1 && !refreshing)
             StatusText.Text = failed == 0 ? UiText.T("All updated", "전체 최신")
@@ -304,6 +307,12 @@ public partial class FlyoutWindow : Window
 
     private void BindCreditCard(CodexQuotaSnapshot snapshot)
     {
+        if (snapshot.Provider != UsageProviderId.Codex)
+        {
+            CreditExpiryRows.Items.Clear();
+            if (_creditHelpTip is not null) _creditHelpTip.IsOpen = false;
+            return;
+        }
         var credits = CodexCreditCard.From(snapshot, DateTimeOffset.Now);
         ResetCreditsCount.Text = credits.CountText;
         CreditExpiryRows.Items.Clear();

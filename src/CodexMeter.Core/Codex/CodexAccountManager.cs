@@ -1,3 +1,5 @@
+using CodexMeter.Providers.Usage;
+
 namespace CodexMeter.Codex;
 
 public sealed record CodexDiscoveryResult(int Added, int Failed, int SignedOut);
@@ -7,22 +9,26 @@ public sealed class CodexAccountManager
 {
     private readonly object _gate = new();
     private readonly CodexAccountStore _store;
-    private readonly Func<CodexAccountProfile, CodexQuotaService> _createService;
-    private readonly Func<string?> _configuredPath;
-    private readonly Dictionary<string, CodexQuotaService> _services = new(StringComparer.Ordinal);
+    private readonly Func<CodexAccountProfile, IUsageAccountService> _createService;
+    private readonly Dictionary<string, IUsageAccountService> _services = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim _processSlots = new(2, 2);
     private readonly SemaphoreSlim _loginGate = new(1, 1);
     private readonly SemaphoreSlim _discoveryGate = new(1, 1);
+    private readonly SemaphoreSlim _passiveGate = new(1, 1);
     private CodexAccountConfiguration _configuration;
     private string? _loginProfile;
 
     public CodexAccountManager(CodexAccountStore store, string defaultHome,
         Func<CodexAccountProfile, CodexQuotaService> createService, Func<string?> configuredPath)
+        : this(store, defaultHome, [new CodexUsageProvider(createService, configuredPath)]) { }
+
+    public CodexAccountManager(CodexAccountStore store, string defaultHome, IEnumerable<IUsageProvider> providers)
     {
         _store = store;
         _configuration = store.LoadOrMigrate(defaultHome);
-        _createService = createService;
-        _configuredPath = configuredPath;
+        var registered = providers.ToDictionary(provider => provider.Id);
+        _createService = profile => registered.TryGetValue(profile.Provider, out var provider)
+            ? provider.Create(profile) : throw new InvalidDataException("Account provider is unavailable.");
         foreach (var profile in _configuration.Profiles) AddService(profile);
         Refresh = new CodexRefreshCoordinator(RefreshAllAsync);
         Refresh.StateChanged += () => Changed?.Invoke();
@@ -38,14 +44,14 @@ public sealed class CodexAccountManager
         {
             lock (_gate)
             {
-                var repeated = _services.Values.Select(s => s.Identity?.Fingerprint).OfType<string>()
+                var repeated = _services.Values.Select(s => s.IdentityFingerprint).OfType<string>()
                     .GroupBy(value => value, StringComparer.Ordinal).Where(group => group.Count() > 1)
                     .Select(group => group.Key).ToHashSet(StringComparer.Ordinal);
                 return _configuration.Profiles.Select(profile =>
                 {
                     var service = _services[profile.Id];
-                    return new CodexAccountView(profile, service.Snapshot, service.Identity?.Email, _loginProfile == profile.Id,
-                        service.Identity?.Fingerprint is { } fingerprint && repeated.Contains(fingerprint));
+                    return new CodexAccountView(profile, service.Snapshot, service.Email, _loginProfile == profile.Id,
+                        service.IdentityFingerprint is { } fingerprint && repeated.Contains(fingerprint));
                 }).ToArray();
             }
         }
@@ -68,6 +74,23 @@ public sealed class CodexAccountManager
         lock (_gate) Save(_configuration with { Profiles = _configuration.Profiles.Select(p =>
             p.Id == id ? p with { Label = CodexAccountStore.CleanLabel(label) } : p).ToArray() });
         Changed?.Invoke();
+    }
+
+    public CodexAccountProfile AddClaude(string label)
+    {
+        CodexAccountProfile profile;
+        lock (_gate)
+        {
+            profile = _store.NewClaude(label);
+            var service = _createService(profile);
+            // Version 2 makes older Codex-only builds refuse this registry, rather than
+            // treating a Claude profile as a Codex login on downgrade.
+            Save(_configuration with { Version = 2, Profiles = _configuration.Profiles.Append(profile).ToArray(),
+                SelectedId = _configuration.Profiles.Count == 0 ? profile.Id : _configuration.SelectedId });
+            AddService(profile, service);
+        }
+        Changed?.Invoke();
+        return profile;
     }
 
     public bool Move(string id, int direction)
@@ -97,15 +120,34 @@ public sealed class CodexAccountManager
             var profiles = _configuration.Profiles.Where(p => p.Id != id).ToArray();
             Save(_configuration with { Profiles = profiles,
                 SelectedId = _configuration.SelectedId == id ? profiles.FirstOrDefault()?.Id ?? "" : _configuration.SelectedId,
-                IgnoredHomes = _configuration.IgnoredHomes.Append(profile.HomePath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() });
+                IgnoredHomes = profile.Provider == UsageProviderId.Codex
+                    ? _configuration.IgnoredHomes.Append(profile.HomePath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+                    : _configuration.IgnoredHomes });
             _services.Remove(id);
         }
         Changed?.Invoke();
         return true;
     }
 
-    public bool ShouldRefresh(DateTimeOffset now, TimeSpan interval) => Accounts.Any(account =>
-        !account.IsSigningIn && CodexQuotaService.ShouldRefreshOnFlyoutOpen(account.Snapshot, now, interval));
+    public bool ShouldRefresh(DateTimeOffset now, TimeSpan interval)
+    {
+        lock (_gate) return _services.Any(pair => pair.Key != _loginProfile && pair.Value.ShouldRefresh(now, interval));
+    }
+
+    // Passive sources need no remote probe. Poll their projected inbox independently of
+    // the Codex interval, without starting Codex or touching shared manual-refresh state.
+    public async Task RefreshPassiveAsync(CancellationToken token)
+    {
+        if (!await _passiveGate.WaitAsync(0, token).ConfigureAwait(false)) return;
+        try
+        {
+            IUsageAccountService[] services;
+            lock (_gate) services = _services.Values.Where(service => service.ReceivesPassiveUpdates).ToArray();
+            foreach (var service in services)
+                await service.RefreshAsync(token).ConfigureAwait(false);
+        }
+        finally { _passiveGate.Release(); }
+    }
 
     public Task<CodexRefreshResult> RefreshAutomaticallyAsync(TimeSpan interval, CancellationToken token)
     {
@@ -138,13 +180,13 @@ public sealed class CodexAccountManager
             await _processSlots.WaitAsync(token).ConfigureAwait(false);
             try
             {
-                CodexQuotaService? service;
+                IUsageAccountService? service;
                 lock (_gate)
                 {
                     if (profile.Id == _loginProfile || !_services.TryGetValue(profile.Id, out service)) return;
                 }
-                if (interval is { } age && !CodexQuotaService.ShouldRefreshOnFlyoutOpen(service.Snapshot, DateTimeOffset.Now, age)) return;
-                await service.RefreshAsync(_configuredPath(), token).ConfigureAwait(false);
+                if (interval is { } age && !service.ShouldRefresh(DateTimeOffset.Now, age)) return;
+                await service.RefreshAsync(token).ConfigureAwait(false);
             }
             finally { _processSlots.Release(); }
         })).ConfigureAwait(false);
@@ -163,13 +205,14 @@ public sealed class CodexAccountManager
             {
                 token.ThrowIfCancellationRequested();
                 lock (_gate)
-                    if (_configuration.Profiles.Any(p => string.Equals(p.HomePath, home, StringComparison.OrdinalIgnoreCase))
+                    if (_configuration.Profiles.Any(p => p.Provider == UsageProviderId.Codex && string.Equals(p.HomePath, home, StringComparison.OrdinalIgnoreCase))
                         || (automatic && _configuration.IgnoredHomes.Contains(home, StringComparer.OrdinalIgnoreCase))) continue;
                 var profile = new CodexAccountProfile(Guid.NewGuid().ToString("N"), home, "");
                 var service = _createService(profile);
+                if (service is not ICodexAccountOperations operations) { failed++; continue; }
                 await _processSlots.WaitAsync(token).ConfigureAwait(false);
                 CodexAccountIdentity identity;
-                try { identity = await service.ProbeAccountAsync(_configuredPath(), token).ConfigureAwait(false); }
+                try { identity = await operations.ProbeAccountAsync(token).ConfigureAwait(false); }
                 finally { _processSlots.Release(); }
                 if (identity.Status != CodexQuotaStatus.Available)
                 {
@@ -178,7 +221,7 @@ public sealed class CodexAccountManager
                 }
                 lock (_gate)
                 {
-                    if (_configuration.Profiles.Any(p => string.Equals(p.HomePath, home, StringComparison.OrdinalIgnoreCase))) continue;
+                    if (_configuration.Profiles.Any(p => p.Provider == UsageProviderId.Codex && string.Equals(p.HomePath, home, StringComparison.OrdinalIgnoreCase))) continue;
                     Save(_configuration with { Profiles = _configuration.Profiles.Append(profile).ToArray(),
                         SelectedId = _configuration.Profiles.Count == 0 ? profile.Id : _configuration.SelectedId,
                         IgnoredHomes = _configuration.IgnoredHomes.Where(p => !string.Equals(p, home, StringComparison.OrdinalIgnoreCase)).ToArray() });
@@ -198,7 +241,8 @@ public sealed class CodexAccountManager
         if (!await _loginGate.WaitAsync(0, token).ConfigureAwait(false)) return new(CodexQuotaStatus.Unavailable);
         try
         {
-            CodexQuotaService service;
+            IUsageAccountService service;
+            ICodexAccountOperations operations;
             lock (_gate)
             {
                 if (profileId is null)
@@ -211,14 +255,16 @@ public sealed class CodexAccountManager
                     profileId = profile.Id;
                 }
                 else if (!_services.TryGetValue(profileId, out service!)) return new(CodexQuotaStatus.Unavailable);
+                if (service is not ICodexAccountOperations codexOperations) return new(CodexQuotaStatus.Unavailable);
+                operations = codexOperations;
                 _loginProfile = profileId;
             }
             Changed?.Invoke();
-            var result = await service.LoginAsync(_configuredPath(), openBrowser, token).ConfigureAwait(false);
+            var result = await operations.LoginAsync(openBrowser, token).ConfigureAwait(false);
             if (result.Status == CodexQuotaStatus.Available)
             {
                 await _processSlots.WaitAsync(token).ConfigureAwait(false);
-                try { await service.RefreshAsync(_configuredPath(), token).ConfigureAwait(false); }
+                try { await service.RefreshAsync(token).ConfigureAwait(false); }
                 finally { _processSlots.Release(); }
                 lock (_gate)
                 {
@@ -241,11 +287,12 @@ public sealed class CodexAccountManager
     public Task<CreditRedemptionOutcome> ConsumeCreditAsync(string profileId, string creditId, CancellationToken token)
     {
         lock (_gate) return profileId != _loginProfile && _services.TryGetValue(profileId, out var service)
-            ? service.ConsumeCreditAsync(creditId, _configuredPath(), token)
+            && service is ICodexAccountOperations operations
+            ? operations.ConsumeCreditAsync(creditId, token)
             : Task.FromResult(CreditRedemptionOutcome.Unavailable);
     }
 
-    private CodexQuotaService AddService(CodexAccountProfile profile, CodexQuotaService? service = null)
+    private IUsageAccountService AddService(CodexAccountProfile profile, IUsageAccountService? service = null)
     {
         service ??= _createService(profile);
         _services.Add(profile.Id, service);

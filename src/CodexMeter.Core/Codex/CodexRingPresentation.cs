@@ -24,7 +24,7 @@ public sealed record CodexRingPresentation(
             UsedPercent: clamped,
             IsAvailable: clamped is not null,
             IsDangerLevel: clamped is >= 100,
-            CenterValueText: CodexDisplayFormatting.PercentText(used),
+            CenterValueText: CodexDisplayFormatting.PercentText(used, snapshot.Provider),
             CenterSubLabel: window is null ? UiText.CodexLegendUsed :
                 window.Kind == CodexWindowKind.Weekly ? UiText.T("Weekly used", "주간 사용") :
                 UiText.T($"{CodexDisplayFormatting.DurationLabel(window.WindowDurationMinutes)} used",

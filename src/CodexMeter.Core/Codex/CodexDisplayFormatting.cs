@@ -1,5 +1,7 @@
 using System.Globalization;
 using CodexMeter.Services;
+using CodexMeter.Providers.Usage;
+using CodexMeter.Providers.Claude;
 
 namespace CodexMeter.Codex;
 
@@ -45,7 +47,8 @@ public static class CodexDisplayFormatting
 
     public static string SectionTitle => "CODEX";
 
-    public static string StatusText(CodexQuotaSnapshot snapshot) => snapshot.Status switch
+    public static string StatusText(CodexQuotaSnapshot snapshot) => snapshot.Provider == UsageProviderId.Claude
+        ? ClaudeUsagePresentation.StatusText(snapshot) : snapshot.Status switch
     {
         CodexQuotaStatus.Refreshing when !snapshot.HasUsablePercentages => UiText.CodexRefreshing,
         CodexQuotaStatus.Refreshing => UiText.CodexRefreshing,
@@ -81,8 +84,8 @@ public static class CodexDisplayFormatting
             var hasRemaining = window.RemainingPercent is not null;
             var label = hasRemaining ? $"{usedLabel} / {UiText.T("left", "남음")}" : usedLabel;
             var value = hasRemaining
-                ? $"{PercentText(window.UsedPercent)} / {PercentText(window.RemainingPercent)}"
-                : PercentText(window.UsedPercent);
+                ? $"{PercentText(window.UsedPercent, snapshot.Provider)} / {PercentText(window.RemainingPercent, snapshot.Provider)}"
+                : PercentText(window.UsedPercent, snapshot.Provider);
             rows.Add(new CodexDisplayRow(label, value, window.UsedPercent >= 100));
 
             rows.Add(new CodexDisplayRow(UiText.Reset, ResetStamp(window.ResetsAt), false,
@@ -99,7 +102,8 @@ public static class CodexDisplayFormatting
         {
             var elapsed = CodexDeadlineFormatting.Elapsed(checkedAt, at);
             var value = elapsed is null ? TimeOfDay(checkedAt) : $"{TimeOfDay(checkedAt)} · {elapsed}";
-            rows.Add(new CodexDisplayRow(UiText.LastChecked, value, false));
+            rows.Add(new CodexDisplayRow(snapshot.Provider == UsageProviderId.Claude
+                ? UiText.T("Last received", "마지막 수신") : UiText.LastChecked, value, false));
         }
 
         return rows;
@@ -185,23 +189,26 @@ public static class CodexDisplayFormatting
     public static string TimeOfDay(DateTimeOffset value) =>
         value.ToLocalTime().ToString("HH:mm", CultureInfo.InvariantCulture);
 
-    public static string PercentText(double? value) =>
-        value is { } percent
-            ? $"{Math.Round(Math.Clamp(percent, 0, 100), MidpointRounding.AwayFromZero).ToString(CultureInfo.InvariantCulture)}%"
+    public static string PercentText(double? value, UsageProviderId provider = UsageProviderId.Codex) =>
+        value is { } percent && double.IsFinite(percent)
+            ? (provider == UsageProviderId.Claude
+                ? Math.Clamp(percent, 0, 100).ToString("0.##", CultureInfo.InvariantCulture)
+                : Math.Round(Math.Clamp(percent, 0, 100), MidpointRounding.AwayFromZero).ToString(CultureInfo.InvariantCulture)) + "%"
             : "?";
 
-    public static string CompactWindowKindLabel(CodexQuotaWindow? window)
+    public static string CompactWindowKindLabel(CodexQuotaWindow? window, UsageProviderId provider = UsageProviderId.Codex)
     {
+        var name = provider.Name();
         if (window is null)
         {
-            return UiText.CodexUsage;
+            return UiText.T($"{name} usage", $"{name} 사용량");
         }
 
         return window.Kind switch
         {
-            CodexWindowKind.Weekly => UiText.T("Codex weekly usage", "Codex 주간 사용"),
-            CodexWindowKind.FiveHour => UiText.T("Codex 5-hour usage", "Codex 5시간 사용"),
-            _ => UiText.T($"Codex {DurationLabel(window.WindowDurationMinutes)} usage", $"Codex {DurationLabel(window.WindowDurationMinutes)} 사용")
+            CodexWindowKind.Weekly => UiText.T($"{name} weekly usage", $"{name} 주간 사용"),
+            CodexWindowKind.FiveHour => UiText.T($"{name} 5-hour usage", $"{name} 5시간 사용"),
+            _ => UiText.T($"{name} {DurationLabel(window.WindowDurationMinutes)} usage", $"{name} {DurationLabel(window.WindowDurationMinutes)} 사용")
         };
     }
 

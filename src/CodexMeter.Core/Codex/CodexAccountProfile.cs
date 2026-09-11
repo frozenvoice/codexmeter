@@ -1,18 +1,24 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
+using CodexMeter.Providers.Usage;
 
 namespace CodexMeter.Codex;
 
 // Only local references and user-chosen labels are persisted. Codex owns credentials.
-public sealed record CodexAccountProfile(string Id, string HomePath, string Label, bool IsManaged = false);
+public sealed record CodexAccountProfile(string Id, string HomePath, string Label, bool IsManaged = false)
+{
+    // Missing in legacy registries, which always contain Codex accounts.
+    public UsageProviderId Provider { get; init; } = UsageProviderId.Codex;
+}
 
 public sealed record CodexAccountView(CodexAccountProfile Profile, CodexQuotaSnapshot Snapshot,
     string? Email = null, bool IsSigningIn = false, bool HasMatchingIdentity = false)
 {
     public string DisplayName => string.IsNullOrWhiteSpace(Profile.Label)
         ? Email ?? (Profile.Id == CodexAccountStore.LegacyProfileId ? Services.UiText.T("Existing Codex", "기존 Codex")
-            : "Codex · " + Profile.Id[..Math.Min(6, Profile.Id.Length)]) : Profile.Label;
+            : Profile.Provider.Name() + " · " + Profile.Id[..Math.Min(6, Profile.Id.Length)]) : Profile.Label;
+    public string ProviderName => Profile.Provider.Name();
 }
 
 public sealed record CodexAccountIdentity(CodexQuotaStatus Status, string? Email = null, string? PlanType = null)

@@ -1,12 +1,12 @@
 # CycleArc
 
-**Your Codex limits, one click away.**
+**Your Codex and Claude limits, one click away.**
 
-A native Windows tray app for checking multiple Codex accounts, remaining percentages, reset times, and reset credits—without opening a terminal.
+A native Windows tray app for checking multiple Codex and Claude profiles, remaining percentages and reset times. Codex accounts also show reset credits when available.
 
-Formerly **CodexMeter**. The **Codex** badge on account cards, selected details and the widget identifies whose usage is shown. **Only Codex is currently supported**; Claude and Gemini integrations are not available.
+Formerly **CodexMeter**. The **Codex** or **Claude** badge on account cards, selected details, tray tooltips and the widget identifies the usage provider. Claude Code supplies usage through its official **statusLine JSON**; see [Claude Code connection](#claude-code-connection). Gemini is not supported.
 
-> **Pro subscriptions only.** This release supports Codex usage monitoring for ChatGPT Pro subscribers. **The ChatGPT Plus five-hour usage limit is not supported.**
+> **Codex:** ChatGPT Pro subscriptions are supported; the ChatGPT Plus five-hour usage limit is not supported. **Claude:** the official statusLine must supply the requested rate-limit fields; these can be absent before the first response or on unsupported plans.
 
 [![Windows build](https://github.com/frozenvoice/cyclearc/actions/workflows/windows.yml/badge.svg)](https://github.com/frozenvoice/cyclearc/actions/workflows/windows.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -39,7 +39,7 @@ Formerly **CodexMeter**. The **Codex** badge on account cards, selected details 
 
 ## Get started
 
-**Requirements:** A ChatGPT Pro subscription, Windows 10/11 on x64, an installed Codex CLI, and network access for login and quota checks.
+**Requirements:** Windows 10/11 on x64. Codex monitoring requires an installed Codex CLI, a ChatGPT Pro subscription and network access. Claude monitoring requires Claude Code with official statusLine rate-limit support and Windows PowerShell; it does not require Codex sign-in.
 
 1. Download the executable from the [latest release](https://github.com/frozenvoice/cyclearc/releases/latest). Current source builds produce **`CycleArc.exe`**; releases from before the rename use `CodexMeter.exe`.
 2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.
@@ -106,6 +106,18 @@ Removing a profile forgets its reference without logging out or deleting its Cod
 
 The first launch opens the detail card. Later launches start in the tray; `CycleArc.exe --show` opens the card at startup. If Windows hides the tray icon, move it out of the notification-area overflow. Starting with Windows and showing the desktop widget are optional settings.
 
+### Claude Code connection
+
+1. Open **Manage accounts → Add an account · Connection guide → Add Claude profile**. Set an optional nickname using the same rules as Codex accounts.
+2. In the connection window, choose **Copy statusLine settings** and merge the `statusLine` entry into the Claude Code settings used for that account. Keep unrelated settings. If you already have a statusLine, retain it in a wrapper that passes the same stdin to both commands; [integration details](docs/CLAUDE.md) include an example.
+3. Use Claude Code and complete a response. CycleArc receives only `rate_limits.five_hour` / `rate_limits.seven_day` → `used_percentage` and `resets_at`. Each window may be absent independently. Unknown data is never displayed as zero.
+
+The official JSON has **no account email or account ID**. A Claude profile is a local binding to its generated command, not a verified account identity. Configure a separate profile/command for each Claude account, and change the command when switching accounts. A nickname takes precedence; without a nickname, Claude shows `Claude · <local profile ID>` while Codex retains its reported-email fallback. Account selection, order and aliases share the existing UI; profiles are never added together.
+
+The last valid sample becomes **stale after five minutes without valid statusLine input**, when its reported reset time passes, or after missing/malformed input. Stale values survive restarts. Manual refresh and the passive inbox poll do not renew the sample's receipt time, query Claude, or synthesize a new quota period. The detail card shows **Last received**. Claude has no Codex reset-credit controls.
+
+Only the official statusLine input is used. CycleArc does not parse `/usage`, read Claude auth/token files, launch a model turn, inspect transcripts or call an undocumented usage endpoint. It saves projected quota fields and local receipt/status metadata, never the full JSON. See [the official statusLine documentation](https://code.claude.com/docs/en/statusline).
+
 ### Controls
 
 | Action | Result |
@@ -132,7 +144,7 @@ The zoom shortcuts also support the numeric keypad. Widget position can be reset
 
 CycleArc starts a bounded, short-lived **Codex App Server** process per account and requests account/rate-limit metadata. Every UI entry point shares the same refresh batch, with at most two simultaneous reads. One interactive login may run alongside reads for other accounts. It does not run a model turn to measure usage.
 
-Percentages come from the reported limit windows. CycleArc does **not** turn them into invented request counts or combine unrelated reset periods. When a refresh fails, the last valid snapshot may remain visible with a stale label. Opening the card immediately after a failed check does not trigger repeated automatic retries; manual refresh remains available.
+Percentages come from the reported limit windows. CycleArc does **not** turn them into invented request counts or combine unrelated reset periods. When a refresh fails, the last valid snapshot may remain visible with a stale label. Opening the card immediately after a failed check does not trigger repeated automatic retries; manual refresh remains available. Claude uses an independent passive provider and receives stdin through a headless mode of the same executable. Its projected inbox is checked every two seconds without starting Codex or Claude.
 
 Countdowns and “last checked” ages update locally once a minute without another server request.
 

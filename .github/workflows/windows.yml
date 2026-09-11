@@ -48,6 +48,11 @@ jobs:
           if (!(Test-Path publish/win-x64/CycleArc.exe)) { throw "CycleArc.exe missing" }
           if (@(Get-ChildItem publish/win-x64 -File -Recurse).Count -ne 1) { throw "Unexpected companion files" }
 
+      - name: Validate published Claude statusLine receiver
+        run: >
+          dotnet run --project tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj
+          -c Release --no-build -- --claude-process publish/win-x64/CycleArc.exe
+
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:

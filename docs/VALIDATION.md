@@ -1,6 +1,35 @@
 # CycleArc validation
 
-## Current release — Codex only
+## Current release — Codex and Claude Code
+
+- Claude statusLine provider (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore,
+  Release build (0 warnings/errors), **1,094 unit tests** (47 added cases), 15 installer
+  scenarios, 120 existing account WPF renders, **108 mixed-provider WPF renders**,
+  180 widget DPI/layout renders and 36 existing production renders. Single-file,
+  self-contained win-x64 publish contains exactly `CycleArc.exe`. Validated SHA-256:
+  `6AA22206E90816B7C01E00D06EEF83075AFE22D11C805315986D51751B66CC3F`.
+  - Provider adapters preserve the Codex client/service and caches. Regression cases cover
+    mixed values, aliases, order/selection/restart, passive refresh without Codex calls,
+    Claude rejection of Codex login/credit actions and removal disabling its collector.
+  - Official synthetic stdin fixtures cover fractional/zero/full usage, independently
+    absent windows, malformed/duplicate fields, integer Unix seconds, bounded input,
+    retained last-good data, fresh/stale recovery, elapsed resets and clock rollback.
+    Storage checks cover privacy projection, atomic backup recovery and out-of-order
+    concurrent callbacks. Version-2 migration updates the previous-good backup as well
+    as the primary, preventing older builds from falling back to a v1 registry.
+  - The actual production entry point was tested in both the built executable and the
+    published single file, with a held desktop mutex and an isolated synthetic registry.
+    Direct stdin and the generated PowerShell/Git Bash command passed, including paths
+    with spaces and shell metacharacters, malformed input and a five-second stdin deadline.
+    The collector did not initialize desktop settings or persist unrelated JSON fields.
+  - Mixed WPF checks exercise both languages, all themes, 80/100/150% popup zoom, Claude
+    badges/aliases on cards and widgets, receipt/stale messaging, hidden Codex credit
+    controls and 470x400 connection/management layouts. Final Korean-dark and English-light
+    mixed views, the setup guide and widget renders were visually checked with synthetic data.
+  - No real Claude session, account authentication or reset-credit redemption was performed.
+    A user must connect each profile's generated statusLine command in the corresponding
+    Claude Code settings and use Claude Code to receive live data. Official statusLine has
+    no verified account identity; profile attribution is explicitly local and user-configured.
 
 - Repository rename and default-branch screenshots (2026-09-12): repository, badge,
   download/issue links, clone instructions and the app's About link use `frozenvoice/cyclearc`.

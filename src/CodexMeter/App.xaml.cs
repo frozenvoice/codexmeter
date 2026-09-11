@@ -5,6 +5,8 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using CodexMeter.Codex;
+using CodexMeter.Providers.Usage;
+using CodexMeter.Providers.Claude;
 
 namespace CodexMeter;
 
@@ -22,6 +24,8 @@ public partial class App : Application
     private readonly CancellationTokenSource _lifetime = new();
     private readonly DispatcherTimer _codexTimer = new();
     private readonly DispatcherTimer _displayTimer = new() { Interval = TimeSpan.FromMinutes(1) };
+    private readonly DispatcherTimer _passiveTimer = new() { Interval = TimeSpan.FromSeconds(2) };
+    private Task _passiveTask = Task.CompletedTask;
     private readonly OnceEventSubscription _widgetEvents = new();
     private Task _creditUseTask = Task.CompletedTask;
     private FlyoutWindow? _flyout;
@@ -66,7 +70,7 @@ public partial class App : Application
         _tray.OpenLogsRequested += OpenLogs;
         _tray.AboutRequested += () => new AboutWindow(
             Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0",
-            UiText.T("Codex App Server", "Codex App Server")).Show();
+            "Codex App Server · Claude Code statusLine").Show();
         _tray.StartupToggled += enabled =>
         {
             _settings.StartWithWindows = enabled;
@@ -80,9 +84,9 @@ public partial class App : Application
         try
         {
             _codex = new CodexAccountManager(accounts, CodexHomeDiscovery.DefaultHome,
-                profile => new CodexQuotaService(_codexLocator, new CodexAppServerClient(),
+                [new CodexUsageProvider(profile => new CodexQuotaService(_codexLocator, new CodexAppServerClient(),
                     new CodexSnapshotStore(accounts.SnapshotPath(profile)), version, _log.Info, profile: profile),
-                () => _settings.CodexExePath);
+                    () => _settings.CodexExePath), new ClaudeUsageProvider(accounts)]);
         }
         catch
         {
@@ -106,6 +110,11 @@ public partial class App : Application
 
         _displayTimer.Tick += (_, _) => RefreshSnapshot();
         _displayTimer.Start();
+        _passiveTimer.Tick += (_, _) =>
+        {
+            if (!IsExiting && _passiveTask.IsCompleted) _passiveTask = ReadPassiveUsageAsync();
+        };
+        _passiveTimer.Start();
         RefreshSnapshot();
         ApplyWidget();
         _environment = new DesktopEnvironmentMonitor(Dispatcher, OnSystemThemeChanged, OnDisplayChanged);
@@ -120,6 +129,13 @@ public partial class App : Application
         _codexTimer.Stop();
         _codexTimer.Interval = TimeSpan.FromMinutes(_settings.CodexRefreshIntervalMinutes);
         if (!IsExiting) _codexTimer.Start();
+    }
+
+    private async Task ReadPassiveUsageAsync()
+    {
+        try { await Task.Run(() => _codex.RefreshPassiveAsync(_lifetime.Token), _lifetime.Token); }
+        catch (OperationCanceledException) { }
+        catch { _log.Warn("Passive usage inbox could not be read"); }
     }
 
     private async Task RefreshCodexAsync(bool automatic = false)
@@ -252,6 +268,13 @@ public partial class App : Application
         window.RenameAccount = (id, label) => _codex.Rename(id, label);
         window.MoveAccount = (id, direction) => _codex.Move(id, direction);
         window.RemoveAccount = id => _codex.Remove(id);
+        window.AddClaudeAccount = label => _codex.AddClaude(label);
+        window.ConfigureClaude = id =>
+        {
+            var profile = _codex.Accounts.FirstOrDefault(account => account.Profile.Id == id)?.Profile;
+            if (profile?.Provider == UsageProviderId.Claude && Environment.ProcessPath is { } executable)
+                new ClaudeConnectionWindow(profile, executable) { Owner = window }.ShowDialog();
+        };
         window.SignIn = async (id, label, token) =>
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
@@ -398,12 +421,13 @@ public partial class App : Application
         _environment?.Dispose();
         _codexTimer.Stop();
         _displayTimer.Stop();
+        _passiveTimer.Stop();
         _lifetime.Cancel();
         _accountsWindow?.CancelOperation();
         _flyout?.Hide();
         _widget?.Hide();
         // Let the existing bounded client stop and reap its app-server process.
-        try { await Task.WhenAll(_refresh.WaitForIdleAsync(), _creditUseTask, _discoveryTask,
+        try { await Task.WhenAll(_refresh.WaitForIdleAsync(), _creditUseTask, _discoveryTask, _passiveTask,
             _accountsWindow?.ActiveOperation ?? Task.CompletedTask).WaitAsync(TimeSpan.FromSeconds(15)); }
         catch (OperationCanceledException) { }
         catch (TimeoutException) { _log.Warn("Codex shutdown wait timed out"); }

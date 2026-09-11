@@ -225,7 +225,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="SelectedAccountText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
                                    VerticalAlignment="Center" Margin="0,0,8,0" Visibility="Collapsed" Foreground="{DynamicResource TextBrush}"/>
-                        <ui:CodexProviderBadge x:Name="SelectedProviderBadge" Grid.Column="1"/>
+                        <ui:UsageProviderBadge x:Name="SelectedProviderBadge" Grid.Column="1"/>
                     </Grid>
                     <Border x:Name="CodexCard" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="12">
                         <StackPanel>

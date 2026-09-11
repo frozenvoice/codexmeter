@@ -99,7 +99,7 @@ internal static class AccountUiChecks
             throw new InvalidOperationException("Window title does not identify CycleArc.");
         if (Descendants<TextBlock>((FrameworkElement)window.Content).Any(text => text.Text.Contains("Codex Codex", StringComparison.Ordinal)))
             throw new InvalidOperationException("Provider name is repeated within a usage label.");
-        var badges = Descendants<CodexProviderBadge>((FrameworkElement)window.Content).ToArray();
+        var badges = Descendants<UsageProviderBadge>((FrameworkElement)window.Content).ToArray();
         if (badges.Length != expected) throw new InvalidOperationException("Usage provider is missing from an account surface.");
         foreach (var badge in badges)
         {
@@ -122,7 +122,7 @@ internal static class AccountUiChecks
         }
     }
 
-    private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+    internal static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
     {
         for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
         {
@@ -150,7 +150,7 @@ internal static class AccountUiChecks
                 CheckProviderLabels(flyout, 4);
                 var header = (Grid)flyout.FindName("SelectedAccountHeader");
                 var name = (TextBlock)flyout.FindName("SelectedAccountText");
-                var badge = (CodexProviderBadge)flyout.FindName("SelectedProviderBadge");
+                var badge = (UsageProviderBadge)flyout.FindName("SelectedProviderBadge");
                 if (name.TranslatePoint(new Point(name.ActualWidth, 0), header).X
                     > badge.TranslatePoint(new Point(), header).X + 1)
                     throw new InvalidOperationException("Long selected-account name overlaps its provider.");
@@ -352,7 +352,7 @@ internal static class AccountUiChecks
         task.GetAwaiter().GetResult();
     }
 
-    private static void Render(Window window, double width, double? height, string? path)
+    internal static void Render(Window window, double width, double? height, string? path)
     {
         var content = (FrameworkElement)window.Content;
         content.Measure(new Size(width, height ?? double.PositiveInfinity));

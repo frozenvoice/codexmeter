@@ -26,7 +26,7 @@
             <TextBlock x:Name="ProductTitle" Text="{x:Static text:UiText.ProductName}" FontSize="13" FontWeight="SemiBold"
                        Margin="0,0,0,8" Foreground="{DynamicResource TextBrush}"/>
             <DockPanel Margin="0,0,0,8">
-                <ui:CodexProviderBadge x:Name="ProviderBadge" DockPanel.Dock="Left" HorizontalAlignment="Left"/>
+                <ui:UsageProviderBadge x:Name="ProviderBadge" DockPanel.Dock="Left" HorizontalAlignment="Left"/>
                 <TextBlock x:Name="AccountName" Visibility="Collapsed" MaxWidth="180" TextTrimming="CharacterEllipsis"
                            FontSize="12" FontWeight="SemiBold" Margin="8,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/>
             </DockPanel>

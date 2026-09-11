@@ -1,4 +1,5 @@
 using CodexMeter.Services;
+using CodexMeter.Providers.Usage;
 
 namespace CodexMeter.Codex;
 
@@ -6,6 +7,8 @@ public static class CodexMeterPresentation
 {
     public static string StatusLabel(CodexQuotaSnapshot snapshot) => snapshot.Status switch
     {
+        CodexQuotaStatus.Unavailable when snapshot.Provider == UsageProviderId.Claude => UiText.T("Waiting for data", "데이터 대기 중"),
+        CodexQuotaStatus.ProtocolMismatch when snapshot.Provider == UsageProviderId.Claude => UiText.ProviderSchemaMismatch,
         CodexQuotaStatus.Available => UiText.T("Updated", "업데이트됨"),
         CodexQuotaStatus.Refreshing => UiText.T("Refreshing", "새로고침 중"),
         CodexQuotaStatus.Stale => UiText.T("Saved data", "이전 데이터"),
@@ -17,19 +20,20 @@ public static class CodexMeterPresentation
     public static string CompactText(CodexQuotaSnapshot snapshot, TaskbarStripMode mode = TaskbarStripMode.Full)
     {
         var ring = CodexRingPresentation.From(snapshot);
-        var prefix = mode == TaskbarStripMode.Full ? "Codex " : "C ";
+        var prefix = mode == TaskbarStripMode.Full ? snapshot.Provider.Name() + " "
+            : snapshot.Provider == UsageProviderId.Claude ? "Cl " : "C ";
         if (!ring.IsAvailable) return prefix + "?";
         var suffix = snapshot.Status == CodexQuotaStatus.Stale ? " ~" : snapshot.Status == CodexQuotaStatus.Refreshing ? " …" : "";
-        return prefix + CodexDisplayFormatting.PercentText(ring.UsedPercent) + suffix;
+        return prefix + CodexDisplayFormatting.PercentText(ring.UsedPercent, snapshot.Provider) + suffix;
     }
 
     public static string Tooltip(CodexQuotaSnapshot snapshot)
     {
         var ring = CodexRingPresentation.From(snapshot);
         var usage = ring.IsAvailable
-            ? CodexDisplayFormatting.CompactWindowKindLabel(snapshot.CompactWindow) + " " + ring.CenterValueText
+            ? CodexDisplayFormatting.CompactWindowKindLabel(snapshot.CompactWindow, snapshot.Provider) + " " + ring.CenterValueText
             : CodexDisplayFormatting.StatusText(snapshot);
-        return UiText.ProductName + " · " + UiText.CodexProviderName + Environment.NewLine
+        return UiText.ProductName + " · " + snapshot.Provider.Name() + Environment.NewLine
             + usage + Environment.NewLine + StatusLabel(snapshot);
     }
 }

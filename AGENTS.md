@@ -6,6 +6,16 @@ Windows-only .NET 8 WPF tray app, distributed as one `CycleArc.exe`.
 ## Active product direction
 
 - Monitor Codex account limits through the installed, signed-in Codex App Server protocol.
+- Also support Claude Code through official statusLine stdin JSON only: project
+  `rate_limits.five_hour` / `seven_day` `used_percentage` and `resets_at`. Never parse
+  `/usage`, inspect auth/token files or transcripts, or use undocumented usage endpoints.
+- Keep providers behind `IUsageProvider` / `IUsageAccountService`. Claude profiles are
+  explicit local command bindings; statusLine supplies no verified email/account ID.
+  Keep existing nickname, order, selection and widget behavior with the correct provider badge.
+- Without a new valid Claude sample, retain the last good percentages as stale. Polling
+  or manual refresh must never renew receipt time or invent usage after a reset.
+- The single executable owns a bounded headless statusLine mode before WPF/mutex/account
+  startup. Persist only the projected quotas and receipt/status metadata, never raw stdin.
 - No ChatGPT Pro/Sol counters, browser extension, WebView2, conversation sync or active SQLite collector.
 - Keep Codex unavailable/stale/fresh states truthful; never fabricate counts from percentages.
 - Keep the native notification icon, optional widget, theme/language settings, bounded shared refresh,

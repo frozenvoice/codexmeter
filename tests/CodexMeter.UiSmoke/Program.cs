@@ -21,6 +21,11 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args is ["--claude-process", var executable])
+        {
+            ClaudeStatusLineProcessChecks.Run(executable);
+            return 0;
+        }
         if (args is ["--live-accounts", "read" or "login" or "relogin"])
             return LiveAccountChecks.RunAsync(args[1]).GetAwaiter().GetResult();
         // Load production WPF views/resources with startup overridden: no account access,
@@ -48,7 +53,14 @@ internal static class Program
                 AccountUiChecks.Run(accountsDirectory);
                 return 0;
             }
+            if (args is ["--claude-ui", var claudeDirectory])
+            {
+                MixedProviderUiChecks.Run(claudeDirectory);
+                return 0;
+            }
+            ClaudeStatusLineProcessChecks.Run();
             AccountUiChecks.Run();
+            MixedProviderUiChecks.Run();
             CheckEnvironmentCallbacks(app);
             CheckWidgetRecovery();
             CheckWidgetRestart();

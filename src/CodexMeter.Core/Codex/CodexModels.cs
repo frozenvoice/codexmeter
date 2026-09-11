@@ -1,3 +1,5 @@
+using CodexMeter.Providers.Usage;
+
 namespace CodexMeter.Codex;
 
 public enum CodexQuotaStatus
@@ -49,6 +51,7 @@ public sealed record CodexQuotaSnapshot(
     [System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyList<CodexResetCredit> RedeemableCredits { get; init; } = [];
     public string? IdentityFingerprint { get; init; }
+    public UsageProviderId Provider { get; init; } = UsageProviderId.Codex;
 
     public static CodexQuotaSnapshot Empty(CodexQuotaStatus status, string? detail = null) =>
         new(status, null, null, null, null, null, null, [], detail);

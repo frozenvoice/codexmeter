@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Input;
 using System.Windows.Interop;
 using CodexMeter.Codex;
+using CodexMeter.Providers.Usage;
 
 namespace CodexMeter.UI;
 
@@ -38,8 +39,9 @@ public partial class FloatingWidget : Window
     public void Bind(CodexQuotaSnapshot snapshot)
     {
         Title = UiText.WidgetTitle;
+        ProviderBadge.Provider = snapshot.Provider;
         CodexLabel.Text = CodexRingPresentation.From(snapshot).CenterSubLabel;
-        CodexValue.Text = CodexMeterPresentation.CompactText(snapshot).Replace("Codex ", "", StringComparison.Ordinal);
+        CodexValue.Text = CodexMeterPresentation.CompactText(snapshot)[(snapshot.Provider.Name().Length + 1)..];
         var needsAttention = snapshot.Status is not (CodexQuotaStatus.Available or CodexQuotaStatus.Refreshing);
         HistoryValue.Text = needsAttention ? CodexMeterPresentation.StatusLabel(snapshot) : "";
         HistoryValue.Visibility = needsAttention ? Visibility.Visible : Visibility.Collapsed;

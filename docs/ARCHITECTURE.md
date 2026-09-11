@@ -1,6 +1,34 @@
 # CycleArc architecture
 
-## Active product — Codex only (2026-09-07)
+## Active product — Codex and Claude Code (2026-09-12)
+
+- `IUsageProvider` creates isolated `IUsageAccountService` instances for the shared account
+  manager. `CodexUsageProvider` adapts the existing Codex service without changing its
+  protocol/client, identity verification, concurrency or cache format. `ClaudeUsageProvider`
+  reads only a local inbox populated by Claude Code's official statusLine stdin.
+- Public `CodexAccount*` / `CodexQuota*` type names remain as shared presentation records for
+  caller/cache compatibility; their default provider is Codex. Claude accounts carry
+  `Provider = Claude`, an empty home path and no authentication/credit capabilities.
+  The account registry advances to version 2 only when a Claude profile is added, so older
+  Codex-only builds fail closed. Existing homes, aliases, order, selection and Codex caches remain.
+- `Program.Main` routes `--claude-statusline <profile-id>` before WPF, the desktop mutex,
+  settings, tray and account startup. It accepts only an existing Claude profile, reads bounded
+  stdin and stores the two projected rate-limit windows with local receipt/status metadata.
+  No raw JSON, session/project/transcript metadata, auth/token file or `/usage` parsing is used.
+  This headless entry point is part of the one self-contained `CycleArc.exe`.
+- Claude callbacks merge under a bounded exclusive lock and atomically replace a per-profile
+  cache with a previous-good backup. Earlier receipt times cannot overwrite newer data.
+  Missing/malformed input retains the last good values as stale. Optional absent windows are
+  not filled from another sample. The cache is stale after five minutes without valid input,
+  at an elapsed reset or on future-dated receipt metadata; no local reset invents zero usage.
+- A separate two-second passive check reads Claude inboxes off the UI thread and emits changes
+  only for new data/freshness transitions, preserving nickname editor focus. It does not start
+  Codex, renew receipt timestamps or alter manual-refresh ownership. Normal manual refresh
+  also reads Claude's inbox. The existing Codex interval and bounded batch remain unchanged.
+- Claude statusLine provides no email/account ID. The connection UI creates an explicit local
+  profile and copies its settings command; it neither guesses identity nor edits Claude settings.
+  Users map separate account/settings scopes to separate commands and change that mapping when
+  switching Claude sign-ins. Details and the supported wrapper are in [CLAUDE.md](CLAUDE.md).
 
 - The repository is `frozenvoice/cyclearc`; clone instructions use the folder `cyclearc`.
   Clone instructions, documentation badges/download links and the app's repository link use
@@ -11,11 +39,10 @@
   Solution/project paths, namespaces, saved account/cache data and the shared single-instance
   mutex retain their existing identifiers. Startup cleanup recognizes both previous product
   entries only when their command points to this installation; existing opt-in still gates it.
-- A shared `CodexProviderBadge` identifies Codex on account cards, selected quota details and
+- A shared `UsageProviderBadge` identifies Codex or Claude on account cards, selected quota details and
   the widget. Its explicit text/background/border colors follow Dark, Light and System themes.
-  Account usage rows and tray tooltips also identify Codex. The widget shows the CycleArc title.
-  These are presentation labels; Codex remains the only supported provider, with no added
-  provider selector, Claude/Gemini integration, registry schema or quota-collection changes.
+  Account usage rows and tray tooltips also identify the selected provider. The widget shows
+  the CycleArc title. Provider selection follows the selected account, never a login switch.
 
 - Account ordering swaps profile references atomically in the existing registry; service/cache
   identity and selected account remain keyed by local ID. Reordering raises a presentation change
@@ -79,8 +106,9 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   waiting caller does not cancel the active owner's work. File/process work runs off the UI thread.
   Successful-check timestamps use completion time, while attempt timestamps retain start time.
   Automatic checks use the newest attempt/completion and the saved interval, with a minimum two-minute cooldown after failures; manual checks remain available.
-- Only Codex is visible: actual provided periods, used/remaining percentages, reset times,
-  reset-credit metadata and last refresh. Signed-out/missing CLI states do not display cached
+- Both providers show actual provided periods, used/remaining percentages and reset times.
+  Codex additionally shows reset-credit metadata; Claude shows last receipt and passive-data
+  guidance and hides credit controls. Signed-out/missing Codex CLI states do not display cached
   percentages as current; stale data is explicitly marked.
 - The desktop never constructs ChatGPT transports, collectors, SQLite stores, pairing servers
   or Pro reset services. Retired WPF views and WebView2 are excluded from its build.

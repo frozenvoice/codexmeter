@@ -44,6 +44,7 @@ Invoke-Dotnet -Arguments @('publish', 'src/CodexMeter/CodexMeter.csproj', '-c', 
 $files = @(Get-ChildItem -LiteralPath $StagingDir -File -Recurse)
 if ($files.Count -ne 1 -or $files[0].Name -ne 'CycleArc.exe') { throw 'Publish must contain exactly CycleArc.exe' }
 Write-Host 'Publish artifacts verified: CycleArc.exe only'
+Invoke-Dotnet -Arguments @('run', '--project', 'tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj', '-c', 'Release', '--no-build', '--', '--claude-process', (Join-Path $StagingDir 'CycleArc.exe'))
 if ($NoLaunch) { Write-Host "Staged: $StagingDir"; exit 0 }
 
 # Stop only this workspace's existing installation, including its former executable name.

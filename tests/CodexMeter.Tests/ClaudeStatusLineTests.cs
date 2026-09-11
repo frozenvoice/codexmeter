@@ -1,0 +1,311 @@
+using System.Text;
+using CodexMeter.Codex;
+using CodexMeter.Providers.Claude;
+using CodexMeter.Providers.Usage;
+using CodexMeter.Services;
+
+namespace CodexMeter.Tests;
+
+public class ClaudeStatusLineTests
+{
+    private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2030-01-01T00:00:00Z");
+
+    [Fact]
+    public void OfficialWindowsRetainFractionalPercentagesAndIndependentResetTimes()
+    {
+        var result = Parse("""{"rate_limits":{"five_hour":{"used_percentage":23.5,"resets_at":1893474000},"seven_day":{"used_percentage":41.2,"resets_at":1894060800}}} """);
+        Assert.Equal(ClaudeInputStatus.Available, result.Status);
+        Assert.Equal(new ClaudeRateLimit(23.5, 1893474000), result.FiveHour);
+        Assert.Equal(new ClaudeRateLimit(41.2, 1894060800), result.SevenDay);
+    }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"rate_limits\":null}")]
+    [InlineData("{\"rate_limits\":{}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":null,\"seven_day\":null}}")]
+    [InlineData("{\"rate_limits\":{\"future_window\":{\"used_percentage\":42}}}")]
+    public void MissingOptionalDataIsNotZeroOrASchemaFailure(string json)
+    {
+        var result = Parse(json);
+        Assert.Equal(ClaudeInputStatus.Missing, result.Status);
+        Assert.Null(result.FiveHour);
+        Assert.Null(result.SevenDay);
+    }
+
+    [Theory]
+    [InlineData("five_hour", 0)]
+    [InlineData("seven_day", 100)]
+    public void EachWindowCanAppearAloneIncludingZeroAndFullUsage(string key, double used)
+    {
+        var json = JsonSerializer.Serialize(new { rate_limits = new Dictionary<string, object>
+            { [key] = new { used_percentage = used, resets_at = 1894060800 } } });
+        var result = Parse(json);
+        Assert.Equal(ClaudeInputStatus.Available, result.Status);
+        Assert.Equal(used, (key == "five_hour" ? result.FiveHour : result.SevenDay)!.UsedPercentage);
+        Assert.Null(key == "five_hour" ? result.SevenDay : result.FiveHour);
+    }
+
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("not json")]
+    [InlineData("{\"rate_limits\":[]}")]
+    [InlineData("{\"rate_limits\":{},\"rate_limits\":{}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{},\"five_hour\":null}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":42}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":-1,\"resets_at\":1894060800}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":101,\"resets_at\":1894060800}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":\"12\",\"resets_at\":1894060800}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":null,\"resets_at\":1894060800}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":true,\"resets_at\":1894060800}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":1e999,\"resets_at\":1894060800}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":12,\"resets_at\":1894060800000}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":12,\"resets_at\":0}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":12,\"resets_at\":null}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":12,\"resets_at\":\"1894060800\"}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":12,\"resets_at\":1894060800.5}}}")]
+    [InlineData("{\"rate_limits\":{\"five_hour\":{\"used_percentage\":12,\"used_percentage\":42,\"resets_at\":1894060800}}}")]
+    public void MalformedPresentDataFailsWithoutAPartialSuccess(string json) =>
+        Assert.Equal(ClaudeInputStatus.Malformed, Parse(json).Status);
+
+    [Fact]
+    public void ValidFiveHourDoesNotHideMalformedWeeklyData()
+    {
+        var result = Parse("""{"rate_limits":{"five_hour":{"used_percentage":23.5,"resets_at":1893474000},"seven_day":{"used_percentage":"bad","resets_at":1894060800}}} """);
+        Assert.Equal(ClaudeInputStatus.Malformed, result.Status);
+        Assert.Null(result.FiveHour);
+    }
+
+    [Fact]
+    public void InputLimitsRejectOversizedAndDeepPayloads()
+    {
+        Assert.Equal(ClaudeInputStatus.Malformed, Parse(new string(' ', ClaudeStatusLineParser.MaxInputBytes + 1)).Status);
+        Assert.Equal(ClaudeInputStatus.Malformed, Parse(new string('[', 40) + "0" + new string(']', 40)).Status);
+    }
+
+    [Fact]
+    public async Task OnlyProjectedQuotaFieldsArePersistedOrPrinted()
+    {
+        using var data = new ClaudeTestData();
+        var json = """{"session_id":"synthetic-session-private","transcript_path":"C:/synthetic/private.jsonl","workspace":{"current_dir":"secret-project"},"email":"person@example.invalid","access_token":"synthetic-secret","prompt":"do not save this","rate_limits":{"five_hour":{"used_percentage":0,"resets_at":1893474000,"private":"also-secret"},"seven_day":{"used_percentage":99.2,"resets_at":1894060800}}} """;
+        var (code, output) = await data.Receive(json);
+        Assert.Equal(0, code);
+        Assert.Equal("Claude | 5h 0% | 7d 99.2%" + Environment.NewLine, output);
+        var persisted = File.ReadAllText(data.Path);
+        foreach (var forbidden in new[] { "synthetic-secret", "synthetic-session-private", "secret-project", "private.jsonl", "person@", "do not save", "also-secret", "isValid" })
+            Assert.DoesNotContain(forbidden, persisted + output);
+        using var doc = JsonDocument.Parse(persisted);
+        var window = doc.RootElement.GetProperty("lastGood").GetProperty("fiveHour");
+        Assert.Equal(new[] { "usedPercentage", "resetsAt" }, window.EnumerateObject().Select(p => p.Name).ToArray());
+    }
+
+    [Fact]
+    public async Task IdlePollingAndManualRefreshCannotRenewReceivedTimeOrAlterCache()
+    {
+        using var data = new ClaudeTestData();
+        await data.Receive(Payload());
+        var bytes = File.ReadAllBytes(data.Path);
+        var service = data.Service();
+        var changes = 0;
+        service.Changed += _ => changes++;
+        Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
+        data.Clock.UtcNow = Now.AddMinutes(4);
+        await service.RefreshAsync(CancellationToken.None);
+        Assert.Equal(Now, service.Snapshot.LastSuccessfulRefresh);
+        Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
+        data.Clock.UtcNow = Now.AddMinutes(5);
+        await service.RefreshAsync(CancellationToken.None);
+        Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
+        Assert.Equal(1, changes); // One expiry event; unchanged polls do not rebuild nickname editors.
+        await service.RefreshAsync(CancellationToken.None);
+        Assert.Equal(1, changes);
+        Assert.Equal(23.5, service.Snapshot.Windows[0].UsedPercent);
+        Assert.Equal(Now, service.Snapshot.LastSuccessfulRefresh);
+        Assert.Equal(bytes, File.ReadAllBytes(data.Path));
+        Assert.Equal(CodexQuotaStatus.Stale, data.Service().Snapshot.Status);
+        data.Clock.UtcNow = Now.AddMinutes(6);
+        await data.Receive(Payload(27));
+        await service.RefreshAsync(CancellationToken.None);
+        Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
+        Assert.Equal(data.Clock.UtcNow, service.Snapshot.LastSuccessfulRefresh);
+        Assert.Equal(27, service.Snapshot.Windows[0].UsedPercent);
+    }
+
+    [Theory]
+    [InlineData("{}", "claude-statusline-missing")]
+    [InlineData("{broken", "claude-statusline-malformed")]
+    public async Task MissingAndInvalidUpdatesKeepLastGoodAndMarkItStale(string json, string detail)
+    {
+        using var data = new ClaudeTestData();
+        await data.Receive(Payload());
+        data.Clock.UtcNow = Now.AddSeconds(30);
+        await data.Receive(json);
+        var snapshot = data.Service().Snapshot;
+        Assert.Equal(CodexQuotaStatus.Stale, snapshot.Status);
+        Assert.Equal(Now, snapshot.LastSuccessfulRefresh);
+        Assert.Equal(data.Clock.UtcNow, snapshot.LastAttemptedRefresh);
+        Assert.Equal(23.5, snapshot.Windows[0].UsedPercent);
+        Assert.Equal(detail, snapshot.TechnicalDetail);
+    }
+
+    [Fact]
+    public async Task AbsentOptionalWindowIsNotFilledFromAnOlderSample()
+    {
+        using var data = new ClaudeTestData();
+        await data.Receive(Payload());
+        data.Clock.UtcNow = Now.AddSeconds(5);
+        await data.Receive("""{"rate_limits":{"seven_day":{"used_percentage":0,"resets_at":1894060800}}} """);
+        var snapshot = data.Service().Snapshot;
+        Assert.Equal(CodexQuotaStatus.Available, snapshot.Status);
+        Assert.Single(snapshot.Windows);
+        Assert.Equal(CodexWindowKind.Weekly, snapshot.Windows[0].Kind);
+        Assert.Equal(0, snapshot.Windows[0].UsedPercent);
+    }
+
+    [Fact]
+    public async Task ResetExpiryAndClockRollbackNeverInventANewPeriod()
+    {
+        using var data = new ClaudeTestData();
+        await data.Receive(JsonSerializer.Serialize(new { rate_limits = new { five_hour = new
+            { used_percentage = 100, resets_at = Now.AddSeconds(30).ToUnixTimeSeconds() } } }));
+        var service = data.Service();
+        data.Clock.UtcNow = Now.AddSeconds(30);
+        Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
+        Assert.Equal(100, service.Snapshot.CompactWindow!.UsedPercent);
+        data.Clock.UtcNow = Now.AddMinutes(-1);
+        Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
+    }
+
+    [Fact]
+    public async Task CorruptCacheFallsBackToLastValidBackupWithoutReportingFresh()
+    {
+        using var data = new ClaudeTestData();
+        await data.Receive(Payload(12));
+        data.Clock.UtcNow = Now.AddSeconds(1);
+        await data.Receive(Payload(24));
+        File.WriteAllText(data.Path, "{broken");
+        var snapshot = data.Service().Snapshot;
+        Assert.Equal(CodexQuotaStatus.Stale, snapshot.Status);
+        Assert.Equal(12, snapshot.Windows[0].UsedPercent);
+        Assert.Equal(Now, snapshot.LastSuccessfulRefresh);
+    }
+
+    [Fact]
+    public async Task OutOfOrderConcurrentCallbacksCannotReplaceNewerQuotaWithOlderData()
+    {
+        using var data = new ClaudeTestData();
+        var store = data.Store();
+        var newer = store.RecordAsync(Parse(Payload(40)), Now.AddSeconds(2), CancellationToken.None);
+        var older = store.RecordAsync(Parse(Payload(10)), Now.AddSeconds(1), CancellationToken.None);
+        await Task.WhenAll(newer, older);
+        Assert.Equal(40, store.Read().State!.LastGood!.FiveHour!.UsedPercentage);
+        Assert.Equal(Now.AddSeconds(2), store.Read().State!.LastGood!.ReceivedAt);
+        Assert.Empty(Directory.GetFiles(System.IO.Path.GetDirectoryName(data.Path)!, "*.tmp"));
+    }
+
+    [Fact]
+    public async Task UnknownOrCodexProfileIsNotACollectorTarget()
+    {
+        using var data = new ClaudeTestData();
+        foreach (var id in new[] { "default", Guid.NewGuid().ToString("N"), "../escape" })
+        {
+            using var input = new MemoryStream(Encoding.UTF8.GetBytes(Payload()));
+            var output = new StringWriter();
+            var code = await ClaudeStatusLineCommand.RunAsync([ClaudeStatusLineCommand.Argument, id], input, output, data.Accounts, data.Clock);
+            Assert.Equal(2, code);
+        }
+        Assert.False(File.Exists(data.Path));
+    }
+
+    [Fact]
+    public async Task StdinCanBeCancelledWithoutRecordingAPartialSample()
+    {
+        using var data = new ClaudeTestData();
+        using var cancelled = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        using var input = new NeverEndingInput();
+        var code = await ClaudeStatusLineCommand.RunAsync([ClaudeStatusLineCommand.Argument, data.Profile.Id], input,
+            new StringWriter(), data.Accounts, data.Clock, cancelled.Token).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(1, code);
+        Assert.False(File.Exists(data.Path));
+    }
+
+    [Theory]
+    [InlineData(UiLanguage.English)]
+    [InlineData(UiLanguage.Korean)]
+    public async Task SharedPresentationLabelsClaudeAndShowsReceiptAgeInsteadOfCodexAuthentication(UiLanguage language)
+    {
+        UiText.SetLanguage(language);
+        try
+        {
+            using var data = new ClaudeTestData();
+            Assert.DoesNotContain("Codex", CodexDisplayFormatting.StatusText(data.Service().Snapshot));
+            await data.Receive(Payload());
+            data.Clock.UtcNow = Now.AddMinutes(6);
+            var snapshot = data.Service().Snapshot;
+            Assert.Contains("Claude", CodexMeterPresentation.Tooltip(snapshot));
+            Assert.DoesNotContain("Codex", CodexMeterPresentation.Tooltip(snapshot));
+            Assert.StartsWith("Claude ", CodexMeterPresentation.CompactText(snapshot));
+            Assert.Contains("~", CodexMeterPresentation.CompactText(snapshot));
+            var rows = CodexDisplayFormatting.Rows(snapshot, data.Clock.UtcNow);
+            Assert.Contains(rows, row => row.Value == "23.5% / 76.5%");
+            Assert.Equal("41.2%", CodexRingPresentation.From(snapshot).CenterValueText);
+            Assert.Contains(rows, row => row.Label == UiText.T("Last received", "마지막 수신"));
+            Assert.DoesNotContain(rows, row => row.Label == UiText.ResetCredits);
+        }
+        finally { UiText.SetLanguage(UiLanguage.English); }
+    }
+
+    [Fact]
+    public void SettingsCommandSafelyCarriesInstallationPathsAcrossWindowsShells()
+    {
+        var id = Guid.NewGuid().ToString("N");
+        var json = ClaudeStatusLineCommand.SettingsJson(@"C:\A space\O'Brien $x` & folder\CycleArc.exe", id);
+        var command = JsonNode.Parse(json)!["statusLine"]!["command"]!.GetValue<string>();
+        Assert.StartsWith("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand ", command);
+        var decoded = Encoding.Unicode.GetString(Convert.FromBase64String(command.Split(' ')[^1]));
+        Assert.Contains("& 'C:/A space/O''Brien $x` & folder/CycleArc.exe'", decoded);
+        Assert.Contains("$input |", decoded);
+        Assert.Contains(id, decoded);
+        Assert.DoesNotContain("-ExecutionPolicy", command);
+    }
+
+    private static ClaudeStatusLineResult Parse(string json) => ClaudeStatusLineParser.Parse(Encoding.UTF8.GetBytes(json));
+    internal static string Payload(double five = 23.5) => JsonSerializer.Serialize(new
+    {
+        rate_limits = new { five_hour = new { used_percentage = five, resets_at = Now.AddHours(5).ToUnixTimeSeconds() },
+            seven_day = new { used_percentage = 41.2, resets_at = Now.AddDays(7).ToUnixTimeSeconds() } }
+    });
+
+    private sealed class NeverEndingInput : MemoryStream
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        { await Task.Delay(Timeout.Infinite, cancellationToken); return 0; }
+    }
+
+    internal sealed class ClaudeTestData : IDisposable
+    {
+        public string Root { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "cyclearc-claude-test-" + Guid.NewGuid().ToString("N"));
+        public CodexAccountStore Accounts { get; }
+        public CodexAccountProfile Profile { get; }
+        public MutableClock Clock { get; } = new(Now);
+        public string Path => Accounts.ClaudeStatusLinePath(Profile.Id);
+        public ClaudeTestData()
+        {
+            Accounts = new(Root);
+            var state = Accounts.LoadOrMigrate(System.IO.Path.Combine(Root, "codex-home"));
+            Profile = Accounts.NewClaude("Claude test");
+            Accounts.Save(state with { Version = 2, Profiles = state.Profiles.Append(Profile).ToArray() });
+        }
+        public ClaudeStatusLineStore Store() => new(Path, Profile.Id);
+        public ClaudeQuotaService Service() => new(Store(), Clock);
+        public async Task<(int Code, string Output)> Receive(string json)
+        {
+            using var input = new MemoryStream(Encoding.UTF8.GetBytes(json));
+            var output = new StringWriter();
+            var code = await ClaudeStatusLineCommand.RunAsync([ClaudeStatusLineCommand.Argument, Profile.Id], input, output, Accounts, Clock);
+            return (code, output.ToString());
+        }
+        public void Dispose() { if (Directory.Exists(Root)) Directory.Delete(Root, true); }
+    }
+}

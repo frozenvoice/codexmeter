@@ -26,7 +26,7 @@ internal static class AccountSummary
         nameAndProvider.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         nameAndProvider.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         nameAndProvider.Children.Add(name);
-        var provider = new CodexProviderBadge { Margin = new Thickness(8, 0, 0, 0) };
+        var provider = new UsageProviderBadge { Provider = account.Profile.Provider, Margin = new Thickness(8, 0, 0, 0) };
         Grid.SetColumn(provider, 1);
         nameAndProvider.Children.Add(provider);
         identity.Children.Add(nameAndProvider);
@@ -45,9 +45,9 @@ internal static class AccountSummary
                 var row = new Grid { Margin = new Thickness(0, 5, 0, 0) };
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-                row.Children.Add(Text(CodexDisplayFormatting.CompactWindowKindLabel(window), 11, "MutedBrush"));
-                var value = Text(UiText.T($"Used {CodexDisplayFormatting.PercentText(window.UsedPercent)} · Left {CodexDisplayFormatting.PercentText(window.RemainingPercent)}",
-                    $"사용 {CodexDisplayFormatting.PercentText(window.UsedPercent)} · 잔여 {CodexDisplayFormatting.PercentText(window.RemainingPercent)}"), 12, "TextBrush");
+                row.Children.Add(Text(CodexDisplayFormatting.CompactWindowKindLabel(window, account.Profile.Provider), 11, "MutedBrush"));
+                var value = Text(UiText.T($"Used {CodexDisplayFormatting.PercentText(window.UsedPercent, account.Profile.Provider)} · Left {CodexDisplayFormatting.PercentText(window.RemainingPercent, account.Profile.Provider)}",
+                    $"사용 {CodexDisplayFormatting.PercentText(window.UsedPercent, account.Profile.Provider)} · 잔여 {CodexDisplayFormatting.PercentText(window.RemainingPercent, account.Profile.Provider)}"), 12, "TextBrush");
                 Grid.SetColumn(value, 1); row.Children.Add(value); content.Children.Add(row);
             }
         }
@@ -67,9 +67,9 @@ internal static class AccountSummary
             content.Children.Add(duplicate);
         }
         button.Content = content;
-        button.ToolTip = account.Email ?? account.Profile.HomePath;
+        button.ToolTip = account.Email ?? account.DisplayName + " · " + account.ProviderName;
         System.Windows.Automation.AutomationProperties.SetName(button,
-            account.DisplayName + " · " + UiText.CodexProviderName + " · " + status.Text
+            account.DisplayName + " · " + account.ProviderName + " · " + status.Text
                 + (selected ? UiText.T(" · Selected", " · 선택됨") : ""));
         button.Click += (_, _) => select();
         return button;

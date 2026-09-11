@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <StartupObject>CodexMeter.Program</StartupObject>
     <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
@@ -12,7 +13,7 @@
     <AssemblyName>CycleArc</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Description>Windows tray monitor for Codex account usage</Description>
+    <Description>Windows tray monitor for Codex and Claude account usage</Description>
     <Product>CycleArc</Product>
   </PropertyGroup>
   <ItemGroup>

@@ -2,11 +2,23 @@
 
 [English](../README.md) · [다운로드](https://github.com/frozenvoice/cyclearc/releases/latest)
 
-Windows 트레이에서 **여러 Codex 계정의 사용률, 남은 비율, 리셋 시각**을 함께 확인하는 앱입니다.
+Windows 트레이에서 **여러 Codex·Claude 프로필의 사용률, 남은 비율, 리셋 시각**을 함께 확인하는 앱입니다.
 
-제품명이 **CodexMeter에서 CycleArc로 변경**되었습니다. 계정 카드·선택한 상세 화면·위젯의 **Codex 배지**는 어떤 AI의 사용량인지 표시합니다. **현재는 Codex만 지원**하며 Claude·Gemini 연동은 제공하지 않습니다. 기존 계정, 설정과 캐시는 그대로 사용합니다.
+제품명이 **CodexMeter에서 CycleArc로 변경**되었습니다. 계정 카드·선택한 상세 화면·트레이 툴팁·위젯의 **Codex 또는 Claude 배지**는 사용량 provider를 표시합니다. Claude는 **Claude Code 공식 statusLine JSON**으로 연결합니다. Gemini는 지원하지 않습니다. 기존 Codex 계정, 설정과 캐시는 유지합니다.
 
-> **Pro 구독 전용입니다.** 현재 버전은 ChatGPT Pro 구독자의 Codex 사용량 모니터링을 지원합니다. **ChatGPT Plus 구독의 5시간 사용량은 지원하지 않습니다.**
+> **Codex:** ChatGPT Pro 구독을 지원하며 ChatGPT Plus 구독의 5시간 사용량은 지원하지 않습니다. **Claude:** 공식 statusLine에서 한도 필드가 제공되어야 합니다. 첫 응답 전이거나 지원하지 않는 플랜에서는 필드가 없을 수 있습니다.
+
+## Claude Code 연결
+
+1. **계정 관리 → 계정 추가 · 연결 방법 → Claude 프로필 추가**에서 선택 사항인 별명을 지정합니다.
+2. 연결 안내의 **statusLine 설정 복사**를 누르고 해당 계정의 Claude Code 설정에 `statusLine` 항목을 병합합니다. 기존의 다른 설정을 유지하세요. 이미 statusLine을 사용 중이면 같은 stdin을 기존 명령과 CycleArc 양쪽에 전달하는 래퍼를 사용합니다. [연동 예시](CLAUDE.md)를 참고하세요.
+3. Claude Code를 사용해 응답을 받으면 `rate_limits.five_hour` / `seven_day`의 `used_percentage`와 `resets_at`을 수신합니다. 없는 구간은 0으로 표시하지 않습니다.
+
+공식 JSON에는 **계정 이메일·계정 ID가 없습니다**. 프로필은 해당 연결 명령에 대한 로컬 구분이며 계정 신원을 검증한 결과가 아닙니다. Claude 계정마다 프로필과 명령을 따로 사용하고, 계정을 바꿀 때 명령도 바꾸세요. 별명 우선 규칙은 Codex와 같으며, 별명이 비어 있으면 Codex는 제공된 이메일을, Claude는 `Claude · <로컬 프로필 ID>`를 표시합니다. 계정별 순서·선택·위젯을 공통 UI에서 관리합니다.
+
+정상 입력이 **5분 동안 없거나 리셋 시각이 지나면** 마지막 정상값을 **오래됨(stale)**으로 표시합니다. 누락·잘못된 입력도 정상값을 지우지 않고 stale로 전환합니다. 재시작 후에도 값을 보존하며, 새로고침이나 로컬 조회로 마지막 수신 시각을 갱신하지 않습니다. 상세 카드에는 **마지막 수신**을 표시하고 Claude에는 Codex 리셋권 기능을 표시하지 않습니다.
+
+공식 statusLine 데이터만 사용합니다. `/usage` TUI 파싱, auth/token 파일 직접 읽기, 대화·transcript 수집, 비공식 사용량 API 호출은 하지 않습니다. 전체 JSON을 저장하지 않고 한도 수치와 로컬 수신·상태 메타데이터만 남깁니다. [Claude Code 공식 문서](https://code.claude.com/docs/en/statusline)
 
 ChatGPT Pro/Sol 기록 추정 기능은 종료했습니다. Edge/Chrome 확장, 별도의 ChatGPT 기록 접근,
 대화 기록 동기화, SQLite 기록 집계, WebView2는 현재 앱에서 사용하지 않습니다.
