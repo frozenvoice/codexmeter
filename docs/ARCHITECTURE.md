@@ -8,10 +8,12 @@
   reads only a local inbox populated by Claude Code's official statusLine stdin.
 - Public `CodexAccount*` / `CodexQuota*` type names remain as shared presentation records for
   caller/cache compatibility; their default provider is Codex. Claude accounts carry
-  `Provider = Claude`, an empty home path and no authentication/credit capabilities.
+  `Provider = Claude`, an empty shared home path and no Codex authentication/credit capabilities.
+  `ClaudeConnectionService` separately owns official Claude CLI login and connection settings.
   The account registry advances to version 2 only when a Claude profile is added, so older
   Codex-only builds fail closed. Existing homes, aliases, order, selection and Codex caches remain.
-- `Program.Main` routes `--claude-statusline <profile-id>` before WPF, the desktop mutex,
+- `Program.Main` routes `--claude-statusline-bridge <encoded-options>` and the legacy
+  `--claude-statusline <profile-id>` before WPF, the desktop mutex,
   settings, tray and account startup. It accepts only an existing Claude profile, reads bounded
   stdin and stores the two projected rate-limit windows with local receipt/status metadata.
   No raw JSON, session/project/transcript metadata, auth/token file or `/usage` parsing is used.
@@ -25,10 +27,22 @@
   only for new data/freshness transitions, preserving nickname editor focus. It does not start
   Codex, renew receipt timestamps or alter manual-refresh ownership. Normal manual refresh
   also reads Claude's inbox. The existing Codex interval and bounded batch remain unchanged.
-- Claude statusLine provides no email/account ID. The connection UI creates an explicit local
-  profile and copies its settings command; it neither guesses identity nor edits Claude settings.
-  Users map separate account/settings scopes to separate commands and change that mapping when
-  switching Claude sign-ins. Details and the supported wrapper are in [CLAUDE.md](CLAUDE.md).
+- The connection window offers current-login connection and official browser login. A single-flight
+  cancellable `ClaudeConnectionService` invokes `claude auth login --claudeai` / `auth status --json`.
+  Browser logins use new per-profile `CLAUDE_CONFIG_DIR` folders; current-login connection uses the
+  effective existing folder and preserves whether that environment variable was originally unset.
+  CLI-owned credentials are never opened by CycleArc. Email is held only
+  in memory; paths, identity fingerprint and connection time use a separate provider metadata file.
+- `ClaudeStatusLineInstaller` edits only `settings.json`'s statusLine, with validation, a local backup,
+  an exclusive lock and atomic replacement that checks for concurrent changes. The encoded wrapper
+  preserves an existing command's stdin/output; reconnect is idempotent and disconnect restores the
+  previous entry only while the active command is still owned by this profile.
+- StatusLine has no identity fields. Each automatic callback verifies the current CLI login against
+  its binding before accepting usage; a changed login marks the last sample stale. Old configuration
+  callbacks and quota samples predating a new binding cannot populate the new account. A current-login
+  check cannot authenticate an already-running session's emitter; users must restart sessions after
+  external login changes. The old manual receiver cannot bypass an automatic binding's checks.
+  Passive polls never invoke authentication. Details are in [CLAUDE.md](CLAUDE.md).
 
 - The repository is `frozenvoice/cyclearc`; clone instructions use the folder `cyclearc`.
   Clone instructions, documentation badges/download links and the app's repository link use

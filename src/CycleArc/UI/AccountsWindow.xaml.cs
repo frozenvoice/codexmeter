@@ -40,7 +40,7 @@ public partial class AccountsWindow : Window
         Introduction.Text = UiText.T("Connect accounts here to see their usage together. Choose the connection method that fits your situation.",
             "계정을 연결하면 여러 계정의 사용량을 함께 볼 수 있습니다. 아래에서 상황에 맞는 연결 방법을 선택하세요.");
         NewLoginHeading.Text = UiText.T("Codex · First time, or adding another account", "Codex · 처음 사용하거나 다른 계정을 추가할 때");
-        ConnectionOptions.Header = UiText.T("Add an account · Connection guide", "계정 추가 · 연결 방법");
+        ConnectionOptions.Header = UiText.T("Add an account", "계정 추가");
         NewLoginHint.Text = UiText.T("Choose New account sign-in, then select your ChatGPT account in the browser. Return here after login; quota is checked automatically. Your existing Codex login stays as it is.",
             "새 계정 로그인을 누르고 브라우저에서 사용할 ChatGPT 계정을 선택하세요. 로그인 후 돌아오면 사용량을 자동으로 확인합니다. 기존 Codex 로그인은 유지됩니다.");
         LabelCaption.Text = UiText.T("Nickname in CycleArc (optional; you can change it later)", "CycleArc에서 쓸 별명 (선택 사항 · 나중에 변경 가능)");
@@ -56,14 +56,14 @@ public partial class AccountsWindow : Window
         ChooseHomeButton.Content = UiText.T("Choose Codex home folder…", "Codex 홈 폴더 선택…");
         ChooseHomeButton.ToolTip = ChooseHomeHint.Text;
         ClaudeHeading.Text = "Claude · Claude Code";
-        ClaudeHint.Text = UiText.T("Add a profile, then connect its statusLine command in Claude Code. Usage arrives while you use Claude Code; inactive data is marked stale.",
-            "프로필을 추가한 뒤 Claude Code에 해당 statusLine 명령을 연결하세요. Claude Code를 사용할 때 사용량을 수신하며, 새 데이터가 없으면 오래됨으로 표시합니다.");
+        ClaudeHint.Text = UiText.T("Connect a current Claude login or sign in through your browser. CycleArc configures usage updates automatically.",
+            "현재 Claude 로그인을 연결하거나 브라우저에서 로그인하세요. CycleArc가 사용량 수신을 자동으로 설정합니다.");
         ClaudeLabelCaption.Text = UiText.T("Nickname in CycleArc (optional)", "CycleArc에서 쓸 별명 (선택 사항)");
-        AddClaudeButton.Content = UiText.T("Add Claude profile", "Claude 프로필 추가");
+        AddClaudeButton.Content = UiText.T("Connect Claude", "Claude 연결");
         System.Windows.Automation.AutomationProperties.SetName(ClaudeAccountLabel, ClaudeLabelCaption.Text + " · Claude");
         AccountHelp.Header = UiText.T("Nicknames, icons and account actions", "별명·아이콘과 버튼 사용 안내");
-        ProfileHelp.Text = UiText.T("Set a nickname for CycleArc; leaving it empty shows the reported email or a provider/profile label. Claude statusLine supplies no email or account ID, so Claude profiles use local labels. Circular icons are made locally from the first two characters. Names and icons do not change your provider profile.",
-            "별명을 저장하면 CycleArc에서 그 이름을 표시합니다. 비워 두면 제공된 이메일이나 provider·프로필 이름을 표시합니다. Claude statusLine에는 이메일·계정 ID가 없어 로컬 이름을 사용합니다. 원형 아이콘은 이름의 앞 두 글자로 이 앱에서 만들며, 이름과 아이콘은 서비스의 프로필을 변경하지 않습니다.");
+        ProfileHelp.Text = UiText.T("Set a nickname for CycleArc; leaving it empty shows the reported email or a provider/profile label. Claude email is verified through the official CLI login status. Circular icons are made locally from the first two characters. Names and icons do not change your provider profile.",
+            "별명을 저장하면 CycleArc에서 그 이름을 표시합니다. 비워 두면 제공된 이메일이나 provider·프로필 이름을 표시합니다. Claude 이메일은 공식 CLI 로그인 상태에서 확인합니다. 원형 아이콘은 이름의 앞 두 글자로 이 앱에서 만들며, 이름과 아이콘은 서비스의 프로필을 변경하지 않습니다.");
         ActionsHelp.Text = UiText.T("Select a card: use this account for the detail card, tray and widget. All accounts continue to refresh.\nOrder ↑ / ↓: move the account in this list and the usage popup. The order is saved immediately; the selected account stays the same.\nSign in again: renew or change the login in a profile added here. For a linked Codex account, sign in again in Codex itself.\nRemove from list: stop showing and checking this profile. Its Codex login and saved data are kept; it is not automatically added back.",
             "카드 선택: 상세 카드·트레이·위젯에 표시할 계정을 정합니다. 다른 계정도 계속 새로고침합니다.\n순서 ↑ / ↓: 이 목록과 사용량 팝업의 계정 순서를 바꿉니다. 즉시 저장되며 선택한 계정은 유지됩니다.\n다시 로그인: 여기서 추가한 계정의 로그인을 갱신하거나 변경합니다. 기존 Codex에서 연결한 계정은 원래 Codex에서 다시 로그인하세요.\n목록에서 제거: 이 프로필의 표시와 조회를 중단합니다. Codex 로그인과 저장된 데이터는 남으며, 자동으로 다시 추가되지 않습니다.");
         SelectionHint.Text = UiText.T("Select a card for the tray and widget. Save a nickname below to make accounts easier to recognize.",
@@ -217,8 +217,8 @@ public partial class AccountsWindow : Window
         {
             var profile = AddClaudeAccount(ClaudeAccountLabel.Text);
             ClaudeAccountLabel.Clear();
-            OperationStatus.Text = UiText.T("Claude profile added. Connect its statusLine command to receive usage.",
-                "Claude 프로필을 추가했습니다. statusLine 명령을 연결하면 사용량을 수신합니다.");
+            OperationStatus.Text = UiText.T("Claude profile added. Complete the connection in the login window.",
+                "Claude 프로필을 추가했습니다. 로그인 창에서 연결을 완료하세요.");
             ConfigureClaude?.Invoke(profile.Id);
         }
         catch

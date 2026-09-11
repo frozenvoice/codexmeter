@@ -9,6 +9,9 @@ Windows-only .NET 8 WPF tray app, distributed as one `CycleArc.exe`.
 - Also support Claude Code through official statusLine stdin JSON only: project
   `rate_limits.five_hour` / `seven_day` `used_percentage` and `resets_at`. Never parse
   `/usage`, inspect auth/token files or transcripts, or use undocumented usage endpoints.
+- Claude sign-in and automatic connection use the official CLI `auth login --claudeai` and
+  `auth status --json` commands. Preserve unrelated settings and any existing statusLine;
+  never open CLI-owned credential files. Login must be cancellable and single-flight.
 - Keep providers behind `IUsageProvider` / `IUsageAccountService`. Claude profiles are
   explicit local command bindings; statusLine supplies no verified email/account ID.
   Keep existing nickname, order, selection and widget behavior with the correct provider badge.

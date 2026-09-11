@@ -8,40 +8,166 @@ namespace CycleArc.UI;
 
 public partial class ClaudeConnectionWindow : Window
 {
-    public ClaudeConnectionWindow(CodexAccountProfile profile, string executable)
+    private readonly CodexAccountProfile _profile;
+    private readonly string _executable;
+    private readonly IClaudeConnectionActions? _connections;
+    private readonly CancellationToken _lifetime;
+    private CancellationTokenSource? _operation;
+    private ClaudeConnectionOverview? _overview;
+    private bool _closed;
+    private bool _closing;
+    public Task ActiveOperation { get; private set; } = Task.CompletedTask;
+
+    public ClaudeConnectionWindow(CodexAccountProfile profile, string executable,
+        IClaudeConnectionActions? connections = null, CancellationToken lifetime = default)
     {
         if (profile.Provider != UsageProviderId.Claude) throw new ArgumentException("Wrong usage provider.");
+        _profile = profile; _executable = executable; _connections = connections; _lifetime = lifetime;
         InitializeComponent();
         Title = UiText.ProductName + " · Claude";
         Heading.Text = UiText.T("Connect Claude Code", "Claude Code 연결");
         ProfileName.Text = new CodexAccountView(profile, CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable)).DisplayName;
-        SetupSteps.Text = UiText.T("1. Copy the settings below and merge the statusLine entry into the Claude Code settings used for this account (for example ~/.claude/settings.json). Keep your other settings.\n2. Use Claude Code and complete a response. Its official statusLine sends usage to this CycleArc profile. No additional login is needed here.",
-            "1. 아래 설정을 복사해 이 계정에서 사용하는 Claude Code 설정(예: ~/.claude/settings.json)에 statusLine 항목을 병합하세요. 다른 설정은 유지하세요.\n2. Claude Code를 사용해 응답을 받으세요. 공식 statusLine이 이 CycleArc 프로필에 사용량을 전송합니다. 여기서 별도로 로그인할 필요는 없습니다.");
-        ConnectionJson.Text = ClaudeStatusLineCommand.SettingsJson(executable, profile.Id);
-        System.Windows.Automation.AutomationProperties.SetName(ConnectionJson, "Claude Code statusLine settings");
-        CopyButton.Content = UiText.T("Copy statusLine settings", "statusLine 설정 복사");
-        ExistingStatusLineHint.Text = UiText.T("Already have a statusLine? Keep your existing command in a wrapper that passes the same stdin to CycleArc as well. The copied settings replace the statusLine entry if pasted directly. CycleArc does not edit Claude settings.",
-            "기존 statusLine이 있다면 동일한 stdin을 CycleArc에도 전달하는 래퍼에서 기존 명령을 유지하세요. 복사한 설정을 바로 붙여 넣으면 statusLine 항목이 바뀝니다. CycleArc가 Claude 설정을 직접 수정하지는 않습니다.");
-        IdentityHint.Text = UiText.T("The statusLine contains no account email or ID. This profile's name is local. Use a separate profile and command for each Claude account, and change the command when switching accounts. CycleArc cannot verify which account emitted the data.",
-            "statusLine에는 계정 이메일·ID가 없습니다. 이 프로필 이름은 로컬 이름입니다. Claude 계정마다 프로필과 명령을 따로 사용하고, 계정을 바꾸면 명령도 바꾸세요. CycleArc는 어느 계정이 보낸 데이터인지 확인할 수 없습니다.");
-        FreshnessHint.Text = UiText.T("Only the official 5-hour and 7-day usage percentages and reset times are saved. Missing fields stay unknown. Without a valid update for 5 minutes, or after a reported reset passes, the last values are marked stale. Refresh reads received data; it does not ask Claude for new usage. Rate-limit fields can be absent before the first response or for unsupported plans.",
-            "공식 5시간·7일 사용률과 리셋 시각만 저장합니다. 없는 정보는 알 수 없음으로 남깁니다. 5분 동안 정상 데이터가 없거나 리셋 시각이 지나면 마지막 값을 오래됨으로 표시합니다. 새로고침은 받은 데이터를 읽으며 Claude에 새 사용량을 요청하지 않습니다. 첫 응답 전이거나 지원하지 않는 플랜에서는 한도 정보가 없을 수 있습니다.");
-        DocsButton.Content = UiText.T("Official statusLine documentation", "공식 statusLine 문서");
+        SetupSteps.Text = UiText.T("Connect your current Claude login, or sign in through the official browser flow. CycleArc sets up usage updates automatically.",
+            "현재 Claude 로그인을 연결하거나 공식 브라우저에서 로그인하세요. 사용량을 받을 수 있도록 CycleArc가 자동으로 설정합니다.");
+        ConnectExistingButton.Content = UiText.T("Connect current login", "현재 로그인 연결");
+        LoginButton.Content = UiText.T("Sign in to Claude", "Claude 로그인");
+        OpenClaudeButton.Content = UiText.T("Open Claude Code…", "Claude Code 열기…");
+        FreshnessHint.Text = UiText.T("Usage arrives when you use Claude Code. Before the first update, limits remain unknown; after 5 minutes without an update, the last values are marked stale.",
+            "Claude Code를 사용하면 사용량을 자동으로 받습니다. 첫 데이터가 오기 전에는 한도를 알 수 없으며, 5분간 새 데이터가 없으면 마지막 값을 오래됨으로 표시합니다.");
+        AdvancedDetails.Header = UiText.T("Connection details", "연결 상세 설정");
+        ExistingStatusLineHint.Text = UiText.T("Your other settings and existing status line are preserved. Disconnect restores the previous status line. Authentication stays in the official Claude CLI; CycleArc does not read credential files.",
+            "다른 설정과 기존 상태 표시줄을 유지합니다. 연결을 해제하면 이전 상태 표시줄로 복원합니다. 인증은 공식 Claude CLI가 관리하며 CycleArc는 인증 파일을 읽지 않습니다.");
+        DocsButton.Content = UiText.T("Official Claude Code guide", "Claude Code 공식 안내");
+        DisconnectButton.Content = UiText.T("Disconnect", "연결 해제");
         DoneButton.Content = UiText.Close;
+        CancelButton.Content = UiText.T("Cancel", "취소");
+        ConnectionState.Text = UiText.T("Checking Claude login…", "Claude 로그인 확인 중…");
+        Loaded += (_, _) => Begin(InspectAsync, UiText.T("Checking current login…", "현재 로그인 확인 중…"));
+        Closing += (_, e) =>
+        {
+            if (_operation is null) return;
+            e.Cancel = true; _closing = true; CancelOperation();
+        };
+        Closed += (_, _) => _closed = true;
         SourceInitialized += (_, _) =>
         {
             var work = SystemParameters.WorkArea;
             MaxHeight = Math.Max(400, work.Height - 24); Height = Math.Min(Height, MaxHeight);
             MaxWidth = Math.Max(470, work.Width - 24); Width = Math.Min(Width, MaxWidth);
         };
+        UpdateButtons();
     }
 
-    private void OnCopy(object sender, RoutedEventArgs e)
+    private async Task InspectAsync(CancellationToken token)
     {
-        try { System.Windows.Clipboard.SetText(ConnectionJson.Text); CopyStatus.Text = UiText.T("Copied. Merge into Claude Code settings.", "복사했습니다. Claude Code 설정에 병합하세요."); }
-        catch { CopyStatus.Text = UiText.T("Could not copy. Select and copy the text above.", "복사하지 못했습니다. 위 내용을 선택해 복사하세요."); }
+        if (_connections is null) return;
+        var overview = await Task.Run(() => _connections.InspectAsync(_profile.Id, token), token).ConfigureAwait(false);
+        await Dispatcher.InvokeAsync(() => ApplyOverview(overview));
     }
-    private void OnDocs(object sender, RoutedEventArgs e) => Process.Start(new ProcessStartInfo("https://code.claude.com/docs/en/statusline") { UseShellExecute = true });
+
+    private void ApplyOverview(ClaudeConnectionOverview overview)
+    {
+        _overview = overview;
+        var auth = _overview.Authentication;
+        var linked = _overview.Installed && auth.Status == ClaudeAuthStatus.SignedIn
+            && auth.Fingerprint == _overview.Binding?.IdentityFingerprint;
+        ConnectionState.Text = linked ? UiText.T("Connected", "연결됨") : AuthText(auth.Status);
+        AccountIdentity.Text = auth.Status == ClaudeAuthStatus.SignedIn
+            ? auth.Email + (auth.Plan is { Length: > 0 } plan ? " · " + plan : "") : "";
+        ConfigPath.Text = UiText.T("Claude settings: ", "Claude 설정 위치: ") + _overview.ConfigDirectory;
+        OpenClaudeButton.Visibility = linked ? Visibility.Visible : Visibility.Collapsed;
+        DisconnectButton.Visibility = _overview.Binding is not null ? Visibility.Visible : Visibility.Collapsed;
+        LoginButton.Content = auth.Status == ClaudeAuthStatus.SignedIn
+            ? UiText.T("Sign in to another account", "다른 계정으로 로그인") : UiText.T("Sign in to Claude", "Claude 로그인");
+        OperationStatus.Text = linked ? UiText.T("Ready. Waiting for Claude Code usage updates.", "연결했습니다. Claude Code 사용량을 기다리는 중입니다.") : "";
+    }
+
+    private void Begin(Func<CancellationToken, Task> action, string progress)
+    {
+        if (_closed || _operation is not null || _connections is null) return;
+        _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime);
+        OperationStatus.Text = progress;
+        UpdateButtons();
+        ActiveOperation = RunAsync(action, _operation);
+    }
+
+    private async Task RunAsync(Func<CancellationToken, Task> action, CancellationTokenSource operation)
+    {
+        try { await action(operation.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) { await Dispatcher.InvokeAsync(() => OperationStatus.Text = AuthText(ClaudeAuthStatus.Cancelled)); }
+        catch (ClaudeSetupException ex) { await Dispatcher.InvokeAsync(() => OperationStatus.Text = FailureText(ex.Failure)); }
+        catch { await Dispatcher.InvokeAsync(() => OperationStatus.Text = UiText.T("Could not connect. Try again or check the official guide.", "연결하지 못했습니다. 다시 시도하거나 공식 안내를 확인하세요.")); }
+        finally
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _operation = null; operation.Dispose(); UpdateButtons();
+                if (_closing && !_closed) Close();
+            });
+        }
+    }
+
+    private async Task ConnectAsync(bool login, CancellationToken token)
+    {
+        var result = await Task.Run(() => _connections!.ConnectAsync(_profile.Id, _executable, login, null, token), token).ConfigureAwait(false);
+        if (result.Success)
+        {
+            await InspectAsync(token).ConfigureAwait(false);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (_overview?.Installed == true && _overview.Authentication.Fingerprint == result.Binding?.IdentityFingerprint)
+                    OperationStatus.Text = UiText.T("Connected. Claude Code will send usage automatically after a response.",
+                        "연결했습니다. Claude Code에서 응답을 받으면 사용량이 자동으로 표시됩니다.");
+            });
+        }
+        else await Dispatcher.InvokeAsync(() => OperationStatus.Text = result.Failure is { } failure ? FailureText(failure) : AuthText(result.Authentication.Status));
+    }
+
+    private void UpdateButtons()
+    {
+        var busy = _operation is not null;
+        ConnectExistingButton.IsEnabled = !busy && _connections is not null && _overview?.Authentication.Status == ClaudeAuthStatus.SignedIn;
+        LoginButton.IsEnabled = OpenClaudeButton.IsEnabled = DisconnectButton.IsEnabled = !busy && _connections is not null;
+        OperationProgress.Visibility = CancelButton.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static string AuthText(ClaudeAuthStatus status) => status switch
+    {
+        ClaudeAuthStatus.SignedIn => UiText.T("A Claude login is available", "연결할 Claude 로그인이 있습니다"),
+        ClaudeAuthStatus.SignedOut => UiText.T("Sign in to connect Claude", "Claude 로그인 후 연결할 수 있습니다"),
+        ClaudeAuthStatus.NotInstalled => UiText.T("Install Claude Code using the official guide, then reopen this window.", "공식 안내에서 Claude Code를 설치한 뒤 이 창을 다시 여세요."),
+        ClaudeAuthStatus.Unsupported => UiText.T("Use a Claude subscription login to receive account limits.", "계정 한도를 받으려면 Claude 구독 계정으로 로그인하세요."),
+        ClaudeAuthStatus.InvalidResponse => UiText.T("Update Claude Code, then try again.", "Claude Code를 업데이트한 뒤 다시 시도하세요."),
+        ClaudeAuthStatus.TimedOut => UiText.T("Login timed out. Try again.", "로그인 시간이 초과되었습니다. 다시 시도하세요."),
+        ClaudeAuthStatus.Cancelled => UiText.T("Cancelled", "취소했습니다"),
+        _ => UiText.T("Claude login failed. Try again.", "Claude 로그인에 실패했습니다. 다시 시도하세요.")
+    };
+    private static string FailureText(ClaudeSetupFailure failure) => failure switch
+    {
+        ClaudeSetupFailure.AlreadyLinked => UiText.T("This Claude settings folder is linked to another profile. Open that profile or sign in separately.", "이 Claude 설정은 다른 프로필에 연결되어 있습니다. 해당 프로필을 열거나 별도로 로그인하세요."),
+        ClaudeSetupFailure.InvalidSettings => UiText.T("Claude settings could not be safely updated. Check the settings file in connection details.", "Claude 설정을 수정하지 못했습니다. 연결 상세 설정에 표시된 설정 파일을 확인하세요."),
+        ClaudeSetupFailure.SettingsChanged => UiText.T("Claude settings changed during setup. Try again.", "연결 중 Claude 설정이 변경되었습니다. 다시 시도하세요."),
+        _ => UiText.T("Connection settings are unavailable. Check file permissions and try again.", "연결 설정에 접근할 수 없습니다. 파일 권한을 확인한 뒤 다시 시도하세요.")
+    };
+
+    public void CancelOperation() => _operation?.Cancel();
+    private void OnConnectExisting(object sender, RoutedEventArgs e) => Begin(token => ConnectAsync(false, token), UiText.T("Connecting current login…", "현재 로그인 연결 중…"));
+    private void OnLogin(object sender, RoutedEventArgs e) => Begin(token => ConnectAsync(true, token), UiText.T("Finish signing in in your browser. Settings will be applied automatically.", "브라우저에서 로그인을 완료하세요. 설정은 자동으로 적용됩니다."));
+    private void OnDisconnect(object sender, RoutedEventArgs e) => Begin(async token =>
+    {
+        await Task.Run(() => _connections!.DisconnectAsync(_profile.Id, token), token).ConfigureAwait(false);
+        await InspectAsync(token).ConfigureAwait(false);
+        await Dispatcher.InvokeAsync(() => OperationStatus.Text = UiText.T("Disconnected. Previous status line restored.", "연결을 해제하고 기존 상태 표시줄을 복원했습니다."));
+    }, UiText.T("Disconnecting…", "연결 해제 중…"));
+    private void OnOpenClaude(object sender, RoutedEventArgs e)
+    {
+        var picker = new Microsoft.Win32.OpenFolderDialog { Title = UiText.T("Choose a folder for Claude Code", "Claude Code에서 사용할 폴더 선택") };
+        if (picker.ShowDialog(this) != true) return;
+        try { _connections!.OpenClaude(_profile.Id, picker.FolderName); }
+        catch { OperationStatus.Text = UiText.T("Could not open Claude Code.", "Claude Code를 열지 못했습니다."); }
+    }
+    private void OnCancel(object sender, RoutedEventArgs e) => CancelOperation();
+    private void OnDocs(object sender, RoutedEventArgs e) => Process.Start(new ProcessStartInfo("https://code.claude.com/docs/en/setup") { UseShellExecute = true });
     private void OnDone(object sender, RoutedEventArgs e) => Close();
     private void OnDrag(object sender, MouseButtonEventArgs e)
     {

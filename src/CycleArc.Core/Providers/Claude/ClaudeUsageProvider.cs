@@ -4,13 +4,14 @@ using CycleArc.Services;
 
 namespace CycleArc.Providers.Claude;
 
-public sealed class ClaudeUsageProvider(CodexAccountStore accounts, IClock? clock = null) : IUsageProvider
+public sealed class ClaudeUsageProvider(CodexAccountStore accounts, IClock? clock = null, ClaudeConnectionService? connections = null) : IUsageProvider
 {
     public UsageProviderId Id => UsageProviderId.Claude;
     public IUsageAccountService Create(CodexAccountProfile profile)
     {
         if (profile.Provider != Id) throw new ArgumentException("Wrong usage provider.");
-        return new ClaudeQuotaService(new ClaudeStatusLineStore(accounts.ClaudeStatusLinePath(profile.Id), profile.Id), clock);
+        return new ClaudeQuotaService(new ClaudeStatusLineStore(accounts.ClaudeStatusLinePath(profile.Id), profile.Id), clock,
+            () => new ClaudeConnectionStore(accounts, profile.Id).Read(), fingerprint => connections?.Email(profile.Id, fingerprint));
     }
 }
 
@@ -23,17 +24,25 @@ public sealed class ClaudeQuotaService : IUsageAccountService
     private ClaudeStatusLineRead? _lastRead;
     private CodexQuotaSnapshot _snapshot = Empty("claude-statusline-missing");
     private CodexQuotaSnapshot? _lastPublished;
+    private readonly Func<ClaudeConnectionRead>? _readConnection;
+    private readonly Func<string?, string?>? _email;
+    private ClaudeConnectionRead? _connection;
+    private string? _lastEmail;
 
-    public ClaudeQuotaService(ClaudeStatusLineStore store, IClock? clock = null)
+    public ClaudeQuotaService(ClaudeStatusLineStore store, IClock? clock = null,
+        Func<ClaudeConnectionRead>? readConnection = null, Func<string?, string?>? email = null)
     {
         _store = store;
         _clock = clock ?? SystemClock.Instance;
+        _readConnection = readConnection;
+        _email = email;
+        _connection = _readConnection?.Invoke();
         Apply(store.Read());
     }
 
     public CodexQuotaSnapshot Snapshot => ApplyFreshness(_snapshot, _clock.UtcNow);
-    public string? Email => null; // The official statusLine has no verified account identity.
-    public string? IdentityFingerprint => null;
+    public string? Email => _email?.Invoke(_connection?.Binding?.IdentityFingerprint);
+    public string? IdentityFingerprint => Email is null ? null : _connection?.Binding?.IdentityFingerprint;
     public bool IsRefreshing { get; private set; }
     public bool ReceivesPassiveUpdates => true;
     public bool ShouldRefresh(DateTimeOffset now, TimeSpan interval) => false;
@@ -45,8 +54,10 @@ public sealed class ClaudeQuotaService : IUsageAccountService
         IsRefreshing = true;
         try
         {
-            var read = await Task.Run(_store.Read, token).ConfigureAwait(false);
-            if (read != _lastRead) Apply(read);
+            var (read, connection) = await Task.Run(() => (_store.Read(), _readConnection?.Invoke()), token).ConfigureAwait(false);
+            var changed = connection != _connection;
+            _connection = connection;
+            if (read != _lastRead || changed) Apply(read);
             var snapshot = Snapshot;
             PublishIfChanged(snapshot);
             return new(snapshot, snapshot.Status != CodexQuotaStatus.Available, snapshot.TechnicalDetail);
@@ -57,6 +68,12 @@ public sealed class ClaudeQuotaService : IUsageAccountService
     private void Apply(ClaudeStatusLineRead read)
     {
         _lastRead = read;
+        if (_connection?.Unavailable == true)
+        {
+            _snapshot = Empty("claude-connection-unavailable");
+            PublishIfChanged(Snapshot);
+            return;
+        }
         var state = read.State;
         var detail = read.Unavailable ? "claude-cache-unavailable" : state?.LastInputStatus switch
         {
@@ -66,6 +83,12 @@ public sealed class ClaudeQuotaService : IUsageAccountService
         };
         if (state?.LastGood is { } good)
         {
+            if (_connection?.Binding is { } binding && good.ReceivedAt < binding.ConnectedAt)
+            {
+                _snapshot = Empty("claude-statusline-waiting");
+                PublishIfChanged(Snapshot);
+                return;
+            }
             var windows = new List<CodexQuotaWindow>();
             if (good.FiveHour is { } five) windows.Add(Window(five, CodexWindowKind.FiveHour, 300, "five_hour"));
             if (good.SevenDay is { } week) windows.Add(Window(week, CodexWindowKind.Weekly, 10080, "seven_day"));
@@ -84,8 +107,9 @@ public sealed class ClaudeQuotaService : IUsageAccountService
 
     private void PublishIfChanged(CodexQuotaSnapshot snapshot)
     {
-        if (snapshot == _lastPublished) return;
+        if (snapshot == _lastPublished && Email == _lastEmail) return;
         _lastPublished = snapshot;
+        _lastEmail = Email;
         Changed?.Invoke(snapshot);
     }
 

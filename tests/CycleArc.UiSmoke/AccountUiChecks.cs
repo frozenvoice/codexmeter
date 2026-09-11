@@ -339,7 +339,7 @@ internal static class AccountUiChecks
         finally { flyout.Close(); }
     }
 
-    private static void PumpUntil(Task task)
+    internal static void PumpUntil(Task task)
     {
         var until = DateTime.UtcNow.AddSeconds(5);
         while (!task.IsCompleted && DateTime.UtcNow < until)

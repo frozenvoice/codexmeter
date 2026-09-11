@@ -61,6 +61,7 @@ internal static class ClaudeStatusLineProcessChecks
             result = RunProcess(executable, [ClaudeStatusLineCommand.Argument, profile.Id, "--data-root", root], null);
             Check(result.Code == 1, "Production stdin deadline did not exit.");
             Check(!File.Exists(Path.Combine(root, "settings.json")), "Collector initialized desktop settings.");
+            CheckAuthenticatedBridge(executable, accounts, profile, root, json);
             Console.WriteLine("PASS: production Claude stdin receiver, held desktop mutex, isolated registry, malformed-input retention, deadline, PowerShell"
                 + (checkedBash ? " and Git Bash" : " (Git Bash not installed)") + "; no live account access.");
         }
@@ -73,6 +74,38 @@ internal static class ClaudeStatusLineProcessChecks
                 throw new InvalidOperationException("Invalid temporary cleanup target.");
             if (Directory.Exists(owned)) Directory.Delete(owned, true);
         }
+    }
+
+    private static void CheckAuthenticatedBridge(string executable, CodexAccountStore accounts, CodexAccountProfile profile, string root, string json)
+    {
+        const string authJson = """{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty","email":"person@example.invalid","orgId":"synthetic-org","subscriptionType":"pro"}""";
+        var directory = Path.Combine(root, "Claude home");
+        Directory.CreateDirectory(directory);
+        var cli = Path.Combine(directory, "synthetic claude.cmd");
+        File.WriteAllText(cli, "@echo off\r\necho " + authJson + "\r\nexit /b 0\r\n");
+        var auth = ClaudeAuthentication.Parse(authJson, 0);
+        new ClaudeConnectionStore(accounts, profile.Id).Save(new(1, profile.Id, directory, cli, false, auth.Fingerprint!, DateTimeOffset.UtcNow));
+        var oldScript = "$data = $input | Out-String | ConvertFrom-Json; Write-Output ('Existing line ' + $data.rate_limits.five_hour.used_percentage)";
+        var oldCommand = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand " + Convert.ToBase64String(Encoding.Unicode.GetBytes(oldScript));
+        File.WriteAllText(Path.Combine(directory, "settings.json"), JsonSerializer.Serialize(new { theme = "preserve", statusLine = new { type = "command", command = oldCommand, padding = 2 } }));
+        var options = ClaudeStatusLineInstaller.InstallAsync(accounts, profile.Id, directory, executable, default).GetAwaiter().GetResult();
+        var command = ClaudeStatusLineInstaller.Command(options);
+        var result = RunProcess("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-EncodedCommand", command.Split(' ')[^1]], json);
+        Check(result.Code == 0 && result.Output.Trim() == "Existing line 23.5", "Automatic bridge did not preserve existing output and input.");
+        var store = new ClaudeStatusLineStore(accounts.ClaudeStatusLinePath(profile.Id), profile.Id);
+        Check(store.Read().State?.LastGood?.FiveHour?.UsedPercentage == 23.5, "Authenticated bridge did not persist official quota fields.");
+        var bash = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Git", "bin", "bash.exe");
+        if (File.Exists(bash))
+        {
+            result = RunProcess(bash, ["--noprofile", "--norc", "-c", command], json);
+            Check(result.Code == 0 && result.Output.Trim() == "Existing line 23.5", "Automatic bridge failed under Git Bash.");
+        }
+        File.WriteAllText(cli, "@echo off\r\necho {\"loggedIn\":false}\r\nexit /b 1\r\n");
+        result = RunProcess(executable, [ClaudeStatusLineBridge.Argument, ClaudeStatusLineInstaller.Payload(options)], json);
+        Check(result.Code == 1 && result.Output.Trim() == "Existing line 23.5", "Auth loss discarded existing status line output.");
+        Check(store.Read().State?.LastInputStatus == ClaudeInputStatus.Missing, "Signed-out bridge accepted another usage sample.");
+        Check(!File.ReadAllText(accounts.ClaudeStatusLinePath(profile.Id)).Contains("never-", StringComparison.Ordinal), "Bridge stored raw stdin.");
+        Console.WriteLine("PASS: automatic Claude bridge in production executable; official auth adapter, quoted paths, preserved statusLine stdin/output, signed-out rejection, PowerShell/Git Bash, isolated synthetic data.");
     }
 
     private static (int Code, string Output) RunProcess(string executable, string[] args, string? input)

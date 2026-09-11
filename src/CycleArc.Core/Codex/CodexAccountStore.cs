@@ -15,6 +15,7 @@ public sealed class CodexAccountStore
     private readonly object _gate = new();
     private string RegistryPath => Path.Combine(_root, "codex-accounts.json");
     public bool RecoveredFromBackup { get; private set; }
+    public string RootDirectory => _root;
 
     public CodexAccountStore(string? root = null) => _root = Path.GetFullPath(root ?? Services.AppPaths.Root);
 
@@ -59,6 +60,12 @@ public sealed class CodexAccountStore
 
     public string ClaudeStatusLinePath(string id) =>
         Path.Combine(_root, "accounts", RequireId(id), "claude-statusline.json");
+
+    public string ClaudeConnectionPath(string id) =>
+        Path.Combine(_root, "accounts", RequireId(id), "claude-connection.json");
+
+    public string ManagedClaudeDirectory(string id) =>
+        Path.Combine(_root, "accounts", RequireId(id), "claude-home");
 
     public string SnapshotPath(CodexAccountProfile profile) => profile.Id == LegacyProfileId
         ? Path.Combine(_root, "codex-snapshot.json")

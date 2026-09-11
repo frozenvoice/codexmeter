@@ -6,6 +6,8 @@ using System.Windows.Media;
 using CycleArc.Codex;
 using CycleArc.Models;
 using CycleArc.Providers.Usage;
+using CycleArc.Providers.Claude;
+using System.Threading;
 using CycleArc.Services;
 using CycleArc.UI;
 
@@ -27,7 +29,8 @@ internal static class MixedProviderUiChecks
             var flyout = new FlyoutWindow();
             var widget = new FloatingWidget();
             var manager = new AccountsWindow();
-            var guide = new ClaudeConnectionWindow(accounts[1].Profile, @"C:\Synthetic CycleArc\CycleArc.exe");
+            var connection = new FakeConnection(accounts[1].Profile.Id);
+            var guide = new ClaudeConnectionWindow(accounts[1].Profile, @"C:\Synthetic CycleArc\CycleArc.exe", connection);
             try
             {
                 foreach (var selected in accounts)
@@ -92,18 +95,57 @@ internal static class MixedProviderUiChecks
                 ((TextBox)manager.FindName("ClaudeAccountLabel")).Text = "New synthetic";
                 ((Button)manager.FindName("AddClaudeButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Check(configured == accounts[1].Profile.Id, "Adding Claude did not open the matching connection guide.");
-                foreach (var size in new[] { new Size(670, 700), new Size(470, 400) })
+                guide.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+                AccountUiChecks.PumpUntil(guide.ActiveOperation);
+                Check(((Button)guide.FindName("ConnectExistingButton")).IsEnabled, "Existing signed-in account cannot be connected.");
+                ((Button)guide.FindName("ConnectExistingButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                AccountUiChecks.PumpUntil(guide.ActiveOperation);
+                Check(!connection.LastLogin && connection.Calls == 1, "Existing-login action unexpectedly started interactive login.");
+                Check(((Button)guide.FindName("OpenClaudeButton")).Visibility == Visibility.Visible, "Successful connection has no Claude launch action.");
+                Check(((TextBlock)guide.FindName("AccountIdentity")).Text.Contains("person@example.invalid"), "Verified identity is missing.");
+                foreach (var size in new[] { new Size(610, 580), new Size(470, 400) })
                 {
-                    AccountUiChecks.Render(guide, size.Width, size.Height, directory is not null && size.Width == 670
+                    AccountUiChecks.Render(guide, size.Width, size.Height, directory is not null && size.Width == 610
                         ? Path.Combine(directory, $"claude-setup-{language}-{theme}.png") : null);
                     CheckBadges(guide, [UsageProviderId.Claude]);
-                    Check(((TextBox)guide.FindName("ConnectionJson")).Text.Contains("statusLine", StringComparison.Ordinal), "Claude guide has no usable configuration.");
+                    Check(!((Expander)guide.FindName("AdvancedDetails")).IsExpanded, "Technical connection details dominate the default UI.");
+                    Check(!AccountUiChecks.Descendants<TextBox>((FrameworkElement)guide.Content).Any(), "The main connection flow still requires copying JSON.");
                     count++;
                 }
+                connection.DelayLogin = true;
+                ((Button)guide.FindName("LoginButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                var active = guide.ActiveOperation;
+                ((Button)guide.FindName("LoginButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Check(ReferenceEquals(active, guide.ActiveOperation), "Duplicate Claude login replaced the busy operation.");
+                Check(((ProgressBar)guide.FindName("OperationProgress")).Visibility == Visibility.Visible
+                    && !((Button)guide.FindName("ConnectExistingButton")).IsEnabled, "Claude login lacks visible single-flight feedback.");
+                guide.CancelOperation();
+                AccountUiChecks.PumpUntil(active);
+                Check(((ProgressBar)guide.FindName("OperationProgress")).Visibility == Visibility.Collapsed, "Cancel left Claude connection busy.");
             }
             finally { flyout.Close(); widget.Close(); manager.Close(); guide.Close(); }
         }
         Console.WriteLine($"PASS: {count} mixed Codex/Claude WPF renders; account/selection/widget badges, aliases, stale state, provider-scoped credits and compact connection guide in both languages/all themes.");
+    }
+
+    private sealed class FakeConnection(string profileId) : IClaudeConnectionActions
+    {
+        private readonly ClaudeAuthentication _auth = new(ClaudeAuthStatus.SignedIn, "person@example.invalid", "Pro", new string('A', 64));
+        private ClaudeConnectionBinding? _binding;
+        public bool LastLogin { get; private set; }
+        public int Calls { get; private set; }
+        public bool DelayLogin { get; set; }
+        public Task<ClaudeConnectionOverview> InspectAsync(string id, CancellationToken token) =>
+            Task.FromResult(new ClaudeConnectionOverview(_binding, _auth, _binding is not null, @"C:\Synthetic Claude"));
+        public async Task<ClaudeConnectionResult> ConnectAsync(string id, string executable, bool login, string? directory, CancellationToken token)
+        {
+            Calls++; LastLogin = login;
+            if (DelayLogin) await Task.Delay(Timeout.Infinite, token);
+            _binding = new(1, profileId, @"C:\Synthetic Claude", @"C:\Synthetic Claude\claude.cmd", false, _auth.Fingerprint!, DateTimeOffset.UtcNow);
+            return new(true, _auth, _binding);
+        }
+        public Task DisconnectAsync(string id, CancellationToken token) { _binding = null; return Task.CompletedTask; }
+        public void OpenClaude(string id, string workingDirectory) => throw new InvalidOperationException("Offline tests cannot open a live session.");
     }
 
     private static CodexAccountView[] Fixtures()

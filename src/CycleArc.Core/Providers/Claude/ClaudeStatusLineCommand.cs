@@ -28,14 +28,14 @@ public static class ClaudeStatusLineCommand
         try
         {
             var bytes = await ReadBoundedAsync(input, deadline.Token).ConfigureAwait(false);
-            var parsed = ClaudeStatusLineParser.Parse(bytes);
+            var connection = new ClaudeConnectionStore(accounts, id).Read();
+            // Automatically bound accounts require the bridge's official CLI identity check.
+            // An old copied command must not bypass that check after the account is connected.
+            var parsed = connection.Binding is not null || connection.Unavailable
+                ? new ClaudeStatusLineResult(ClaudeInputStatus.Missing) : ClaudeStatusLineParser.Parse(bytes);
             var store = new ClaudeStatusLineStore(accounts.ClaudeStatusLinePath(id), id);
             await store.RecordAsync(parsed, received, deadline.Token).ConfigureAwait(false);
-            var parts = new List<string> { "Claude" };
-            if (parsed.FiveHour is { } five) parts.Add("5h " + Percent(five.UsedPercentage));
-            if (parsed.SevenDay is { } week) parts.Add("7d " + Percent(week.UsedPercentage));
-            if (parts.Count == 1) parts.Add("--");
-            await output.WriteLineAsync(string.Join(" | ", parts)).ConfigureAwait(false);
+            await output.WriteLineAsync(Format(parsed)).ConfigureAwait(false);
             return parsed.Status == ClaudeInputStatus.Malformed ? 1 : 0;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or OperationCanceledException)
@@ -46,7 +46,7 @@ public static class ClaudeStatusLineCommand
         }
     }
 
-    private static async Task<byte[]> ReadBoundedAsync(Stream input, CancellationToken token)
+    internal static async Task<byte[]> ReadBoundedAsync(Stream input, CancellationToken token)
     {
         using var buffer = new MemoryStream();
         var chunk = new byte[4096];
@@ -82,4 +82,13 @@ public static class ClaudeStatusLineCommand
     }
 
     private static string Percent(double value) => value.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+
+    internal static string Format(ClaudeStatusLineResult parsed)
+    {
+        var parts = new List<string> { "Claude" };
+        if (parsed.FiveHour is { } five) parts.Add("5h " + Percent(five.UsedPercentage));
+        if (parsed.SevenDay is { } week) parts.Add("7d " + Percent(week.UsedPercentage));
+        if (parts.Count == 1) parts.Add("--");
+        return string.Join(" | ", parts);
+    }
 }

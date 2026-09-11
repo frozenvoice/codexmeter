@@ -10,6 +10,18 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.FirstOrDefault() == ClaudeStatusLineBridge.Argument)
+        {
+            try
+            {
+                if (args is not [ClaudeStatusLineBridge.Argument, var payload]) return 2;
+                var options = ClaudeStatusLineInstaller.Decode(payload);
+                using var input = Console.OpenStandardInput();
+                using var output = new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true };
+                return ClaudeStatusLineBridge.RunAsync(options, input, output, new CodexAccountStore(options.DataRoot)).GetAwaiter().GetResult();
+            }
+            catch { return 1; }
+        }
         if (args.FirstOrDefault() == ClaudeStatusLineCommand.Argument)
         {
             // Run before WPF, the single-instance mutex, settings, tray or Codex startup.

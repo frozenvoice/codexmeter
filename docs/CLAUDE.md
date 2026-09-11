@@ -13,32 +13,28 @@ Claude Code may omit each window independently, including before a first respons
 
 ## Connect a profile
 
-In **Manage accounts → Add an account · Connection guide**, create a **Claude profile** with an optional local nickname. Open **Connect**, copy its statusLine settings, and merge that entry into the Claude Code settings used for the intended account. The JSON points to the current `CycleArc.exe`; reconnect if you move the executable. CycleArc never edits Claude settings automatically.
+In **Manage accounts → Add an account → Connect Claude**, set an optional nickname and open the connection window.
 
-The generated command invokes a headless mode of the same executable:
+- **Connect current login** checks the installed Claude CLI's existing sign-in and automatically connects its effective `CLAUDE_CONFIG_DIR` (or the usual user `.claude` folder).
+- **Sign in to Claude / Sign in to another account** starts the official `claude auth login --claudeai` browser flow in a new per-profile configuration folder. CycleArc waits for `claude auth status --json` to verify completion, then installs the connection. Login can be cancelled; closing the window or exiting the app cancels and reaps the child process.
+- **Open Claude Code…** lets you choose a working folder and opens Claude with the connected configuration. Use this action for a login created by CycleArc so the correct Claude account and settings are active.
+- **Connection details → Disconnect** restores the previous status line. It disconnects usage collection, without logging out of Claude or deleting CLI-owned credentials.
 
-```text
-CycleArc.exe --claude-statusline <local-profile-id>
-```
+An installed Claude CLI is required. CycleArc recognizes the native Windows executable and npm `claude.cmd`. Authentication uses only [official CLI commands](https://code.claude.com/docs/en/cli-reference); it never reads auth/token files or retains login URLs, codes or secrets. The binding preserves whether `CLAUDE_CONFIG_DIR` is unset or explicit: the CLI can resolve login metadata differently even when the directory path looks the same. Status checks have an eight-second bound; browser login has a five-minute bound. A missing, signed-out, unsupported or malformed login response cannot be shown as a connected account.
 
-It reads JSON on stdin and emits a short quota line, for example `Claude | 5h 23.5% | 7d 41.2%`. On Windows, the generated JSON uses an encoded PowerShell command so paths containing spaces and shell metacharacters work through either Git Bash or PowerShell. The encoding contains a static invocation, not credentials; it sets UTF-8 input and passes stdin to the executable in a pipeline. There is no extra shipped companion executable or PowerShell dependency beyond Windows PowerShell.
+Usage still arrives only through the [official statusLine](https://code.claude.com/docs/en/statusline). No model turn is launched to measure quota. Claude may omit quota fields until a response or on unsupported plans; connection success is distinct from receipt of usable quota data. Restart a running Claude session if it has not picked up the new settings, or after changing its login externally.
 
-**Account attribution:** statusLine has no email or account identifier. CycleArc cannot discover or verify the emitting Claude account. Each command's explicit local profile ID determines where its data goes. Use separate profiles/settings scopes for separate Claude accounts and change the command when switching sign-ins. Do not feed different accounts to the same profile. Aliases use the same trim/control-character removal/80-character limit as Codex; without an alias Claude displays its provider and a short local ID. No email is guessed from a directory, session or credential file.
+**Account attribution:** the statusLine JSON has no email or account identifier. CycleArc obtains current-login metadata through `auth status --json`, keeps email in memory for display, and persists only a hash of identity metadata together with the profile/configuration binding. Each automatic callback verifies the current login before accepting quota data. A changed or unavailable identity cannot replace the last good sample. This checks the configured login; it cannot authenticate the emitter of an already-running Claude session. New browser logins use separate configuration folders, and callbacks from an old folder cannot write into a new binding. Separate profiles retain separate selection, nickname and quota histories.
 
-## Preserve an existing statusLine
+## Automatic statusLine setup
 
-Claude Code runs one configured statusLine command. Pasting the generated JSON replaces that one entry, so merge a wrapper when an existing statusLine must remain. For an existing PowerShell script, the following example supplies the same official JSON to both and keeps the existing display output:
+CycleArc changes only the `statusLine` property in the connected folder's `settings.json`. It preserves unrelated JSON settings and makes a local `settings.json.cyclearc.bak` backup before replacement. Invalid/ambiguous settings, active bindings owned by another profile, or concurrent edits are reported without replacing that file. Reconnecting updates the executable path without nesting wrappers or resetting status-line presentation properties.
 
-```powershell
-# This wrapper is the command configured in Claude Code, not a background poller.
-[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
-$OutputEncoding = [Console]::InputEncoding
-$statusJson = $input | Out-String
-$statusJson | & 'C:/Apps/CycleArc/CycleArc.exe' --claude-statusline 'YOUR_PROFILE_ID' | Out-Null
-$statusJson | & 'C:/Users/YOU/.claude/existing-statusline.ps1'
-```
+The generated shell-neutral encoded PowerShell command invokes the headless `--claude-statusline-bridge` mode of the same `CycleArc.exe`. It forwards the same stdin to an existing statusLine command, preserving its stdout and settings such as padding. The old command and its restoration data remain in the Claude settings, not in CycleArc's usage cache. Disconnect restores the previous entry only if the active command is still CycleArc's exact owned wrapper; it never overwrites a replacement command edited by the user. An old wrapper that cannot be removed after changing configuration folders can still display its previous command, but can no longer collect for the moved profile.
 
-Use your actual executable, generated profile ID and existing script path. A `statusLine.command` such as `powershell.exe -NoProfile -File "C:/Apps/CycleArc/statusline-wrapper.ps1"` invokes the wrapper. It holds the input in memory only; do not write it to a file or log. Adapt the second invocation if the existing command uses a different interpreter.
+The headless bridge has a ten-second total deadline and a four-second bound for the previous command. It uses Git Bash when available and Windows PowerShell otherwise. No additional executable is distributed. Reconnect if you move `CycleArc.exe`.
+
+The previous manual `--claude-statusline <profile-id>` receiver remains for existing configurations. Automatic setup recognizes its exact generated command and upgrades it without recursively wrapping it. Once a profile has an automatic binding, the old receiver cannot bypass its login checks.
 
 ## Freshness and persistence
 

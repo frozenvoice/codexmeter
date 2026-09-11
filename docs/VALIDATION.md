@@ -2,6 +2,31 @@
 
 ## Current release — Codex and Claude Code
 
+- Claude automatic login/connection (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore,
+  Release build (0 warnings/errors), **1,119 unit tests** (25 connection regression cases),
+  15 installer scenarios, 120 account WPF renders, 108 mixed-provider WPF renders,
+  180 widget DPI/layout renders and 36 resource/layout renders. Built and published
+  automatic/legacy headless entry points passed their isolated process checks.
+  The single-file win-x64 `CycleArc.exe` SHA-256 is
+  `C956359DBBD2DBE6B21B5B441D8DCE84DCFB2031AF232D3209F369915CEA98F8`.
+  - Tests cover official auth metadata parsing, Windows npm CLI invocation/cancellation,
+    single-flight login/inspection, isolated login folders, setting preservation/rollback,
+    idempotent installation, existing output/stdin forwarding, owned-command restoration,
+    concurrent settings edits, legacy-command upgrade and identity/configuration changes.
+    UI checks exercise current-login connection, verified email, progress/cancellation,
+    duplicate-login suppression and 470x400 layouts in both languages and all themes.
+  - Live existing-login connection succeeded through the installed official Claude CLI:
+    signed-in Pro status, matching local binding and automatic statusLine installation
+    were verified. Unrelated Claude settings matched the preserved backup. The installed
+    executable hash matched the validated artifact and the restarted app was responsive.
+  - The live check caught an official CLI distinction between an unset `CLAUDE_CONFIG_DIR`
+    and explicitly assigning the usual `.claude` folder. The connection now preserves that
+    mode in metadata; a regression checks the child environment for both cases.
+  - No credentials were inspected, browser reauthentication forced or model turn launched.
+    Actual quota receipt remains pending the next normal Claude response. New browser-login
+    completion was exercised with synthetic adapters, not a second live OAuth sign-in.
+    The six connection previews were visually checked with synthetic identity data.
+
 - CycleArc source/project naming (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore
   of all five renamed projects, Release build (0 warnings/errors), **1,094 unit tests**,
   15 installer recovery scenarios, 120 account WPF renders, 108 mixed-provider WPF renders,

@@ -31,6 +31,9 @@ public partial class App : Application
     private FlyoutWindow? _flyout;
     private AccountsWindow? _accountsWindow;
     private Task _discoveryTask = Task.CompletedTask;
+    private Task _claudeIdentityTask = Task.CompletedTask;
+    private ClaudeConnectionService _claudeConnections = null!;
+    private ClaudeConnectionWindow? _claudeWindow;
     private FloatingWidget? _widget;
     private DesktopEnvironmentMonitor? _environment;
     public bool IsExiting { get; private set; }
@@ -80,13 +83,14 @@ public partial class App : Application
         _tray.ExitRequested += ExitApp;
         _tray.CloseWidgetRequested += CloseWidget;
         var accounts = new CodexAccountStore();
+        _claudeConnections = new ClaudeConnectionService(accounts);
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
         try
         {
             _codex = new CodexAccountManager(accounts, CodexHomeDiscovery.DefaultHome,
                 [new CodexUsageProvider(profile => new CodexQuotaService(_codexLocator, new CodexAppServerClient(),
                     new CodexSnapshotStore(accounts.SnapshotPath(profile)), version, _log.Info, profile: profile),
-                    () => _settings.CodexExePath), new ClaudeUsageProvider(accounts)]);
+                    () => _settings.CodexExePath), new ClaudeUsageProvider(accounts, connections: _claudeConnections)]);
         }
         catch
         {
@@ -121,6 +125,22 @@ public partial class App : Application
         if (firstUse || e.Args.Contains("--show", StringComparer.Ordinal)) ShowMain();
         _ = RefreshCodexAsync();
         _discoveryTask = DiscoverStartupAsync();
+        var claudeProfiles = _codex.Accounts.Where(account => account.Profile.Provider == UsageProviderId.Claude)
+            .Select(account => account.Profile.Id).ToArray();
+        _claudeIdentityTask = Task.Run(async () =>
+        {
+            foreach (var id in claudeProfiles)
+            {
+                if (_lifetime.IsCancellationRequested) break;
+                try
+                {
+                    if (new ClaudeConnectionStore(accounts, id).Read().Binding is not null)
+                        await _claudeConnections.InspectAsync(id, _lifetime.Token);
+                }
+                catch (OperationCanceledException) { break; }
+                catch { _log.Warn("Claude login metadata unavailable"); }
+            }
+        });
         if (e.Args.Contains("--accounts", StringComparer.Ordinal)) Dispatcher.BeginInvoke(() => ShowAccounts());
     }
 
@@ -273,7 +293,12 @@ public partial class App : Application
         {
             var profile = _codex.Accounts.FirstOrDefault(account => account.Profile.Id == id)?.Profile;
             if (profile?.Provider == UsageProviderId.Claude && Environment.ProcessPath is { } executable)
-                new ClaudeConnectionWindow(profile, executable) { Owner = window }.ShowDialog();
+            {
+                _claudeWindow = new ClaudeConnectionWindow(profile, executable, _claudeConnections, _lifetime.Token) { Owner = window };
+                try { _claudeWindow.ShowDialog(); }
+                finally { _claudeWindow = null; }
+                _ = ReadPassiveUsageAsync();
+            }
         };
         window.SignIn = async (id, label, token) =>
         {
@@ -424,10 +449,12 @@ public partial class App : Application
         _passiveTimer.Stop();
         _lifetime.Cancel();
         _accountsWindow?.CancelOperation();
+        _claudeWindow?.CancelOperation();
         _flyout?.Hide();
         _widget?.Hide();
         // Let the existing bounded client stop and reap its app-server process.
-        try { await Task.WhenAll(_refresh.WaitForIdleAsync(), _creditUseTask, _discoveryTask, _passiveTask,
+        try { await Task.WhenAll(_refresh.WaitForIdleAsync(), _creditUseTask, _discoveryTask, _passiveTask, _claudeIdentityTask,
+            _claudeWindow?.ActiveOperation ?? Task.CompletedTask,
             _accountsWindow?.ActiveOperation ?? Task.CompletedTask).WaitAsync(TimeSpan.FromSeconds(15)); }
         catch (OperationCanceledException) { }
         catch (TimeoutException) { _log.Warn("Codex shutdown wait timed out"); }
