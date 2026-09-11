@@ -20,20 +20,20 @@ jobs:
         run: dotnet restore
 
       - name: Build
-        run: dotnet build CodexMeter.sln -c Release
+        run: dotnet build CycleArc.sln -c Release
 
       - name: Test
-        run: dotnet test CodexMeter.sln -c Release --no-build
+        run: dotnet test CycleArc.sln -c Release --no-build
 
       - name: Validate desktop resources
-        run: dotnet run --project tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj -c Release --no-build
+        run: dotnet run --project tests/CycleArc.UiSmoke/CycleArc.UiSmoke.csproj -c Release --no-build
 
       - name: Installer recovery tests
         run: ./tests/LocalInstall.Tests.ps1
 
       - name: Publish win-x64
         run: >
-          dotnet publish src/CodexMeter/CodexMeter.csproj
+          dotnet publish src/CycleArc/CycleArc.csproj
           -c Release
           -r win-x64
           --self-contained true
@@ -50,7 +50,7 @@ jobs:
 
       - name: Validate published Claude statusLine receiver
         run: >
-          dotnet run --project tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj
+          dotnet run --project tests/CycleArc.UiSmoke/CycleArc.UiSmoke.csproj
           -c Release --no-build -- --claude-process publish/win-x64/CycleArc.exe
 
       - name: Upload executable

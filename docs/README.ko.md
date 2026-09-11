@@ -4,7 +4,7 @@
 
 Windows 트레이에서 **여러 Codex·Claude 프로필의 사용률, 남은 비율, 리셋 시각**을 함께 확인하는 앱입니다.
 
-제품명이 **CodexMeter에서 CycleArc로 변경**되었습니다. 계정 카드·선택한 상세 화면·트레이 툴팁·위젯의 **Codex 또는 Claude 배지**는 사용량 provider를 표시합니다. Claude는 **Claude Code 공식 statusLine JSON**으로 연결합니다. Gemini는 지원하지 않습니다. 기존 Codex 계정, 설정과 캐시는 유지합니다.
+계정 카드·선택한 상세 화면·트레이 툴팁·위젯의 **Codex 또는 Claude 배지**는 사용량 provider를 표시합니다. Claude는 **Claude Code 공식 statusLine JSON**으로 연결합니다. Gemini는 지원하지 않습니다. 기존 Codex 계정, 설정과 캐시는 유지합니다.
 
 > **Codex:** ChatGPT Pro 구독을 지원하며 ChatGPT Plus 구독의 5시간 사용량은 지원하지 않습니다. **Claude:** 공식 statusLine에서 한도 필드가 제공되어야 합니다. 첫 응답 전이거나 지원하지 않는 플랜에서는 필드가 없을 수 있습니다.
 
@@ -48,7 +48,7 @@ ChatGPT Pro/Sol 기록 추정 기능은 종료했습니다. Edge/Chrome 확장, 
 
 배포 파일은 **`CycleArc.exe` 하나**입니다. .NET 런타임이 포함되어 별도 .NET 설치가 필요 없습니다.
 
-현재 소스 빌드는 `CycleArc.exe`를 생성합니다. 이름 변경 전 릴리스의 파일명은 `CodexMeter.exe`입니다.
+현재 소스 빌드는 `CycleArc.exe`를 생성합니다.
 
 사용량 조회에는 이 PC에 설치된 **Codex CLI**와 네트워크 연결이 필요합니다. 로그인은 CycleArc에서 시작할 수 있습니다.
 앱은 `codex.exe` 또는 `codex.cmd`를 PATH와 일반 설치 위치에서 찾습니다.
@@ -122,19 +122,19 @@ Pro 계정에서 서버가 제공하는 기간만 표시하며,
 설정은 원자적으로 저장하고 이전 정상 파일을 백업하여 파일 손상 시 자동 복구합니다.
 트레이 아이콘이 숨겨져 있으면 Windows 알림 영역의 펼치기 메뉴에서 꺼내 배치할 수 있습니다.
 
-## 이전 ProMeter에서 전환
+## 이전 버전에서 전환
 
 - 기존 설정과 캐시는 호환성을 위해 `%LOCALAPPDATA%\ProMeter`에 그대로 보관합니다.
 - 이전 대화 기록 DB는 삭제하거나 열지 않습니다. 기록 동기화는 실행하지 않습니다.
 - 앱 시작 시 이 사용자 데이터 폴더의 manifest를 가리키는 기존 Native Messaging 등록만 해제합니다.
 - 브라우저의 **ProMeter ChatGPT Companion** 확장은 더 이상 필요 없습니다. 브라우저 확장 관리 화면에서 제거하세요.
-- 기존 `CodexMeter.exe` 또는 `prometer.exe` 대신 `CycleArc.exe`를 실행하세요.
+- 새 `CycleArc.exe`를 실행하세요.
 
 ## 개발
 
-제품명과 배포 파일은 `CycleArc`이며, 솔루션 `CodexMeter.sln`과 기존 프로젝트·폴더·네임스페이스는 유지합니다.
-`src/CodexMeter`는 현재 WPF 앱, `src/CodexMeter.Core`는 Codex 로직과 남아 있는 레거시 로직,
-`tests/CodexMeter.Tests`는 회귀 테스트입니다. `src/CodexMeter.CompanionHost`는 배포되지 않는 이전 Native Messaging 호스트입니다.
+제품명과 배포 파일, 솔루션 `CycleArc.sln`, 프로젝트·폴더·네임스페이스는 모두 `CycleArc`로 통일합니다.
+`src/CycleArc`는 현재 WPF 앱, `src/CycleArc.Core`는 Codex 로직과 남아 있는 레거시 로직,
+`tests/CycleArc.Tests`는 회귀 테스트입니다. `src/CycleArc.CompanionHost`는 배포되지 않는 이전 Native Messaging 호스트입니다.
 이전 설치의 데이터 경로와 레지스트리·프로세스 식별자는 `LegacyInstallation`에 모아 유지합니다.
 이 값은 현재 제품명이 아니라 기존 데이터 접근과 이전 설치 정리를 위한 호환성 키입니다.
 

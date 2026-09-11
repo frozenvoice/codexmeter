@@ -4,7 +4,7 @@
 
 A native Windows tray app for checking multiple Codex and Claude profiles, remaining percentages and reset times. Codex accounts also show reset credits when available.
 
-Formerly **CodexMeter**. The **Codex** or **Claude** badge on account cards, selected details, tray tooltips and the widget identifies the usage provider. Claude Code supplies usage through its official **statusLine JSON**; see [Claude Code connection](#claude-code-connection). Gemini is not supported.
+The **Codex** or **Claude** badge on account cards, selected details, tray tooltips and the widget identifies the usage provider. Claude Code supplies usage through its official **statusLine JSON**; see [Claude Code connection](#claude-code-connection). Gemini is not supported.
 
 > **Codex:** ChatGPT Pro subscriptions are supported; the ChatGPT Plus five-hour usage limit is not supported. **Claude:** the official statusLine must supply the requested rate-limit fields; these can be absent before the first response or on unsupported plans.
 
@@ -41,7 +41,7 @@ Formerly **CodexMeter**. The **Codex** or **Claude** badge on account cards, sel
 
 **Requirements:** Windows 10/11 on x64. Codex monitoring requires an installed Codex CLI, a ChatGPT Pro subscription and network access. Claude monitoring requires Claude Code with official statusLine rate-limit support and Windows PowerShell; it does not require Codex sign-in.
 
-1. Download the executable from the [latest release](https://github.com/frozenvoice/cyclearc/releases/latest). Current source builds produce **`CycleArc.exe`**; releases from before the rename use `CodexMeter.exe`.
+1. Download the executable from the [latest release](https://github.com/frozenvoice/cyclearc/releases/latest). Current source builds produce **`CycleArc.exe`**.
 2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.
 3. Open the tray icon. Existing Codex sign-ins are discovered automatically. To add another account, choose **Manage accounts → Add an account · Connection guide → New account sign-in** and complete the official login in your browser.
 4. If Codex cannot be found, install the [Codex CLI](https://developers.openai.com/codex/cli/) or open **Settings → Connection** and select its executable path.
@@ -178,16 +178,16 @@ The launcher restores dependencies, builds Release, runs the tests and WPF check
 
 | Path | Purpose |
 | --- | --- |
-| `src/CodexMeter` | Active WPF tray application |
-| `src/CodexMeter.Core` | Quota protocol, presentation logic, persistence, and retained legacy logic |
-| `tests/CodexMeter.Tests` | Unit and regression tests |
-| `tests/CodexMeter.UiSmoke` | Production WPF layout checks and documentation previews |
+| `src/CycleArc` | Active WPF tray application |
+| `src/CycleArc.Core` | Quota protocol, presentation logic, persistence, and retained legacy logic |
+| `tests/CycleArc.Tests` | Unit and regression tests |
+| `tests/CycleArc.UiSmoke` | Production WPF layout checks and documentation previews |
 
 See [Architecture](docs/ARCHITECTURE.md), [Validation](docs/VALIDATION.md), and [preview generation](docs/images/README.md) for implementation and verification details.
 
-## Upgrading from CodexMeter or ProMeter
+## Upgrading from earlier releases
 
-Run `CycleArc.exe` instead of `CodexMeter.exe` or `prometer.exe`. Existing preferences and quota-cache paths remain compatible. The former ChatGPT history reconstruction, browser companion, and WebView2 features are retired; old history data is neither read nor deleted by the active app. The old browser extension can be removed through your browser's extension manager.
+Run the new `CycleArc.exe`. Existing preferences and quota-cache paths remain compatible. The former ChatGPT history reconstruction, browser companion, and WebView2 features are retired; old history data is neither read nor deleted by the active app. The old browser extension can be removed through your browser's extension manager.
 
 Retained legacy source and tests are identified in the architecture document. The companion host and retired screens are excluded from the shipped executable.
 

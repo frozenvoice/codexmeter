@@ -32,12 +32,12 @@
 
 - The repository is `frozenvoice/cyclearc`; clone instructions use the folder `cyclearc`.
   Clone instructions, documentation badges/download links and the app's repository link use
-  the renamed repository. `CodexMeter.sln` and internal source/test names are unchanged.
+  the same repository. The solution is `CycleArc.sln`; source/test projects use CycleArc names.
 
-- Product branding is **CycleArc** (formerly CodexMeter). The shipped assembly/executable,
-  window titles, localized menus, startup entry and App Server client identity use CycleArc.
-  Solution/project paths, namespaces, saved account/cache data and the shared single-instance
-  mutex retain their existing identifiers. Startup cleanup recognizes both previous product
+- Product branding is **CycleArc**. The solution, project paths, namespaces, assemblies,
+  shipped executable, window titles, menus, startup entry and App Server identity use CycleArc.
+  Saved account/cache data and the shared single-instance mutex retain their existing
+  identifiers. Startup cleanup recognizes both previous product
   entries only when their command points to this installation; existing opt-in still gates it.
 - A shared `UsageProviderBadge` identifies Codex or Claude on account cards, selected quota details and
   the widget. Its explicit text/background/border colors follow Dark, Light and System themes.
@@ -117,14 +117,16 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Existing settings/cache paths are retained; history is neither read nor deleted.
   Startup removes only known native-host registrations matching the old owned manifest path.
   The browser extension must be removed via the browser's extension manager.
-- The solution is `CodexMeter.sln`; all source/test projects and namespaces use CodexMeter.
-  `src/CodexMeter` is the WPF app, `src/CodexMeter.Core` holds active and retained legacy logic,
-  `tests/CodexMeter.Tests` holds regression tests, and `src/CodexMeter.CompanionHost` is the
+- The solution is `CycleArc.sln`; all source/test projects and namespaces use CycleArc.
+  `src/CycleArc` is the WPF app, `src/CycleArc.Core` holds active and retained legacy logic,
+  `tests/CycleArc.Tests` holds regression tests, and `src/CycleArc.CompanionHost` is the
   retired host, still built for legacy checks but never published with the app.
 - `LegacyInstallation` centralizes persisted data, registry, mutex, pipe and backup identifiers.
   These retain their old values so upgrades continue finding settings/cache and safely removing
   previous registrations. The shared mutex also prevents old and new builds running together.
-  The development launcher retains the old executable name only for scoped replacement.
+  The development launcher and installer retain previous executable names only for scoped
+  replacement and rollback; their regression fixtures exercise those exact legacy names.
+  New diagnostic log files use the `cyclearc-` prefix; previous log files remain in place.
 - The retired `extension/` source and its CI validation step have been removed. Extension-only
   file consistency tests were removed; retained .NET transport and manifest fixture tests remain.
   Previous extension sources are available in Git history.

@@ -1,6 +1,6 @@
-# CodexMeter — Claude / agent notes
+# CycleArc — Claude / agent notes
 
-This repository is **CodexMeter**, a Windows tray app that reads Codex account limits through the installed App Server. ChatGPT history collection is retired; its remaining code is only retained for legacy regression coverage.
+This repository is **CycleArc**, a Windows tray app that reads Codex account limits through the installed App Server and Claude Code limits through official statusLine JSON. ChatGPT history collection is retired; its remaining code is only retained for legacy regression coverage.
 
 Before changing metering, reconstruction, quota periods, sync watermarks, or usage presentation, read:
 

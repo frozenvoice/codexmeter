@@ -1,6 +1,6 @@
 # CycleArc agent instructions
 
-Repository/solution: `cyclearc` / `CodexMeter.sln`. Product: **CycleArc**.
+Repository/solution: `cyclearc` / `CycleArc.sln`. Product: **CycleArc**.
 Windows-only .NET 8 WPF tray app, distributed as one `CycleArc.exe`.
 
 ## Active product direction

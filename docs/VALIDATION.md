@@ -2,6 +2,24 @@
 
 ## Current release — Codex and Claude Code
 
+- CycleArc source/project naming (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore
+  of all five renamed projects, Release build (0 warnings/errors), **1,094 unit tests**,
+  15 installer recovery scenarios, 120 account WPF renders, 108 mixed-provider WPF renders,
+  180 widget DPI/layout renders and 36 production resource/layout renders. Both the built
+  and published Claude statusLine entry points passed the isolated process checks.
+  The win-x64 self-contained publish contains exactly `CycleArc.exe`, SHA-256:
+  `980B96796D45BA0075B46F75F508D40993A6128E52C693B7A501E0B8C3F6C6A5`.
+  - The solution, five project directories/files, C#/XAML namespaces, core/test assemblies,
+    retained host, development launcher, Windows CI paths and documentation use CycleArc.
+    Existing identity assertions now check `CycleArc.Core`; legacy startup/rollback cases
+    continue checking the exact previous executable and registry names.
+  - A case-insensitive source audit found no old-name filenames or documentation references.
+    Remaining old-name literals are limited to five compatibility/installer/test files.
+    Existing settings, profile/cache paths, mutex and previous executable recognition remain.
+  - All 24 local Markdown/HTML documentation links resolve. The 12 documentation PNGs were
+    regenerated from the renamed production views using synthetic accounts and visually checked.
+    No interactive sign-in, credit redemption or live Claude session was performed for this rename.
+
 - Claude statusLine provider (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore,
   Release build (0 warnings/errors), **1,094 unit tests** (47 added cases), 15 installer
   scenarios, 120 existing account WPF renders, **108 mixed-provider WPF renders**,
@@ -55,9 +73,9 @@
     resources provide explicit provider-badge colors. Project/manifest metadata, App Server
     client identity, the launcher/installer and Windows artifact names use CycleArc.
   - Product-identity tests cover both languages, retained storage/mutex identifiers and the
-    renamed handshake. Two new startup cases cover owned CodexMeter/ProMeter commands and
+    renamed handshake. Two new startup cases cover owned commands from both earlier product names and
     reject unrelated installations or commands. Installer tests cover all five deployment/
-    retry/rollback outcomes for each of CycleArc, CodexMeter and ProMeter.
+    retry/rollback outcomes for CycleArc and both earlier executable names.
   - WPF checks verify visible Codex badges in 0/1/3/8-account views, selected details and
     widgets, including long Korean/English names, every quota status, 80/100/150% zoom,
     all three themes and a minimum text contrast of 4.5:1. Widget alignment now checks the
@@ -102,8 +120,8 @@
 - Multi-account support (2026-09-11): `./dev-run.ps1 -NoLaunch` passed restore,
   Release build (0 warnings/errors), 1,043 unit tests (50 added cases), five installer
   recovery scenarios, 120 multi-account WPF renders, 180 widget DPI/layout renders and
-  36 existing production WPF renders. win-x64 self-contained publish contains exactly
-  `CodexMeter.exe`. Local replacement/startup passed and the installed executable's SHA-256
+  36 existing production WPF renders. win-x64 self-contained publish contained one executable
+  under the then-current product name. Local replacement/startup passed and its SHA-256
   matches the validated staging artifact. An earlier restore reported NU1900 feed warnings;
   the final complete run had no warnings.
   - Core cases cover generated account/login shapes, child-only home isolation, legacy
@@ -133,7 +151,7 @@
     discovery, more than two accounts, cancellation/offline failures and first-use selection
     were covered with synthetic tests. Same-email workspace separation cannot be established
     from this protocol's email/plan projection; no such claim is made.
-  - Opt-in diagnostic commands: `dotnet run --project tests/CodexMeter.UiSmoke -c Release
+  - Opt-in diagnostic commands: `dotnet run --project tests/CycleArc.UiSmoke -c Release
     --no-build -- --live-accounts read` checks existing profiles; use `login` to explicitly
     add a managed profile or `relogin` to sign into the last managed profile again. These
     diagnostics are excluded from ordinary tests/CI and print only projected status and
@@ -224,19 +242,19 @@
 - Product rename: clean restore and Release build passed with 0 warnings/errors;
   907 tests passed. New checks cover App Server client identity, both localized product
   labels and unchanged legacy settings/cache/registry/mutex identifiers.
-- `CodexMeter.UiSmoke` loads production App/XAML without starting the app or accessing
+- `CycleArc.UiSmoke` loads production App/XAML without starting the app or accessing
   an account. All 24 window renders passed across Korean/English and Dark/Light/System.
   This smoke check also runs in Windows CI and the development launcher.
-- Renamed project win-x64 self-contained publish contains exactly `CodexMeter.exe`.
+- The earlier project rename produced one win-x64 self-contained executable under its then-current name.
   No live-account refresh was performed for this source/project rename.
 - Release build: 0 warnings/errors; 907 tests passed, including shared-refresh ownership,
   waiter cancellation, retry after failure, unknown-vs-zero and cached identity-state tests.
 - CI artifact-path parsing covers LF, CRLF, tab and space delimiters.
-- Single-file Windows x64 self-contained publish verified: exactly `CodexMeter.exe`,
+- Single-file Windows x64 self-contained publish verified: one executable under its then-current name,
   with no browser extension, native host, WebView2 or external .NET runtime files.
 - Header logo scales a 24 DIP vector canvas into 20 DIP; WPF stroke bounds fit completely inside the canvas.
 - WPF flyout/settings rendered in dark and light themes using stored Codex quota metadata.
-- Live standalone executable: refreshed successfully at 14:48:28 KST on 2026-09-07; server weekly usage 8%, remaining 92%. Chrome/Edge/Whale old native registrations absent; only CodexMeter process remained.
+- Live standalone executable: refreshed successfully at 14:48:28 KST on 2026-09-07; server weekly usage 8%, remaining 92%. Chrome/Edge/Whale old native registrations absent; only the desktop app process remained.
 - Notification-icon replacement: production source/project guards pass and assembly reflection
   confirms retired taskbar strip/Win32 types are absent. No overlay is instantiated.
 - Settings General/Widget/Connection pages rendered in Korean/English, dark/light, and compact
@@ -265,7 +283,7 @@
 - A fresh PC requires installed Codex CLI; official browser sign-in can be started from
   **Manage accounts**. No browser-extension pairing is part of setup.
 
-## Historical ChatGPT checks (retired; do not use as CodexMeter setup)
+## Historical ChatGPT checks (retired; do not use as CycleArc setup)
 
 The extension source and its CI checks have been removed. Commands and extension setup
 below document historical validation only and require an old checkout from Git history.

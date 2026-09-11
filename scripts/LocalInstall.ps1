@@ -10,6 +10,7 @@ function Invoke-InstallRetry([scriptblock]$Action, [int]$Attempts = 30, [int]$De
 }
 
 function Resolve-InstalledExecutable([string]$Directory) {
+    # Exact legacy filenames are required to restore an earlier installation after a failed upgrade.
     foreach ($name in @('CycleArc.exe', 'CodexMeter.exe', 'prometer.exe')) {
         $candidate = Join-Path $Directory $name
         if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <StartupObject>CycleArc.Program</StartupObject>
+    <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- WPF owns startup; WinForms ApplicationConfiguration.Initialize is not called.
+         DPI awareness must be embedded in the executable manifest before any HWND. -->
+    <NoWarn>$(NoWarn);WFAC010</NoWarn>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <RootNamespace>CycleArc</RootNamespace>
+    <AssemblyName>CycleArc</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Description>Windows tray monitor for Codex and Claude account usage</Description>
+    <Product>CycleArc</Product>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\CycleArc.Core\CycleArc.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="8.0.11" />
+  </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\cyclearc.ico" Condition="Exists('Assets\cyclearc.ico')" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="Services\ToastNotificationService.cs;WebView\**\*.cs;Companion\**\*.cs;UI\WelcomeWindow.xaml.cs;UI\MainWindow.xaml.cs;UI\CoverageWindow.xaml.cs;UI\TaskbarStatusStripWindow.xaml.cs;UI\TaskbarWin32.cs" />
+    <Page Remove="UI\WelcomeWindow.xaml;UI\MainWindow.xaml;UI\CoverageWindow.xaml;UI\TaskbarStatusStripWindow.xaml" />
+  </ItemGroup>
+</Project>

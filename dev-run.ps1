@@ -36,15 +36,15 @@ function Invoke-Dotnet([string[]]$Arguments) {
 foreach ($target in @($StagingDir, $LocalDir, $BackupDir)) { Assert-OwnedDirectory $target }
 if (Test-Path -LiteralPath $StagingDir) { Remove-Item -LiteralPath $StagingDir -Recurse -Force }
 Invoke-Dotnet -Arguments @('restore')
-Invoke-Dotnet -Arguments @('build', 'CodexMeter.sln', '-c', 'Release')
-if (!$Fast) { Invoke-Dotnet -Arguments @('test', 'CodexMeter.sln', '-c', 'Release', '--no-build') }
+Invoke-Dotnet -Arguments @('build', 'CycleArc.sln', '-c', 'Release')
+if (!$Fast) { Invoke-Dotnet -Arguments @('test', 'CycleArc.sln', '-c', 'Release', '--no-build') }
 & (Join-Path $RepoRoot 'tests/LocalInstall.Tests.ps1')
-Invoke-Dotnet -Arguments @('run', '--project', 'tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj', '-c', 'Release', '--no-build')
-Invoke-Dotnet -Arguments @('publish', 'src/CodexMeter/CodexMeter.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $StagingDir)
+Invoke-Dotnet -Arguments @('run', '--project', 'tests/CycleArc.UiSmoke/CycleArc.UiSmoke.csproj', '-c', 'Release', '--no-build')
+Invoke-Dotnet -Arguments @('publish', 'src/CycleArc/CycleArc.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $StagingDir)
 $files = @(Get-ChildItem -LiteralPath $StagingDir -File -Recurse)
 if ($files.Count -ne 1 -or $files[0].Name -ne 'CycleArc.exe') { throw 'Publish must contain exactly CycleArc.exe' }
 Write-Host 'Publish artifacts verified: CycleArc.exe only'
-Invoke-Dotnet -Arguments @('run', '--project', 'tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj', '-c', 'Release', '--no-build', '--', '--claude-process', (Join-Path $StagingDir 'CycleArc.exe'))
+Invoke-Dotnet -Arguments @('run', '--project', 'tests/CycleArc.UiSmoke/CycleArc.UiSmoke.csproj', '-c', 'Release', '--no-build', '--', '--claude-process', (Join-Path $StagingDir 'CycleArc.exe'))
 if ($NoLaunch) { Write-Host "Staged: $StagingDir"; exit 0 }
 
 # Stop only this workspace's existing installation, including its former executable name.

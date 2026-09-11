@@ -48,7 +48,7 @@ try {
         if (!$expectFailure -and (Get-Content -LiteralPath (Join-Path $backup $previousFile) -Raw).Trim() -ne 'old') { throw 'Previous version lost' }
     }
     }
-    Write-Host 'PASS: 15 isolated installer deployment/retry/rollback scenarios across CycleArc, CodexMeter and ProMeter.'
+    Write-Host 'PASS: 15 isolated installer deployment/retry/rollback scenarios across CycleArc and both legacy executable names.'
 }
 finally {
     # All recursive removals are verified against the unique test root.
