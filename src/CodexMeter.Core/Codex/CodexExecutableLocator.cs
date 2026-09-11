@@ -11,7 +11,12 @@ public sealed record CodexLaunchCommand(
     string FileName,
     string Arguments,
     string ResolvedExecutable,
-    bool UsesCmd);
+    bool UsesCmd)
+{
+    // Applied to this child only. Never change the application's/global environment.
+    public string? CodexHome { get; init; }
+    public bool ManagedHome { get; init; }
+}
 
 public static class CodexProcessQuoting
 {

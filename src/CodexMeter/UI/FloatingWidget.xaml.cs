@@ -45,6 +45,14 @@ public partial class FloatingWidget : Window
         ToolTip = CodexMeterPresentation.Tooltip(snapshot);
     }
 
+    public void BindAccount(CodexAccountView? account, bool multiple)
+    {
+        Bind(account?.Snapshot ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.SignedOut));
+        AccountName.Text = account?.DisplayName ?? "";
+        AccountName.Visibility = multiple ? Visibility.Visible : Visibility.Collapsed;
+        if (account is not null) ToolTip = account.DisplayName + Environment.NewLine + ToolTip;
+    }
+
     public void Apply(AppSettings settings)
     {
         _applying = true;

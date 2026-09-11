@@ -22,9 +22,16 @@ public sealed partial class CodexAppServerClient
         _processes = processes ?? new CodexProcessFactory();
     }
 
-    public async Task<CodexProtocolSession> ReadQuotaAsync(
+    public Task<CodexProtocolSession> ReadQuotaAsync(CodexLaunchCommand command, string clientVersion,
+        CancellationToken cancellationToken) => ReadMetadataAsync(command, clientVersion, true, cancellationToken);
+
+    public Task<CodexProtocolSession> ReadAccountAsync(CodexLaunchCommand command, string clientVersion,
+        CancellationToken cancellationToken) => ReadMetadataAsync(command, clientVersion, false, cancellationToken);
+
+    private async Task<CodexProtocolSession> ReadMetadataAsync(
         CodexLaunchCommand command,
         string clientVersion,
+        bool includeLimits,
         CancellationToken cancellationToken)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -43,9 +50,11 @@ public sealed partial class CodexAppServerClient
                 CodexProtocol.InitializeId.ToString(),
                 CodexProtocol.InitializeTimeoutMs,
                 linked.Token).ConfigureAwait(false);
-            if (initialize.Status != CodexQuotaStatus.Available)
+            if (initialize.Status != CodexQuotaStatus.Available || CodexProtocol.HasError(initialize.Node)
+                || initialize.Node?["result"] is not JsonObject)
             {
-                return await CompleteAsync(initialize.Status, null, null, sent, stderr, initialize.Detail, process)
+                return await CompleteAsync(initialize.Status == CodexQuotaStatus.Available ? CodexQuotaStatus.ProtocolMismatch : initialize.Status,
+                    null, null, sent, stderr, "initialize-failed", process)
                     .ConfigureAwait(false);
             }
 
@@ -63,6 +72,11 @@ public sealed partial class CodexAppServerClient
                 return await CompleteAsync(account.Status, account.Node, null, sent, stderr, account.Detail, process)
                     .ConfigureAwait(false);
             }
+
+            if (!includeLimits || (command.CodexHome is not null
+                && CodexAccountIdentity.Parse(account.Node).Status != CodexQuotaStatus.Available))
+                return await CompleteAsync(account.Status, account.Node, null, sent, stderr, account.Detail, process)
+                    .ConfigureAwait(false);
 
             await SendAsync(process, CodexProtocol.BuildRateLimitsRead(), "account/rateLimits/read", sent, linked.Token)
                 .ConfigureAwait(false);
@@ -97,6 +111,11 @@ public sealed partial class CodexAppServerClient
             return await CompleteAsync(CodexQuotaStatus.ProtocolMismatch, null, null, sent, stderr, ex.Message, process)
                 .ConfigureAwait(false);
         }
+        catch (TimeoutException)
+        {
+            return await CompleteAsync(CodexQuotaStatus.TimedOut, null, null, sent, stderr, "startup-timed-out", process)
+                .ConfigureAwait(false);
+        }
         catch (FileNotFoundException)
         {
             return await CompleteAsync(CodexQuotaStatus.CodexNotFound, null, null, sent, stderr, "codex-not-found", process)
@@ -111,9 +130,25 @@ public sealed partial class CodexAppServerClient
 
     private async Task<ICodexProcess> StartAsync(CodexLaunchCommand command, CancellationToken cancellationToken)
     {
-        using var startCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        startCts.CancelAfter(CodexProtocol.ProcessStartTimeoutMs);
-        return await Task.Run(() => _processes.Start(command), startCts.Token).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var pending = Task.Run(() => _processes.Start(command), CancellationToken.None);
+        try
+        {
+            return await pending.WaitAsync(TimeSpan.FromMilliseconds(CodexProtocol.ProcessStartTimeoutMs), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            // A late start still belongs to us and must be reaped after the caller times out.
+            _ = ReapLateStartAsync(pending);
+            throw;
+        }
+    }
+
+    private static async Task ReapLateStartAsync(Task<ICodexProcess> pending)
+    {
+        try { var process = await pending.ConfigureAwait(false); process.KillTree(); await process.DisposeAsync().ConfigureAwait(false); }
+        catch { }
     }
 
     private static async Task SendAsync(
@@ -136,7 +171,8 @@ public sealed partial class CodexAppServerClient
         ICodexProcess process,
         string expectedId,
         int timeoutMs,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<JsonNode>? notification = null)
     {
         using var stage = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         stage.CancelAfter(timeoutMs);
@@ -163,6 +199,7 @@ public sealed partial class CodexAppServerClient
 
                 if (CodexProtocol.IsNotification(node))
                 {
+                    notification?.Invoke(node!);
                     continue;
                 }
 

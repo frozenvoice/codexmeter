@@ -206,6 +206,17 @@
             </Grid>
             <ScrollViewer x:Name="FlyoutContentScroll" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="14,4,14,14" MaxHeight="640">
                 <StackPanel>
+                    <StackPanel x:Name="AccountSection" Visibility="Collapsed" Margin="0,0,0,12">
+                        <DockPanel Margin="0,0,0,8">
+                            <Button x:Name="ManageAccountsButton" DockPanel.Dock="Right" Style="{StaticResource CreditUseButton}"
+                                    Padding="10,5" Click="OnAccountsClick"/>
+                            <TextBlock x:Name="AccountsHeading" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <ItemsControl x:Name="AccountOverview"/>
+                        <TextBlock x:Name="AccountSelectionHint" FontSize="11" Foreground="{DynamicResource MutedBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,8"/>
+                        <TextBlock x:Name="SelectedAccountText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
                     <Border x:Name="CodexCard" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="12">
                         <StackPanel>
                             <TextBlock x:Name="CodexStatusText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>

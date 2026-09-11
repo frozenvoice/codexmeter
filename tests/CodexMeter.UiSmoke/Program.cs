@@ -21,6 +21,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args is ["--live-accounts", "read" or "login" or "relogin"])
+            return LiveAccountChecks.RunAsync(args[1]).GetAwaiter().GetResult();
         // Load production WPF views/resources with startup overridden: no account access,
         // settings writes, tray registration or background refresh occurs.
         var app = new OfflineApp();
@@ -41,6 +43,12 @@ internal static class Program
                 DocumentationScreenshots.Export(directory);
                 return 0;
             }
+            if (args is ["--accounts", var accountsDirectory])
+            {
+                AccountUiChecks.Run(accountsDirectory);
+                return 0;
+            }
+            AccountUiChecks.Run();
             CheckEnvironmentCallbacks(app);
             CheckWidgetRecovery();
             CheckWidgetRestart();

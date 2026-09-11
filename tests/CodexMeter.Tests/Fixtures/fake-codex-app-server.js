@@ -15,7 +15,13 @@ rl.on("line", (line) => {
   }
 
   if (message.method === "initialize") {
-    write({ id: message.id, result: { protocolVersion: "1" } });
+    const respond = () => write({ id: message.id, result: { protocolVersion: "1" } });
+    if (process.argv.includes("--flood-stderr")) {
+      // Respond only after a payload larger than the OS pipe buffer has drained.
+      process.stderr.write("가".repeat(128 * 1024), "utf8", respond);
+    } else {
+      respond();
+    }
     return;
   }
 
@@ -25,7 +31,10 @@ rl.on("line", (line) => {
   }
 
   if (message.method === "account/read") {
-    write({ id: message.id, result: { loggedIn: true, account: { planType: "plus" } } });
+    write({ id: message.id, result: {
+      account: { type: "chatgpt", email: "synthetic@example.invalid", planType: "plus" },
+      requiresOpenaiAuth: true
+    } });
     return;
   }
 

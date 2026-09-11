@@ -175,6 +175,7 @@
                         <StackPanel>
                             <TextBlock x:Name="CodexTitle" Style="{StaticResource SettingsHeading}"/>
                             <TextBlock x:Name="CodexHint" Style="{StaticResource SettingsHint}" Margin="0,0,0,28"/>
+                            <Button x:Name="ManageAccountsButton" Style="{StaticResource SettingsAction}" HorizontalAlignment="Left" Margin="0,0,0,16" Click="OnAccounts"/>
                             <TextBlock x:Name="CodexExeLabel" Margin="0,0,0,10"/>
                             <Grid>
                                 <TextBox x:Name="CodexExeBox" MinHeight="38" Padding="10,8"/>

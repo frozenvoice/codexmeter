@@ -8,6 +8,7 @@ public partial class SettingsWindow : Window
     private readonly AppSettings _settings;
     public event Action<AppSettings>? Saved;
     public event Action? OpenLogsRequested;
+    public event Action? AccountsRequested;
     public bool ResetWidgetPositionOnSave { get; private set; }
 
     public SettingsWindow(AppSettings settings)
@@ -49,7 +50,8 @@ public partial class SettingsWindow : Window
         WidgetClickThroughBox.IsChecked = settings.WidgetClickThrough;
         WidgetClickThroughBox.ToolTip = UiText.T("Mouse clicks pass to the window behind the widget.", "마우스 클릭이 위젯 뒤의 창에 전달됩니다.");
         CodexTitle.Text = UiText.T("Codex connection", "Codex 연결");
-        CodexHint.Text = UiText.T("Uses the Codex CLI signed in on this PC. No browser extension is needed.", "이 PC에 로그인된 Codex CLI를 사용합니다. 브라우저 확장은 필요 없습니다.");
+        CodexHint.Text = UiText.T("Connect existing Codex sign-ins or add accounts with the official browser login.", "기존 Codex 로그인을 연결하거나 공식 브라우저 로그인으로 계정을 추가하세요.");
+        ManageAccountsButton.Content = UiText.T("Manage Codex accounts", "Codex 계정 관리");
         CodexExeLabel.Text = UiText.CodexExecutable;
         CodexExeBox.Text = settings.CodexExePath ?? "";
         AutoDetectHint.Text = UiText.T("Detect automatically", "자동으로 찾기");
@@ -122,4 +124,5 @@ public partial class SettingsWindow : Window
         if (e.Key == Key.Escape) { e.Handled = true; Close(); }
     }
     private void OnOpenLogs(object sender, RoutedEventArgs e) => OpenLogsRequested?.Invoke();
+    private void OnAccounts(object sender, RoutedEventArgs e) => AccountsRequested?.Invoke();
 }

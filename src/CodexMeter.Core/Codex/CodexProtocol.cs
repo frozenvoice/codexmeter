@@ -17,6 +17,7 @@ public static class CodexProtocol
     public const int RateLimitsReadTimeoutMs = 10_000;
     public const int GracefulShutdownTimeoutMs = 2_000;
     public const int TotalHardCeilingMs = 30_000;
+    public const int LoginHardCeilingMs = 300_000;
 
     private static readonly HashSet<string> ForbiddenMethods = new(StringComparer.Ordinal)
     {
@@ -158,7 +159,8 @@ public static class CodexProtocol
             throw new CodexProtocolException("JSONL line exceeded the safe maximum size.");
         }
 
-        return JsonNode.Parse(line);
+        try { return JsonNode.Parse(line); }
+        catch (JsonException) { throw new CodexProtocolException("Invalid JSONL response."); }
     }
 }
 

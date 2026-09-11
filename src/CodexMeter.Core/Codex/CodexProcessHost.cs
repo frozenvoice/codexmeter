@@ -36,6 +36,14 @@ public sealed class CodexProcessFactory : ICodexProcessFactory
             throw new InvalidOperationException("Codex launch path must be absolute.");
         }
 
+        var start = CreateStartInfo(command);
+        var process = Process.Start(start)
+                      ?? throw new InvalidOperationException("Failed to start Codex App Server.");
+        return new RealCodexProcess(process, command);
+    }
+
+    public static ProcessStartInfo CreateStartInfo(CodexLaunchCommand command)
+    {
         var start = new ProcessStartInfo
         {
             FileName = command.FileName,
@@ -50,9 +58,22 @@ public sealed class CodexProcessFactory : ICodexProcessFactory
             StandardErrorEncoding = new System.Text.UTF8Encoding(false)
         };
 
-        var process = Process.Start(start)
-                      ?? throw new InvalidOperationException("Failed to start Codex App Server.");
-        return new RealCodexProcess(process, command);
+        if (command.CodexHome is { } home)
+        {
+            start.Environment["CODEX_HOME"] = CodexHomeDiscovery.Normalize(home)
+                ?? throw new ArgumentException("Codex home must be an absolute directory.");
+            // API-key environment overrides must not select a different account.
+            start.Environment.Remove("CODEX_API_KEY");
+            start.Environment.Remove("OPENAI_API_KEY");
+            start.WorkingDirectory = home;
+            var options = " -c analytics.enabled=false";
+            if (command.ManagedHome) options += " -c cli_auth_credentials_store=file";
+            // The npm shim's outer cmd quote must remain outside all arguments.
+            start.Arguments = command.UsesCmd
+                ? command.Arguments[..^1] + options + "\""
+                : command.Arguments + options;
+        }
+        return start;
     }
 }
 
@@ -81,7 +102,7 @@ internal sealed class RealCodexProcess : ICodexProcess
         var buffer = new char[256];
         try
         {
-            while (!cancellationToken.IsCancellationRequested && sink.Length < maxBytes)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 var read = await _process.StandardError.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken)
                     .ConfigureAwait(false);
@@ -90,8 +111,11 @@ internal sealed class RealCodexProcess : ICodexProcess
                     return;
                 }
 
-                var take = Math.Min(read, maxBytes - sink.Length);
-                sink.Append(buffer, 0, take);
+                // Continue draining after the diagnostic budget: a full stderr pipe must not stall login.
+                var remaining = maxBytes - System.Text.Encoding.UTF8.GetByteCount(sink.ToString());
+                var take = Math.Min(read, remaining);
+                while (take > 0 && System.Text.Encoding.UTF8.GetByteCount(buffer, 0, take) > remaining) take--;
+                if (take > 0) sink.Append(buffer, 0, take);
             }
         }
         catch

@@ -2,6 +2,38 @@
 
 ## Active product — Codex only (2026-09-07)
 
+- Multi-account support uses one `CodexAccountManager` with a registry of local profile IDs,
+  labels and absolute Codex homes. `CodexRefreshCoordinator` owns the shared batch; account
+  services own independent snapshots and read/redemption gates. At most two reads run at once.
+  A single browser login may run alongside other accounts' reads; the logging-in profile is skipped.
+- `CODEX_HOME` is set only in the child's `ProcessStartInfo.Environment`. Managed profiles use
+  `cli_auth_credentials_store=file` through an invocation override; Codex owns persistence and renewal.
+  Linked profiles retain the original credential-store configuration. API-key environment overrides
+  are removed from account-scoped children. No authentication file is inspected, copied or migrated.
+- Discovery probes only known environment/default homes through `account/read`; custom homes use a
+  folder picker. It neither enumerates conversation files nor scans credential files. Removing a profile
+  forgets its reference and suppresses automatic rediscovery without deleting or logging out its home.
+- Login uses `account/login/start` with `type: chatgpt`, an exact official HTTPS browser origin allowlist,
+  matching `account/login/completed` notifications, and a final `account/read`. An early completion
+  notification is retained. Cancellation sends `account/login/cancel`, then the existing bounded
+  shutdown reaps the process. Login has a five-minute ceiling; browser completion never implies quota
+  success. UI progress stays active until cleanup finishes, including when the window closes.
+- `codex-accounts.json` is atomic with backup recovery and fails closed on unrecoverable/unknown
+  registry shapes. Existing settings remain separate; `default` retains the legacy quota-cache path.
+  Each new profile receives its own home and cache. Emails are protocol-projected and memory-only;
+  an identity hash binds quota caches and detects reported identity changes before stale fallback.
+  Unavailable/signed-out identities never inherit another account's cached percentages.
+- Generated protocol 0.147.0 `Account` exposes email/plan, not a stable workspace ID. Matching
+  reported identities are indicated without merging profiles or claiming distinct workspaces.
+  Reset actions capture the selected local profile before confirmation and re-check reported identity
+  inside the consuming App Server process. Credit IDs remain memory-only.
+- Flyout overview cards show all accounts; the selected account reuses the established ring/credit
+  detail layout and drives tray/widget output. Multiple-account widget/tray labels identify that choice.
+  `AccountsWindow` shares the existing Korean/English strings and themed controls.
+- Official references: [Codex state locations](https://learn.chatgpt.com/docs/config-file/config-advanced#config-and-state-locations),
+  [credential ownership](https://learn.chatgpt.com/docs/auth#credential-storage),
+  [App Server account/login protocol](https://learn.chatgpt.com/docs/app-server#authentication-endpoints).
+
 - The widget centers its complete status stack within the actual native window height.
   `SizeToContent` does not guarantee that the allocated height equals the requested content
   height; extra native-window space must be shared above and below the text.
@@ -14,7 +46,7 @@
   key in memory; no automatic redemption/retry occurs. Cached/stale rows cannot redeem.
   App exit cancels and waits for the bounded redemption process as well as active refreshes.
 
-`CodexMeter.exe` → shared `CodexRefreshCoordinator` → `CodexQuotaService` →
+`CodexMeter.exe` → `CodexAccountManager` / shared `CodexRefreshCoordinator` → per-account `CodexQuotaService` →
 installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit metadata.
 
 - Tray, flyout, widget and timer all share one bounded refresh. Cancelling a

@@ -159,6 +159,20 @@ public class CodexAppServerClientTests
     }
 
     [Fact]
+    public async Task RealStderrContinuesDrainingAfterUtf8DiagnosticBudget()
+    {
+        if (!TryNode(out var node, out var script)) return;
+        var command = new CodexLaunchCommand(node, $"\"{script}\" --flood-stderr", script, false);
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var session = await new CodexAppServerClient(new CodexProcessFactory())
+            .ReadQuotaAsync(command, "test", deadline.Token);
+        Assert.Equal(CodexQuotaStatus.Available, session.Status);
+        Assert.True(session.ProcessCleanedUp);
+        Assert.NotEmpty(session.SanitizedStderr);
+        Assert.True(System.Text.Encoding.UTF8.GetByteCount(session.SanitizedStderr) <= CodexProtocol.MaxStderrBytes);
+    }
+
+    [Fact]
     public async Task CmdWrapper_LaunchesAndCleansUp()
     {
         if (!TryNode(out var node, out var script))

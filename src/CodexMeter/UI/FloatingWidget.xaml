@@ -21,6 +21,8 @@
             MinWidth="168">
         <!-- The native window can be taller than DesiredSize; center within its actual height. -->
         <StackPanel VerticalAlignment="Center">
+            <TextBlock x:Name="AccountName" Visibility="Collapsed" MaxWidth="230" TextTrimming="CharacterEllipsis"
+                       FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4" Foreground="{DynamicResource TextBrush}"/>
             <DockPanel>
                 <TextBlock x:Name="CodexValue"
                            DockPanel.Dock="Right"

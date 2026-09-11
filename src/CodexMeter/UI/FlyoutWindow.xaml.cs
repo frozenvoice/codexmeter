@@ -9,7 +9,11 @@ namespace CodexMeter.UI;
 public partial class FlyoutWindow : Window
 {
     public event Action? SyncRequested;
+    public event Action? AccountsRequested;
+    public event Action<string>? AccountSelected;
+    public string? SelectedProfileId { get; private set; }
     public Func<string, Task<CreditRedemptionOutcome>>? RedeemCredit { get; set; }
+    public Func<string, string, Task<CreditRedemptionOutcome>>? RedeemAccountCredit { get; set; }
     private bool _redeemingCredit;
     private CodexQuotaSnapshot? _creditSnapshot;
     // Injectable only for offline UI tests. Production always asks the user.
@@ -76,6 +80,34 @@ public partial class FlyoutWindow : Window
         SetRefreshPresentation(new FlyoutRefreshPresentation(!refreshing, refreshing,
             refreshing ? UiText.CodexRefreshing : ""));
     }
+
+    public void BindAccounts(IReadOnlyList<CodexAccountView> accounts, string selectedId, bool refreshing)
+    {
+        SelectedProfileId = selectedId;
+        var selected = accounts.FirstOrDefault(account => account.Profile.Id == selectedId);
+        Bind(selected?.Snapshot ?? CodexQuotaSnapshot.Empty(CodexQuotaStatus.SignedOut), refreshing);
+        AccountSection.Visibility = Visibility.Visible;
+        ManageAccountsButton.Content = UiText.T("Manage accounts", "계정 관리");
+        AccountsHeading.Text = UiText.T($"Accounts · {accounts.Count}", $"계정 · {accounts.Count}");
+        AccountOverview.Items.Clear();
+        if (accounts.Count > 1)
+            foreach (var account in accounts)
+                AccountOverview.Items.Add(AccountSummary.Create(account, account.Profile.Id == selectedId,
+                    () => { if (!_redeemingCredit) AccountSelected?.Invoke(account.Profile.Id); }));
+        AccountSelectionHint.Text = accounts.Count > 1
+            ? UiText.T("Select an account for details, tray and widget.", "계정을 선택하면 상세 카드·트레이·위젯에 표시됩니다.")
+            : UiText.T("Add an account or connect an existing Codex sign-in.", "계정을 추가하거나 기존 Codex 로그인을 연결하세요.");
+        SelectedAccountText.Text = selected?.DisplayName ?? UiText.T("Add your first account", "첫 계정을 추가하세요");
+        SelectedAccountText.ToolTip = selected?.Email ?? selected?.Profile.HomePath;
+        var failed = accounts.Count(a => a.Snapshot.Status != CodexQuotaStatus.Available);
+        if (accounts.Count > 1 && !refreshing)
+            StatusText.Text = failed == 0 ? UiText.T("All updated", "전체 최신")
+                : UiText.T($"{failed} need attention", $"{failed}개 확인 필요");
+        StatusDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,
+            refreshing ? "AccentBrush" : failed == 0 ? "OkBrush" : "MutedBrush");
+    }
+
+    private void OnAccountsClick(object sender, RoutedEventArgs e) => AccountsRequested?.Invoke();
 
     public void SetRefreshPresentation(FlyoutRefreshPresentation presentation)
     {
@@ -301,7 +333,7 @@ public partial class FlyoutWindow : Window
                 Style = (Style)FindResource("CreditUseButton"), FontSize = 12,
                 Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(6, 2, 0, 2),
                 IsEnabled = !_redeemingCredit && !_refreshActive && snapshot.Status == CodexQuotaStatus.Available
-                    && item.CreditId is not null && RedeemCredit is not null,
+                    && item.CreditId is not null && (RedeemCredit is not null || RedeemAccountCredit is not null),
                 ToolTip = item.CreditId is null ? UiText.T("Refresh to enable use.", "새로고침 후 사용할 수 있습니다.") : item.Text
             };
             use.Click += async (_, _) => await UseCreditAsync(item);
@@ -320,8 +352,10 @@ public partial class FlyoutWindow : Window
 
     private async Task UseCreditAsync(CodexCreditExpiryRow item)
     {
-        if (_redeemingCredit || _refreshActive || item.CreditId is null || RedeemCredit is null
+        if (_redeemingCredit || _refreshActive || item.CreditId is null || (RedeemCredit is null && RedeemAccountCredit is null)
             || _creditSnapshot?.Status != CodexQuotaStatus.Available) return;
+        var profileId = SelectedProfileId;
+        var accountName = SelectedAccountText.Text;
         _redeemingCredit = true; // Own the guard before opening a modal nested dispatcher.
         try
         {
@@ -332,11 +366,14 @@ One credit will be consumed.",
                 $@"이 리셋권으로 사용 한도를 초기화할까요?
 {item.Text}
 리셋권 1개가 소모됩니다.");
+            if (profileId is not null) prompt = accountName + Environment.NewLine + prompt;
             var confirmed = ConfirmCreditForTest?.Invoke(prompt)
                 ?? (System.Windows.MessageBox.Show(this, prompt, UiText.T("Use reset", "초기화 사용"),
                     MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes);
             if (!confirmed) return;
-            var outcome = await RedeemCredit(item.CreditId);
+            var outcome = profileId is not null && RedeemAccountCredit is not null
+                ? await RedeemAccountCredit(profileId, item.CreditId)
+                : RedeemCredit is not null ? await RedeemCredit(item.CreditId) : CreditRedemptionOutcome.Unavailable;
             CreditExpiryNotice.Text = outcome switch
             {
                 CreditRedemptionOutcome.Reset or CreditRedemptionOutcome.AlreadyRedeemed =>

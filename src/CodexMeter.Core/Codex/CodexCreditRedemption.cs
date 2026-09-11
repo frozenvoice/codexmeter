@@ -9,7 +9,8 @@ public sealed partial class CodexAppServerClient
 {
     // This method is deliberately separate from ReadQuotaAsync. It never retries.
     public async Task<CreditRedemptionOutcome> ConsumeCreditAsync(CodexLaunchCommand command,
-        string version, string creditId, string idempotencyKey, CancellationToken cancellationToken)
+        string version, string creditId, string idempotencyKey, CancellationToken cancellationToken,
+        string? expectedIdentity = null, bool requireIdentity = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(creditId);
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
@@ -27,6 +28,15 @@ public sealed partial class CodexAppServerClient
             if (init.Status != CodexQuotaStatus.Available || init.Node?["result"] is not JsonObject
                 || CodexProtocol.HasError(init.Node)) return CreditRedemptionOutcome.Unavailable;
             await SendAsync(process, CodexProtocol.BuildInitialized(), "initialized", sent, bounded.Token).ConfigureAwait(false);
+            if (requireIdentity)
+            {
+                if (expectedIdentity is null) return CreditRedemptionOutcome.Unavailable;
+                await SendAsync(process, CodexProtocol.BuildAccountRead(), "account/read", sent, bounded.Token).ConfigureAwait(false);
+                var account = await WaitForResponseAsync(process, "2", CodexProtocol.AccountReadTimeoutMs, bounded.Token).ConfigureAwait(false);
+                var identity = CodexAccountIdentity.Parse(account.Node);
+                if (account.Status != CodexQuotaStatus.Available || identity.Status != CodexQuotaStatus.Available
+                    || identity.Fingerprint != expectedIdentity) return CreditRedemptionOutcome.Unavailable;
+            }
             var request = new JsonObject
             {
                 ["id"] = 4, ["method"] = "account/rateLimitResetCredit/consume",

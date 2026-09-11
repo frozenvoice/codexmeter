@@ -2,6 +2,46 @@
 
 ## Current release — Codex only
 
+- Multi-account support (2026-09-11): `./dev-run.ps1 -NoLaunch` passed restore,
+  Release build (0 warnings/errors), 1,043 unit tests (50 added cases), five installer
+  recovery scenarios, 120 multi-account WPF renders, 180 widget DPI/layout renders and
+  36 existing production WPF renders. win-x64 self-contained publish contains exactly
+  `CodexMeter.exe`. Local replacement/startup passed and the installed executable's SHA-256
+  matches the validated staging artifact. An earlier restore reported NU1900 feed warnings;
+  the final complete run had no warnings.
+  - Core cases cover generated account/login shapes, child-only home isolation, legacy
+    settings/cache compatibility, 13-profile registry round-trip/backup recovery, malformed
+    registries, known-home discovery/deduplication, removal without data deletion, identity
+    changes, stale cache isolation, selection persistence and account-bound credit actions.
+  - Deterministic gated-process tests cover six-account refresh with two concurrent reads,
+    shared-refresh ownership, cancelled waiters, independent account failures and one
+    interactive login alongside another account's read. Login tests cover early notifications,
+    wrong login IDs, invalid URLs/handshakes, success followed by signed-out verification,
+    cancellation, timeout and cleanup after a late process start. A real Node fixture verifies
+    that a large UTF-8 stderr stream continues draining beyond the diagnostic budget.
+  - WPF cases cover 0/1/3/8 accounts, both languages, all three themes and 80/100/150% popup
+    zoom. Account selection does not initiate refresh, busy/cancel progress remains visible
+    until cleanup, and a credit action retains its confirmed account through a nested UI
+    selection change. A display-timer update interrupting account-name editing was reproduced;
+    the new regression passes after the fix. Korean dark overview and English light management
+    renders were visually inspected using synthetic metadata.
+  - Live verification used installed Codex 0.147.0 and the production login/manager/client
+    paths. The user completed official browser login with a second distinct email account.
+    Both homes returned available quota metadata (2% and 99% used at the login check), and a
+    fresh verifier process loaded both persisted profiles and returned 3% and 99%. The original
+    Codex identity remained unchanged, home paths were separate and the checks reported process
+    cleanup. An initial same-account login also exercised the matching-identity indication.
+    No model turn, real reset-credit consumption or direct credential-file access was performed.
+  - Live scope: one linked default home plus one app-owned home. Additional custom-home
+    discovery, more than two accounts, cancellation/offline failures and first-use selection
+    were covered with synthetic tests. Same-email workspace separation cannot be established
+    from this protocol's email/plan projection; no such claim is made.
+  - Opt-in diagnostic commands: `dotnet run --project tests/CodexMeter.UiSmoke -c Release
+    --no-build -- --live-accounts read` checks existing profiles; use `login` to explicitly
+    add a managed profile or `relogin` to sign into the last managed profile again. These
+    diagnostics are excluded from ordinary tests/CI and print only projected status and
+    percentages. Browser login requires the user.
+
 - Selectable automatic refresh: defaults to five minutes and persists 1/2/5/10/30/60-minute
   choices independently of retired history-sync settings. Restore, Release build (0 warnings/errors),
   993 unit tests (21 new schedule cases), 36 production WPF renders, 180 widget DPI renders,
@@ -125,7 +165,8 @@
   and after refresh for the same snapshot in dark/light and Korean/English; busy button stays disabled.
 - Runtime checks: verify actual Codex refresh, no ChatGPT HTTP/SQLite collector startup,
   no native host registration, saved window position and tray/refresh behavior.
-- A fresh PC requires installed and signed-in Codex CLI; no browser pairing is part of setup.
+- A fresh PC requires installed Codex CLI; official browser sign-in can be started from
+  **Manage accounts**. No browser-extension pairing is part of setup.
 
 ## Historical ChatGPT checks (retired; do not use as CodexMeter setup)
 

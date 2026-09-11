@@ -2,7 +2,7 @@
 
 **Your Codex limits, one click away.**
 
-A native Windows tray app for checking Codex usage, remaining percentages, reset times, and reset credits—without opening a terminal.
+A native Windows tray app for checking multiple Codex accounts, remaining percentages, reset times, and reset credits—without opening a terminal.
 
 > **Pro subscriptions only.** This release supports Codex usage monitoring for ChatGPT Pro subscribers. **The ChatGPT Plus five-hour usage limit is not supported.**
 
@@ -27,6 +27,7 @@ A native Windows tray app for checking Codex usage, remaining percentages, reset
 
 ## At a glance
 
+- **Multiple accounts together.** Link an existing Codex sign-in or add accounts through the official browser login. See every account's usage in one popup and choose which account appears in the tray and widget.
 - **Usage in the tray.** A Windows notification-area icon keeps the meter within reach. Click for the detailed card; pin it to keep it visible.
 - **Clear quota windows.** See Pro account usage and remaining percentages, the server's reset time, and a countdown for the windows reported by the server.
 - **Reset credits.** View the available count and expiry times when the server supplies them. Use an individual reset after confirmation. Missing expiry information stays explicitly unknown.
@@ -36,13 +37,24 @@ A native Windows tray app for checking Codex usage, remaining percentages, reset
 
 ## Get started
 
-**Requirements:** A ChatGPT Pro subscription, Windows 10/11 on x64, an installed Codex CLI already signed in to your account, and network access for quota checks.
+**Requirements:** A ChatGPT Pro subscription, Windows 10/11 on x64, an installed Codex CLI, and network access for login and quota checks.
 
 1. Download **`CodexMeter.exe`** from the [latest release](https://github.com/frozenvoice/codexmeter/releases/latest).
 2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.
-3. Open the tray icon to inspect your limits. If Codex cannot be found, open **Settings → Connection** and select its executable path.
+3. Open the tray icon. Existing Codex sign-ins are discovered automatically. To add another account, choose **Manage accounts → Add account · Sign in** and complete the official login in your browser.
+4. If Codex cannot be found, install the [Codex CLI](https://developers.openai.com/codex/cli/) or open **Settings → Connection** and select its executable path.
 
 CodexMeter discovers `codex.exe` or `codex.cmd` through PATH and supported installation locations. The Codex CLI itself is not bundled. Sign-in remains managed by Codex.
+
+### Accounts
+
+**Manage accounts** is available in the popup and **Settings → Connection**. You can name accounts, select the account for the tray/widget, or remove a profile from the list. All accounts retain separate percentages, reset windows, credit actions and refresh states; values are never added together.
+
+Discovery checks `CODEX_HOME` from the process/user/machine environment and the default `~/.codex` directory through `account/read`. **Choose Codex folder** connects another known home. It does not search the disk for credentials or copy an existing login. Imported homes stay linked to their original Codex installation; reauthenticate those in Codex itself.
+
+New profiles receive separate homes under `%LOCALAPPDATA%\ProMeter\accounts\<local-id>\codex-home`. Only the installed Codex process stores and renews credentials there. Browser sign-in has a five-minute deadline and can be cancelled. Choose the intended email account in the browser; if two profiles report the same email and plan, both display a matching-login notice. The protocol does not expose a stable workspace identifier, so that notice does not establish whether workspaces are identical.
+
+Removing a profile forgets its reference without logging out or deleting its Codex home. It will not be automatically re-added. A custom home can be connected again with the folder picker.
 
 The first launch opens the detail card. Later launches start in the tray; `CodexMeter.exe --show` opens the card at startup. If Windows hides the tray icon, move it out of the notification-area overflow. Starting with Windows and showing the desktop widget are optional settings.
 
@@ -70,7 +82,7 @@ The zoom shortcuts also support the numeric keypad. Widget position can be reset
 
 ## How it works
 
-CodexMeter starts a bounded, short-lived **Codex App Server** process and requests account/rate-limit metadata. Every UI entry point shares the same refresh operation. It does not run a model turn to measure usage.
+CodexMeter starts a bounded, short-lived **Codex App Server** process per account and requests account/rate-limit metadata. Every UI entry point shares the same refresh batch, with at most two simultaneous reads. One interactive login may run alongside reads for other accounts. It does not run a model turn to measure usage.
 
 Percentages come from the reported limit windows. CodexMeter does **not** turn them into invented request counts or combine unrelated reset periods. When a refresh fails, the last valid snapshot may remain visible with a stale label. Opening the card immediately after a failed check does not trigger repeated automatic retries; manual refresh remains available.
 
@@ -81,9 +93,10 @@ Countdowns and “last checked” ages update locally once a minute without anot
 - No prompt, response, conversation, project, or rollout collection.
 - No direct reading or copying of Codex authentication files, tokens, browser cookies, or credentials.
 - No external telemetry or analytics.
-- Only local preferences, projected quota metadata, and safe diagnostic logs are retained. Authentication is handled by the installed Codex process.
+- Only local preferences, profile references/labels, projected quota metadata, and safe diagnostic logs are retained. Emails from the account protocol are kept in memory for display; quota caches bind to a hash of the reported identity. Authentication is handled by the installed Codex process.
 
 Settings and quota cache remain under `%LOCALAPPDATA%\ProMeter` for upgrade compatibility. Settings use atomic replacement with a previous-good backup and recovery if the primary file is damaged.
+The account registry (`codex-accounts.json`) also uses atomic writes and a previous-good backup. The original account continues using `codex-snapshot.json`; additional profiles have separate quota caches. Existing preferences and historical files are preserved.
 
 CodexMeter is an independent project and is not affiliated with or endorsed by OpenAI. Compatibility depends on the installed Codex App Server protocol and the metadata available to your account.
 

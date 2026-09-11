@@ -32,7 +32,10 @@ public class ManualIncrementalSyncTests
         var app = File.ReadAllText(Find("src/CodexMeter/App.xaml.cs"));
         Assert.DoesNotContain("new SyncEngine", app, StringComparison.Ordinal);
         Assert.DoesNotContain("SyncRunOptions", app, StringComparison.Ordinal);
-        Assert.Contains("new CodexRefreshCoordinator", app, StringComparison.Ordinal);
+        Assert.Contains("new CodexAccountManager", app, StringComparison.Ordinal);
+        Assert.Contains("_refresh = _codex.Refresh", app, StringComparison.Ordinal);
+        var accounts = File.ReadAllText(Find("src/CodexMeter.Core/Codex/CodexAccountManager.cs"));
+        Assert.Contains("new CodexRefreshCoordinator", accounts, StringComparison.Ordinal);
         foreach (var surface in new[] { "_tray.SyncRequested", "_flyout.SyncRequested", "_widget.RefreshRequested" })
             Assert.Contains(surface, app, StringComparison.Ordinal);
         Assert.Contains("RefreshCodexAsync()", app, StringComparison.Ordinal);

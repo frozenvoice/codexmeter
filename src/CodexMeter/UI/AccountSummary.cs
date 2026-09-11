@@ -1,0 +1,70 @@
+using System.Windows.Controls;
+using Button = System.Windows.Controls.Button;
+using Control = System.Windows.Controls.Control;
+using CodexMeter.Codex;
+
+namespace CodexMeter.UI;
+
+internal static class AccountSummary
+{
+    public static Button Create(CodexAccountView account, bool selected, Action select)
+    {
+        var button = new Button { Style = (Style)Application.Current.FindResource("AccountButton"),
+            Margin = new Thickness(0, 0, 0, 7), Tag = account.Profile.Id };
+        if (selected) button.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
+        var content = new StackPanel();
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.Children.Add(Text((selected ? "● " : "") + account.DisplayName, 12, "TextBrush", bold: true));
+        var status = Text(account.IsSigningIn ? UiText.T("Signing in…", "로그인 중…")
+            : CodexMeterPresentation.StatusLabel(account.Snapshot), 11, "MutedBrush");
+        status.Margin = new Thickness(12, 0, 0, 0);
+        Grid.SetColumn(status, 1);
+        header.Children.Add(status);
+        content.Children.Add(header);
+        var usable = CodexRingPresentation.From(account.Snapshot).IsAvailable;
+        if (usable)
+        {
+            foreach (var window in account.Snapshot.Windows)
+            {
+                var row = new Grid { Margin = new Thickness(0, 5, 0, 0) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                row.Children.Add(Text(CodexDisplayFormatting.CompactWindowKindLabel(window), 11, "MutedBrush"));
+                var value = Text(UiText.T($"Used {CodexDisplayFormatting.PercentText(window.UsedPercent)} · Left {CodexDisplayFormatting.PercentText(window.RemainingPercent)}",
+                    $"사용 {CodexDisplayFormatting.PercentText(window.UsedPercent)} · 잔여 {CodexDisplayFormatting.PercentText(window.RemainingPercent)}"), 12, "TextBrush");
+                Grid.SetColumn(value, 1); row.Children.Add(value); content.Children.Add(row);
+            }
+        }
+        else
+        {
+            var notice = Text(account.IsSigningIn ? UiText.T("Complete sign-in in your browser.", "브라우저에서 로그인을 완료하세요.")
+                : CodexDisplayFormatting.StatusText(account.Snapshot), 11, "MutedBrush");
+            notice.TextWrapping = TextWrapping.Wrap;
+            notice.Margin = new Thickness(0, 5, 0, 0);
+            content.Children.Add(notice);
+        }
+        if (account.HasMatchingIdentity)
+        {
+            var duplicate = Text(UiText.T("Same sign-in details as another profile", "다른 프로필과 동일한 로그인 정보"), 11, "MutedBrush");
+            duplicate.TextWrapping = TextWrapping.Wrap;
+            duplicate.Margin = new Thickness(0, 5, 0, 0);
+            content.Children.Add(duplicate);
+        }
+        button.Content = content;
+        button.ToolTip = account.Email ?? account.Profile.HomePath;
+        System.Windows.Automation.AutomationProperties.SetName(button,
+            account.DisplayName + " · " + status.Text + (selected ? UiText.T(" · Selected", " · 선택됨") : ""));
+        button.Click += (_, _) => select();
+        return button;
+    }
+
+    private static TextBlock Text(string text, double size, string brush, bool bold = false)
+    {
+        var block = new TextBlock { Text = text, FontSize = size, TextTrimming = TextTrimming.CharacterEllipsis,
+            FontWeight = bold ? FontWeights.SemiBold : FontWeights.Normal, VerticalAlignment = VerticalAlignment.Center };
+        block.SetResourceReference(TextBlock.ForegroundProperty, brush);
+        return block;
+    }
+}

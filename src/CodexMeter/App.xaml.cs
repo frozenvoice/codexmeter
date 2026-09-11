@@ -16,7 +16,7 @@ public partial class App : Application
     private SettingsStore _settingsStore = null!;
     private AppLog _log = null!;
     private TrayController _tray = null!;
-    private CodexQuotaService _codex = null!;
+    private CodexAccountManager _codex = null!;
     private CodexRefreshCoordinator _refresh = null!;
     private readonly CodexExecutableLocator _codexLocator = new(new WindowsCodexFileSystem());
     private readonly CancellationTokenSource _lifetime = new();
@@ -25,6 +25,8 @@ public partial class App : Application
     private readonly OnceEventSubscription _widgetEvents = new();
     private Task _creditUseTask = Task.CompletedTask;
     private FlyoutWindow? _flyout;
+    private AccountsWindow? _accountsWindow;
+    private Task _discoveryTask = Task.CompletedTask;
     private FloatingWidget? _widget;
     private DesktopEnvironmentMonitor? _environment;
     public bool IsExiting { get; private set; }
@@ -73,10 +75,27 @@ public partial class App : Application
         };
         _tray.ExitRequested += ExitApp;
         _tray.CloseWidgetRequested += CloseWidget;
-        _codex = new CodexQuotaService(_codexLocator, new CodexAppServerClient(),
-            new CodexSnapshotStore(), Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0", _log.Info);
-        _refresh = new CodexRefreshCoordinator(ct => Task.Run(() => _codex.RefreshAsync(_settings.CodexExePath, ct), ct));
-        _codex.Changed += _ => Dispatcher.BeginInvoke(RefreshSnapshot);
+        var accounts = new CodexAccountStore();
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
+        try
+        {
+            _codex = new CodexAccountManager(accounts, CodexHomeDiscovery.DefaultHome,
+                profile => new CodexQuotaService(_codexLocator, new CodexAppServerClient(),
+                    new CodexSnapshotStore(accounts.SnapshotPath(profile)), version, _log.Info, profile: profile),
+                () => _settings.CodexExePath);
+        }
+        catch
+        {
+            _log.Warn("Account registry could not be loaded; preserved for recovery");
+            System.Windows.MessageBox.Show(UiText.T("The account list could not be loaded. Its files have been preserved. Restore codex-accounts.json from a valid backup and restart.",
+                "계정 목록을 불러오지 못했습니다. 파일은 보존했습니다. 유효한 백업으로 codex-accounts.json을 복원한 뒤 다시 시작하세요."), UiText.ProductName);
+            _tray.Dispose();
+            Shutdown();
+            return;
+        }
+        if (accounts.RecoveredFromBackup) _log.Warn("Account registry restored from backup");
+        _refresh = _codex.Refresh;
+        _codex.Changed += () => Dispatcher.BeginInvoke(RefreshSnapshot);
         _refresh.StateChanged += () => Dispatcher.BeginInvoke(() =>
         {
             if (!_refresh.IsRefreshing && !IsExiting) ApplyRefreshSchedule();
@@ -92,6 +111,8 @@ public partial class App : Application
         _environment = new DesktopEnvironmentMonitor(Dispatcher, OnSystemThemeChanged, OnDisplayChanged);
         if (firstUse || e.Args.Contains("--show", StringComparer.Ordinal)) ShowMain();
         _ = RefreshCodexAsync();
+        _discoveryTask = DiscoverStartupAsync();
+        if (e.Args.Contains("--accounts", StringComparer.Ordinal)) Dispatcher.BeginInvoke(() => ShowAccounts());
     }
 
     private void ApplyRefreshSchedule()
@@ -104,8 +125,10 @@ public partial class App : Application
     private async Task RefreshCodexAsync(bool automatic = false)
     {
         if (IsExiting) return;
-        if (automatic && !CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now, _codexTimer.Interval)) return;
-        try { await _refresh.RefreshAsync(_lifetime.Token); }
+        var interval = _codexTimer.Interval;
+        if (automatic && !_codex.ShouldRefresh(DateTimeOffset.Now, interval)) return;
+        try { await Task.Run(() => automatic ? _codex.RefreshAutomaticallyAsync(interval, _lifetime.Token)
+            : _codex.RefreshManuallyAsync(_lifetime.Token), _lifetime.Token); }
         catch (OperationCanceledException) { }
         catch (Exception ex) { _log.Error("Codex refresh failed", ex); }
     }
@@ -113,9 +136,11 @@ public partial class App : Application
     private void RefreshSnapshot()
     {
         if (IsExiting || _codex is null || _refresh is null) return;
-        _tray.Update(_codex.Snapshot, _settings.TrayIconStyle);
-        _flyout?.Bind(_codex.Snapshot, _refresh.IsRefreshing);
-        _widget?.Bind(_codex.Snapshot);
+        var accounts = _codex.Accounts;
+        _tray.Update(_codex.Snapshot, _settings.TrayIconStyle, accounts.Count > 1 ? _codex.Selected?.DisplayName : null);
+        _flyout?.BindAccounts(accounts, _codex.SelectedId, _refresh.IsRefreshing);
+        _accountsWindow?.Bind(accounts, _codex.SelectedId);
+        _widget?.BindAccount(_codex.Selected, accounts.Count > 1);
     }
 
     private void ToggleFlyout()
@@ -127,7 +152,7 @@ public partial class App : Application
         _flyout.Show();
         PlaceFlyout(_flyout);
         _flyout.Activate();
-        if (CodexQuotaService.ShouldRefreshOnFlyoutOpen(_codex.Snapshot, DateTimeOffset.Now, _codexTimer.Interval))
+        if (_codex.ShouldRefresh(DateTimeOffset.Now, _codexTimer.Interval))
             _ = RefreshCodexAsync(automatic: true);
     }
 
@@ -135,10 +160,10 @@ public partial class App : Application
     {
         if (_flyout is not null) return;
         _flyout = new FlyoutWindow();
-        _flyout.RedeemCredit = async creditId =>
+        _flyout.RedeemAccountCredit = async (profileId, creditId) =>
         {
             if (IsExiting) return CreditRedemptionOutcome.Unavailable;
-            var useTask = Task.Run(() => _codex.ConsumeCreditAsync(creditId, _settings.CodexExePath, _lifetime.Token));
+            var useTask = Task.Run(() => _codex.ConsumeCreditAsync(profileId, creditId, _lifetime.Token));
             _creditUseTask = useTask;
             var outcome = await useTask;
             if (IsExiting) return outcome;
@@ -147,6 +172,8 @@ public partial class App : Application
             return outcome;
         };
         _flyout.SyncRequested += () => _ = RefreshCodexAsync();
+        _flyout.AccountsRequested += () => ShowAccounts();
+        _flyout.AccountSelected += id => _codex.Select(id);
         _flyout.SettingsRequested += ShowSettings;
         _flyout.PinChanged += pinned => { _settings.FlyoutPinned = pinned; _settingsStore.Save(_settings); };
         _flyout.ZoomChanged += percent => { _settings.FlyoutZoomPercent = percent; _settingsStore.Save(_settings); };
@@ -169,6 +196,7 @@ public partial class App : Application
     private void ShowSettings()
     {
         var window = new SettingsWindow(_settings);
+        window.AccountsRequested += () => ShowAccounts(window);
         if (_flyout?.IsVisible == true) window.Owner = _flyout;
         window.Saved += settings =>
         {
@@ -193,6 +221,62 @@ public partial class App : Application
             _ = RefreshCodexAsync();
         };
         window.OpenLogsRequested += OpenLogs;
+        window.ShowDialog();
+    }
+
+    private async Task DiscoverStartupAsync()
+    {
+        try
+        {
+            var result = await Task.Run(() => _codex.DiscoverAsync(CodexHomeDiscovery.Candidates(), true, _lifetime.Token));
+            if (result.Failed > 0) _log.Warn("Existing Codex account discovery incomplete");
+            if (result.Added > 0)
+            {
+                await _refresh.WaitForIdleAsync();
+                await RefreshCodexAsync(automatic: true);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch { _log.Warn("Existing Codex account discovery failed"); }
+    }
+
+    private void ShowAccounts(Window? owner = null)
+    {
+        if (_accountsWindow is not null) { _accountsWindow.Activate(); return; }
+        var window = new AccountsWindow();
+        _accountsWindow = window;
+        if (owner is not null) window.Owner = owner;
+        else if (_flyout?.IsVisible == true) window.Owner = _flyout;
+        window.LogFailure = _log.Warn;
+        window.SelectAccount = id => _codex.Select(id);
+        window.RenameAccount = (id, label) => _codex.Rename(id, label);
+        window.RemoveAccount = id => _codex.Remove(id);
+        window.SignIn = async (id, label, token) =>
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
+            return await Task.Run(() => _codex.LoginAsync(id, label, async (uri, ct) =>
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    ct.ThrowIfCancellationRequested();
+                    Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+                    window.BrowserOpened();
+                });
+            }, linked.Token), linked.Token);
+        };
+        window.Discover = async (home, token) =>
+        {
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(token, _lifetime.Token);
+            var result = await Task.Run(() => _codex.DiscoverAsync(home is null ? CodexHomeDiscovery.Candidates() : [home], false, linked.Token), linked.Token);
+            if (result.Added > 0)
+            {
+                await _refresh.WaitForIdleAsync().WaitAsync(linked.Token);
+                await Task.Run(() => _codex.RefreshManuallyAsync(linked.Token), linked.Token);
+            }
+            return result;
+        };
+        window.Bind(_codex.Accounts, _codex.SelectedId);
+        window.Closed += (_, _) => _accountsWindow = null;
         window.ShowDialog();
     }
 
@@ -250,7 +334,7 @@ public partial class App : Application
             _widget.ContextMenuRequested += () => _tray.ShowWidgetContextMenu();
         });
         _widget.Apply(_settings);
-        _widget.Bind(_codex.Snapshot);
+        _widget.BindAccount(_codex.Selected, _codex.Accounts.Count > 1);
         _widget.Show();
     }
 
@@ -311,10 +395,12 @@ public partial class App : Application
         _codexTimer.Stop();
         _displayTimer.Stop();
         _lifetime.Cancel();
+        _accountsWindow?.CancelOperation();
         _flyout?.Hide();
         _widget?.Hide();
         // Let the existing bounded client stop and reap its app-server process.
-        try { await Task.WhenAll(_refresh.WaitForIdleAsync(), _creditUseTask).WaitAsync(TimeSpan.FromSeconds(15)); }
+        try { await Task.WhenAll(_refresh.WaitForIdleAsync(), _creditUseTask, _discoveryTask,
+            _accountsWindow?.ActiveOperation ?? Task.CompletedTask).WaitAsync(TimeSpan.FromSeconds(15)); }
         catch (OperationCanceledException) { }
         catch (TimeoutException) { _log.Warn("Codex shutdown wait timed out"); }
         _tray.Dispose();

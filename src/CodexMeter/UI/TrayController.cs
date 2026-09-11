@@ -74,11 +74,12 @@ public sealed class TrayController : IDisposable
         return menu;
     }
 
-    public void Update(CodexQuotaSnapshot snapshot, TrayIconStyle style)
+    public void Update(CodexQuotaSnapshot snapshot, TrayIconStyle style, string? accountName = null)
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            _icon.Text = NotifyIconText.Safe(CodexMeterPresentation.Tooltip(snapshot));
+            _icon.Text = NotifyIconText.Safe((accountName is null ? "" : accountName + Environment.NewLine)
+                + CodexMeterPresentation.Tooltip(snapshot));
             var next = TrayIconRenderer.Render(snapshot, style, 32);
             _icon.Icon = next;
             _current?.Dispose();

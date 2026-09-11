@@ -82,6 +82,7 @@ public sealed class CodexSnapshotStore
         public List<DateTimeOffset?>? ResetCreditExpirations { get; set; }
         public List<PersistedWindow> Windows { get; set; } = [];
         public string? TechnicalDetail { get; set; }
+        public string? IdentityFingerprint { get; set; }
 
         public static PersistedSnapshot From(CodexQuotaSnapshot snapshot) => new()
         {
@@ -94,7 +95,8 @@ public sealed class CodexSnapshotStore
             ResetCreditsAvailable = snapshot.ResetCreditsAvailable,
             ResetCreditExpirations = snapshot.ResetCreditExpirations?.ToList(),
             Windows = snapshot.Windows.Select(PersistedWindow.From).ToList(),
-            TechnicalDetail = snapshot.TechnicalDetail
+            TechnicalDetail = snapshot.TechnicalDetail,
+            IdentityFingerprint = snapshot.IdentityFingerprint
         };
 
         public CodexQuotaSnapshot ToSnapshot()
@@ -110,7 +112,7 @@ public sealed class CodexSnapshotStore
                 ResetCreditsAvailable,
                 Windows.Select(window => window.ToWindow()).ToList(),
                 TechnicalDetail,
-                ResetCreditExpirations);
+                ResetCreditExpirations) { IdentityFingerprint = IdentityFingerprint };
         }
     }
 
