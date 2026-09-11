@@ -48,9 +48,9 @@ internal static class AccountUiChecks
                         flyout.BindAccounts(accounts, selected, false);
                         if (((TextBlock)flyout.FindName("SelectedAccountText")).Text != accounts[1].DisplayName)
                             throw new InvalidOperationException("Selected identity is not visible.");
-                        flyout.BindAccounts(accounts.Reverse().ToArray(), selected, false);
+                        flyout.BindAccounts(Enumerable.Reverse(accounts).ToArray(), selected, false);
                         if (!overview.Items.Cast<Button>().Select(button => button.Tag as string)
-                            .SequenceEqual(accounts.Reverse().Select(account => account.Profile.Id)))
+                            .SequenceEqual(Enumerable.Reverse(accounts).Select(account => account.Profile.Id)))
                             throw new InvalidOperationException("Usage popup did not follow saved account order.");
                     }
                     foreach (var zoom in new[] { 80, 100, 150 })
