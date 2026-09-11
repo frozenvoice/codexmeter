@@ -2,6 +2,10 @@
 
 ## Active product — Codex only (2026-09-07)
 
+- The repository is `frozenvoice/cyclearc`; clone instructions use the folder `cyclearc`.
+  Clone instructions, documentation badges/download links and the app's repository link use
+  the renamed repository. `CodexMeter.sln` and internal source/test names are unchanged.
+
 - Product branding is **CycleArc** (formerly CodexMeter). The shipped assembly/executable,
   window titles, localized menus, startup entry and App Server client identity use CycleArc.
   Solution/project paths, namespaces, saved account/cache data and the shared single-instance

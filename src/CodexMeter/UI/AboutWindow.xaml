@@ -14,7 +14,7 @@
         <TextBlock x:Name="SubtitleText"
                    Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,0"/>
         <TextBlock Margin="0,16,0,0">
-            <Hyperlink x:Name="GitHubLink" NavigateUri="https://github.com/frozenvoice/codexmeter" RequestNavigate="OnLink">
+            <Hyperlink x:Name="GitHubLink" NavigateUri="https://github.com/frozenvoice/cyclearc" RequestNavigate="OnLink">
                 GitHub repository
             </Hyperlink>
         </TextBlock>

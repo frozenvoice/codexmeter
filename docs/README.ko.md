@@ -1,6 +1,6 @@
 # CycleArc
 
-[English](../README.md) · [다운로드](https://github.com/frozenvoice/codexmeter/releases/latest)
+[English](../README.md) · [다운로드](https://github.com/frozenvoice/cyclearc/releases/latest)
 
 Windows 트레이에서 **여러 Codex 계정의 사용률, 남은 비율, 리셋 시각**을 함께 확인하는 앱입니다.
 
@@ -35,6 +35,8 @@ ChatGPT Pro/Sol 기록 추정 기능은 종료했습니다. Edge/Chrome 확장, 
 ## 실행
 
 배포 파일은 **`CycleArc.exe` 하나**입니다. .NET 런타임이 포함되어 별도 .NET 설치가 필요 없습니다.
+
+현재 소스 빌드는 `CycleArc.exe`를 생성합니다. 이름 변경 전 릴리스의 파일명은 `CodexMeter.exe`입니다.
 
 사용량 조회에는 이 PC에 설치된 **Codex CLI**와 네트워크 연결이 필요합니다. 로그인은 CycleArc에서 시작할 수 있습니다.
 앱은 `codex.exe` 또는 `codex.cmd`를 PATH와 일반 설치 위치에서 찾습니다.

@@ -2,6 +2,19 @@
 
 ## Current release — Codex only
 
+- Repository rename and default-branch screenshots (2026-09-12): repository, badge,
+  download/issue links, clone instructions and the app's About link use `frozenvoice/cyclearc`.
+  The default-branch update includes all 12 previously verified CycleArc production-view
+  PNGs with synthetic data. Historical releases retain their original executable names;
+  current source builds produce `CycleArc.exe`.
+  `./dev-run.ps1 -NoLaunch` passed restore, Release build (0 warnings/errors), 1,047 unit
+  tests, 15 installer scenarios, 120 account WPF renders, 180 widget DPI/layout renders,
+  36 production WPF renders and one-file self-contained win-x64 publish. Local replacement
+  and startup passed; the installed SHA-256 matches the validated artifact:
+  `8FD53A931C652402A2709C2C51A198C0BF85493476E70048B8DF333956A09E2E`.
+  This link/documentation update adds no behavior or regression-test cases and needs no
+  additional live-account verification.
+
 - CycleArc branding and provider labels (2026-09-12): `./dev-run.ps1 -NoLaunch` passed
   restore, Release build (0 warnings/errors), all 1,047 unit tests, 15 installer scenarios,
   120 account WPF renders, 180 widget DPI/layout renders and 36 existing production renders.

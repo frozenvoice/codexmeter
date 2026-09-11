@@ -8,11 +8,11 @@ Formerly **CodexMeter**. The **Codex** badge on account cards, selected details 
 
 > **Pro subscriptions only.** This release supports Codex usage monitoring for ChatGPT Pro subscribers. **The ChatGPT Plus five-hour usage limit is not supported.**
 
-[![Windows build](https://github.com/frozenvoice/codexmeter/actions/workflows/windows.yml/badge.svg)](https://github.com/frozenvoice/codexmeter/actions/workflows/windows.yml)
+[![Windows build](https://github.com/frozenvoice/cyclearc/actions/workflows/windows.yml/badge.svg)](https://github.com/frozenvoice/cyclearc/actions/workflows/windows.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: Windows x64](https://img.shields.io/badge/Platform-Windows_x64-0078D4.svg)](#get-started)
 
-[Download for Windows](https://github.com/frozenvoice/codexmeter/releases/latest) · [Multi-account examples](#accounts) · [한국어](docs/README.ko.md) · [Report an issue](https://github.com/frozenvoice/codexmeter/issues)
+[Download for Windows](https://github.com/frozenvoice/cyclearc/releases/latest) · [Multi-account examples](#accounts) · [한국어](docs/README.ko.md) · [Report an issue](https://github.com/frozenvoice/cyclearc/issues)
 
 <table>
   <tr>
@@ -41,7 +41,7 @@ Formerly **CodexMeter**. The **Codex** badge on account cards, selected details 
 
 **Requirements:** A ChatGPT Pro subscription, Windows 10/11 on x64, an installed Codex CLI, and network access for login and quota checks.
 
-1. Download **`CycleArc.exe`** from the [latest release](https://github.com/frozenvoice/codexmeter/releases/latest).
+1. Download the executable from the [latest release](https://github.com/frozenvoice/cyclearc/releases/latest). Current source builds produce **`CycleArc.exe`**; releases from before the rename use `CodexMeter.exe`.
 2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.
 3. Open the tray icon. Existing Codex sign-ins are discovered automatically. To add another account, choose **Manage accounts → Add an account · Connection guide → New account sign-in** and complete the official login in your browser.
 4. If Codex cannot be found, install the [Codex CLI](https://developers.openai.com/codex/cli/) or open **Settings → Connection** and select its executable path.
@@ -153,8 +153,8 @@ CycleArc is an independent project and is not affiliated with or endorsed by Ope
 Requires Windows, PowerShell 7, and the .NET 8 SDK.
 
 ```powershell
-git clone https://github.com/frozenvoice/codexmeter.git
-cd codexmeter
+git clone https://github.com/frozenvoice/cyclearc.git
+cd cyclearc
 .\dev-run.ps1
 ```
 
