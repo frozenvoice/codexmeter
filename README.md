@@ -10,7 +10,7 @@ A native Windows tray app for checking multiple Codex accounts, remaining percen
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: Windows x64](https://img.shields.io/badge/Platform-Windows_x64-0078D4.svg)](#get-started)
 
-[Download for Windows](https://github.com/frozenvoice/codexmeter/releases/latest) · [한국어](docs/README.ko.md) · [Report an issue](https://github.com/frozenvoice/codexmeter/issues)
+[Download for Windows](https://github.com/frozenvoice/codexmeter/releases/latest) · [Multi-account examples](#accounts) · [한국어](docs/README.ko.md) · [Report an issue](https://github.com/frozenvoice/codexmeter/issues)
 
 <table>
   <tr>
@@ -50,9 +50,51 @@ CodexMeter discovers `codex.exe` or `codex.cmd` through PATH and supported insta
 
 **Manage accounts** is available in the popup and **Settings → Connection**. The connection guide explains new browser login, linking a Codex login on this PC, and advanced folder selection. The guide opens automatically when there is no previously checked account; existing users see their account list first. All accounts retain separate percentages, reset windows, credit actions and refresh states; values are never added together.
 
+<table>
+  <tr>
+    <td align="center"><strong>Three accounts · Dark</strong></td>
+    <td align="center"><strong>Three accounts · Light</strong></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/accounts-overview-en-dark.png" alt="Synthetic Personal, Work and Research accounts in the dark theme, with Work selected and Research marked as stale" width="440"></td>
+    <td><img src="docs/images/accounts-overview-en-light.png" alt="The same three synthetic accounts and selected Work quota in the light theme" width="440"></td>
+  </tr>
+</table>
+
+*These are production UI renders with entirely fictional accounts and quota data, not captures of a user's account. Names, `example.invalid` email addresses, percentages, reset times and credits are samples.*
+
+Read the example from the account list down to the detail card:
+
+1. **Compare accounts separately.** Personal has used 18%, Work 64%, and Research 91% of their own weekly windows. These percentages are not combined into one allowance.
+2. **Choose the detail account.** The blue border and dot mark Work as selected, so the ring shows Work's **64% used**, with **36% left** in the quota row. The reset-credit card also belongs to Work. Clicking another account changes the detail card, tray and widget; it does not switch the login used by your other Codex apps or start a refresh.
+3. **Check freshness.** Research is marked **Saved data**: its 91% is a previous successful reading, not a newly confirmed value. The other accounts can still show current data. The header counts Research as one account needing attention.
+
+To connect an account, choose the option that matches your setup:
+
+| Your situation | Choose | What happens |
+| --- | --- | --- |
+| First use, or adding another email account | **Add an account · Connection guide → New account sign-in** | Complete the official browser login for that account; CodexMeter checks its usage and keeps its Codex home separate. |
+| Already signed into Codex CLI on this PC | **Find accounts on this PC** | Connect the existing login from a known Codex home. A ChatGPT website-only login is not enough. |
+| Already use a custom `CODEX_HOME` | **Advanced · Connect a specific Codex folder → Choose Codex home folder** | Select that home folder, not the Codex executable or a project folder. |
+
 Set a **Nickname in CodexMeter** to recognize an account; leaving it empty shows the email. The current official Codex account API supplies email/plan, not the ChatGPT website's nickname or profile picture. Circular icons are generated locally from the displayed name and a stable account color. They are not synced web avatars; saving a nickname does not change the ChatGPT profile. Expand **Nicknames, icons and account actions** for details.
 
 Use **Order ↑ / ↓** beside each account's nickname to move it. The popup follows the same order, which is saved immediately and retained after restart. Reordering keeps the selected tray/widget account and does not initiate a quota refresh. Select a card to change which account drives the tray/widget. **Sign in again** changes the login for a profile added in CodexMeter; **Remove** only forgets the profile from this list.
+
+<details>
+<summary><strong>Account manager · Dark preview</strong></summary>
+
+<p>The account manager is scrolled down to show every sample account's nickname field, save action and order controls. The disabled first/last arrows show the list boundaries. Work stays selected while you arrange the list.</p>
+<p><img src="docs/images/accounts-manage-en-dark.png" alt="Dark account manager with three fictional example.invalid addresses, editable nicknames and up/down order buttons" width="700"></p>
+
+</details>
+
+<details>
+<summary><strong>Account manager · Light preview</strong></summary>
+
+<p><img src="docs/images/accounts-manage-en-light.png" alt="Light account manager showing the same fictional accounts, selected Work account and saved order controls" width="700"></p>
+
+</details>
 
 **Find accounts on this PC** checks `CODEX_HOME` from the process/user/machine environment and the default `~/.codex` directory through `account/read`. It cannot discover an account signed in only on the ChatGPT website. **Advanced · Connect a specific Codex folder → Choose Codex home folder** connects another known home; choose the home, not the executable or a project folder. It does not search the disk for credentials or copy an existing login. Imported homes stay linked to their original Codex installation; reauthenticate those in Codex itself.
 

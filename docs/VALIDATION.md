@@ -2,6 +2,20 @@
 
 ## Current release — Codex only
 
+- Multi-account README examples (2026-09-11): eight new 2x PNGs show the production
+  popup and account manager in English/Korean and Dark/Light themes. All use fictional
+  Personal/Work/Research profiles, `example.invalid` addresses and sample 18/64/91% usage;
+  Work is selected and Research is stale. The manager is scrolled to show every order button.
+  `--screenshots artifacts/readme-multi-account` exported 12 views; only the eight new
+  account images were copied to the docs, and all eight were visually inspected. The
+  exporter uses `OfflineApp` and `RenderTargetBitmap`, with no user account/settings access,
+  Codex home inspection, live requests or desktop capture. README explanations match the
+  displayed used/remaining values, selected-account scope, saved-data label and controls.
+  All 21 local documentation links resolve. `./dev-run.ps1 -NoLaunch` passed restore,
+  Release build (0 warnings/errors), 1,045 unit tests, five installer scenarios, 120 account
+  WPF renders, 180 widget renders, 36 existing WPF renders and single-file win-x64 publish.
+  This documentation/exporter change required no new live-account verification.
+
 - Connection guidance, local nickname icons and account order (2026-09-11):
   `./dev-run.ps1 -NoLaunch` passed restore, Release build (0 warnings/errors),
   1,045 unit tests, five installer scenarios, 120 account WPF renders, 180 widget
