@@ -9,6 +9,7 @@ public static class CycleArcPresentation
     {
         CodexQuotaStatus.Unavailable when snapshot.Provider == UsageProviderId.Claude => UiText.T("Waiting for data", "데이터 대기 중"),
         CodexQuotaStatus.ProtocolMismatch when snapshot.Provider == UsageProviderId.Claude => UiText.ProviderSchemaMismatch,
+        CodexQuotaStatus.SignedOut when snapshot.Provider == UsageProviderId.Claude => UiText.T("Disconnected", "미연결"),
         CodexQuotaStatus.Available => UiText.T("Updated", "업데이트됨"),
         CodexQuotaStatus.Refreshing => UiText.T("Refreshing", "새로고침 중"),
         CodexQuotaStatus.Stale => UiText.T("Saved data", "이전 데이터"),

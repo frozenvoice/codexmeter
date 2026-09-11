@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CycleArc.Codex;
+using CycleArc.Providers.Usage;
 using CycleArc.Models;
 using CycleArc.Services;
 using CycleArc.UI;
@@ -27,6 +28,8 @@ internal static class AccountUiChecks
             foreach (var size in new[] { 0, 1, 3, 8 })
             {
                 var accounts = Fixtures(size);
+                var visibleAccounts = accounts.Where(UsageAccountOverview.CanDisplay).ToArray();
+                var visibleCount = visibleAccounts.Length;
                 var id = accounts.FirstOrDefault()?.Profile.Id ?? "";
                 var flyout = new FlyoutWindow();
                 var window = new AccountsWindow();
@@ -39,7 +42,7 @@ internal static class AccountUiChecks
                     flyout.SyncRequested += () => refreshes++;
                     flyout.BindAccounts(accounts, id, false);
                     var overview = (ItemsControl)flyout.FindName("AccountOverview");
-                    if (overview.Items.Count != (size > 1 ? size : 0)) throw new InvalidOperationException("Account overview is incomplete.");
+                    if (overview.Items.Count != (visibleCount > 1 ? visibleCount : 0)) throw new InvalidOperationException("Account overview includes an unconnected account or omits a usable account.");
                     if (size > 1)
                     {
                         ((Button)overview.Items[1]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -50,7 +53,7 @@ internal static class AccountUiChecks
                             throw new InvalidOperationException("Selected identity is not visible.");
                         flyout.BindAccounts(Enumerable.Reverse(accounts).ToArray(), selected, false);
                         if (!overview.Items.Cast<Button>().Select(button => button.Tag as string)
-                            .SequenceEqual(Enumerable.Reverse(accounts).Select(account => account.Profile.Id)))
+                            .SequenceEqual(Enumerable.Reverse(visibleAccounts).Select(account => account.Profile.Id)))
                             throw new InvalidOperationException("Usage popup did not follow saved account order.");
                     }
                     foreach (var zoom in new[] { 80, 100, 150 })
@@ -60,7 +63,7 @@ internal static class AccountUiChecks
                         Render(flyout, 440 * zoom / 100d, null, directory is not null && size == 3 && zoom == 100
                             ? Path.Combine(directory, $"accounts-{language}-{theme}.png") : null);
                         CheckSummaryRows(flyout);
-                        CheckProviderLabels(flyout, (size > 1 ? size : 0) + 1);
+                        CheckProviderLabels(flyout, visibleCount == 0 ? 0 : (visibleCount > 1 ? visibleCount : 0) + 1);
                         flyout.BindAccounts(accounts, id, true);
                         if (((Button)flyout.FindName("RefreshAllButton")).IsEnabled)
                             throw new InvalidOperationException("Batch refresh enabled early.");
@@ -99,7 +102,7 @@ internal static class AccountUiChecks
             throw new InvalidOperationException("Window title does not identify CycleArc.");
         if (Descendants<TextBlock>((FrameworkElement)window.Content).Any(text => text.Text.Contains("Codex Codex", StringComparison.Ordinal)))
             throw new InvalidOperationException("Provider name is repeated within a usage label.");
-        var badges = Descendants<UsageProviderBadge>((FrameworkElement)window.Content).ToArray();
+        var badges = Descendants<UsageProviderBadge>((FrameworkElement)window.Content).Where(badge => badge.Visibility == Visibility.Visible).ToArray();
         if (badges.Length != expected) throw new InvalidOperationException("Usage provider is missing from an account surface.");
         foreach (var badge in badges)
         {
@@ -147,7 +150,7 @@ internal static class AccountUiChecks
                 flyout.BindAccounts(accounts, accounts[0].Profile.Id, status == CodexQuotaStatus.Refreshing);
                 Render(flyout, 440, null, null);
                 CheckSummaryRows(flyout);
-                CheckProviderLabels(flyout, 4);
+                CheckProviderLabels(flyout, UsageAccountOverview.Create(accounts, accounts[0].Profile.Id).Accounts.Count + 1);
                 var header = (Grid)flyout.FindName("SelectedAccountHeader");
                 var name = (TextBlock)flyout.FindName("SelectedAccountText");
                 var badge = (UsageProviderBadge)flyout.FindName("SelectedProviderBadge");
@@ -355,6 +358,7 @@ internal static class AccountUiChecks
     internal static void Render(Window window, double width, double? height, string? path)
     {
         var content = (FrameworkElement)window.Content;
+        content.UpdateLayout();
         content.Measure(new Size(width, height ?? double.PositiveInfinity));
         var size = new Size(width, height ?? content.DesiredSize.Height);
         content.Arrange(new Rect(new Point(), size));

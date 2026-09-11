@@ -2,6 +2,25 @@
 
 ## Current release — Codex and Claude Code
 
+- Connected-account visibility (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore,
+  Release build (0 warnings/errors), **1,130 unit tests** (11 added regression cases),
+  15 installer scenarios, 120 account WPF renders, 132 mixed-provider WPF renders,
+  180 widget DPI/layout renders and 36 resource/layout renders. Both built and published
+  automatic/legacy headless entry points passed the isolated process checks.
+  The single-file win-x64 `CycleArc.exe` SHA-256 is
+  `19B23C169183BD0611C34C37ACC2648D041CC78FE8337FE9E7C3EEDD48797C64`.
+  - Tests cover hidden pending profiles, valid zero and stale usage, selection fallback,
+    first-sample appearance, disconnected Codex retries and Claude disconnection across
+    restart/reconnection while retaining the last good cache. Account management retains
+    pending profiles and their connection actions. Empty popup and tray state is generic,
+    with the widget hidden until a usable account becomes available.
+  - All WPF/process checks passed again after correcting the screenshot helper's pending
+    layout measurement. Korean-dark connected and English-light empty previews were
+    visually checked with synthetic data.
+  - A local projection of existing registry/quota caches found 3 registered profiles and
+    2 visible Codex accounts, with the pending Claude profile excluded and no attention
+    items. This check did not invoke authentication or launch a model turn.
+
 - Claude automatic login/connection (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore,
   Release build (0 warnings/errors), **1,119 unit tests** (25 connection regression cases),
   15 installer scenarios, 120 account WPF renders, 108 mixed-provider WPF renders,

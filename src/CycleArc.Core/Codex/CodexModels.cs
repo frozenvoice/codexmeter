@@ -89,7 +89,13 @@ public sealed record CodexQuotaSnapshot(
         };
     }
 
-    public CodexQuotaSnapshot AsRefreshing() => this with { Status = CodexQuotaStatus.Refreshing };
+    public CodexQuotaSnapshot AsRefreshing() => this with
+    {
+        Status = CodexQuotaStatus.Refreshing,
+        // A retry must not make a disconnected account's cached values visible again.
+        // The persisted cache remains available for a successfully reconnected account.
+        Windows = (Status is CodexQuotaStatus.SignedOut or CodexQuotaStatus.CodexNotFound) ? [] : Windows
+    };
 }
 
 public sealed record CodexRefreshResult(

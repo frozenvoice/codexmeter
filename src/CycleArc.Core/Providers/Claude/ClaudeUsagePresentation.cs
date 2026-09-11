@@ -8,6 +8,8 @@ public static class ClaudeUsagePresentation
     public static string StatusText(CodexQuotaSnapshot snapshot)
     {
         if (snapshot.Status == CodexQuotaStatus.Available) return "";
+        if (snapshot.Status == CodexQuotaStatus.SignedOut)
+            return UiText.T("Claude is disconnected. Open Connect to reconnect this profile.", "Claude 연결이 해제되었습니다. 연결 버튼에서 다시 연결할 수 있습니다.");
         if (snapshot.TechnicalDetail == "claude-statusline-malformed" || snapshot.Status == CodexQuotaStatus.ProtocolMismatch)
             return snapshot.HasUsablePercentages
                 ? UiText.T("Claude statusLine data could not be read. Showing the last valid values · stale.",

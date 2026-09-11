@@ -122,10 +122,49 @@ internal static class MixedProviderUiChecks
                 guide.CancelOperation();
                 AccountUiChecks.PumpUntil(active);
                 Check(((ProgressBar)guide.FindName("OperationProgress")).Visibility == Visibility.Collapsed, "Cancel left Claude connection busy.");
+                CheckPendingAccounts(flyout, manager, accounts, directory, language, theme);
+                count += 4;
             }
             finally { flyout.Close(); widget.Close(); manager.Close(); guide.Close(); }
         }
         Console.WriteLine($"PASS: {count} mixed Codex/Claude WPF renders; account/selection/widget badges, aliases, stale state, provider-scoped credits and compact connection guide in both languages/all themes.");
+    }
+
+    private static void CheckPendingAccounts(FlyoutWindow flyout, AccountsWindow manager, CodexAccountView[] fixtures,
+        string? directory, UiLanguage language, AppTheme theme)
+    {
+        flyout.ApplyWindowSettings(new AppSettings { FlyoutZoomPercent = 100 });
+        var first = fixtures[0];
+        var second = first with { Profile = first.Profile with { Id = "33333333333333333333333333333333", Label = "Work" } };
+        var pending = fixtures[1] with { Snapshot = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable) with { Provider = UsageProviderId.Claude } };
+        CodexAccountView[] all = [first, pending, second];
+        flyout.BindAccounts(all, second.Profile.Id, false);
+        AccountUiChecks.Render(flyout, 440, null, directory is null ? null : Path.Combine(directory, $"connected-only-{language}-{theme}.png"));
+        var rows = (ItemsControl)flyout.FindName("AccountOverview");
+        Check(rows.Items.Count == 2 && rows.Items.Cast<Button>().All(button => (string)button.Tag != pending.Profile.Id), "Pending Claude profile is visible in the main account overview.");
+        Check(((TextBlock)flyout.FindName("AccountsHeading")).Text == UiText.T("Accounts · 2", "계정 · 2"), "Pending profile inflated the displayed account count.");
+        Check(((TextBlock)flyout.FindName("StatusText")).Text == UiText.T("All updated", "전체 최신"), "Pending profile incorrectly requires attention.");
+        Check(flyout.SelectedProfileId == second.Profile.Id, "Filtering changed a valid account selection.");
+        manager.Bind(all, second.Profile.Id);
+        var managed = (ItemsControl)manager.FindName("AccountRows");
+        Check(managed.Items.Count == 3, "Pending profile was lost from account management.");
+        Check(!((Button)((StackPanel)managed.Items[1]).Children[0]).IsEnabled, "A profile without usage can be selected from management.");
+
+        flyout.BindAccounts(all, pending.Profile.Id, false);
+        AccountUiChecks.Render(flyout, 440, null, null);
+        Check(flyout.SelectedProfileId == first.Profile.Id, "Hidden selected profile did not fall back to a usable account.");
+
+        flyout.BindAccounts([pending], pending.Profile.Id, false);
+        AccountUiChecks.Render(flyout, 440, null, directory is null ? null : Path.Combine(directory, $"no-connected-accounts-{language}-{theme}.png"));
+        Check(flyout.SelectedProfileId is null && rows.Items.Count == 0, "Empty overview retained a pending selection.");
+        Check(((Border)flyout.FindName("CodexCard")).Visibility == Visibility.Collapsed
+            && ((Border)flyout.FindName("ResetCreditsCard")).Visibility == Visibility.Collapsed
+            && ((UsageProviderBadge)flyout.FindName("SelectedProviderBadge")).Visibility == Visibility.Collapsed, "Empty overview displays an unconnected provider or quota card.");
+
+        flyout.BindAccounts([first, fixtures[1], second], pending.Profile.Id, false);
+        AccountUiChecks.Render(flyout, 440, null, null);
+        Check(rows.Items.Count == 3 && flyout.SelectedProfileId == pending.Profile.Id
+            && ((Border)flyout.FindName("CodexCard")).Visibility == Visibility.Visible, "First valid usage did not restore the account and detail card.");
     }
 
     private sealed class FakeConnection(string profileId) : IClaudeConnectionActions

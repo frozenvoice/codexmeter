@@ -19,7 +19,8 @@ public static class ClaudeConnectionPaths
 
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record ClaudeConnectionBinding(int Version, string ProfileId, string ConfigDirectory,
-    string CliExecutable, bool Managed, string IdentityFingerprint, DateTimeOffset ConnectedAt, bool UseDefaultConfig = false);
+    string CliExecutable, bool Managed, string IdentityFingerprint, DateTimeOffset ConnectedAt, bool UseDefaultConfig = false,
+    bool Disconnected = false);
 
 public sealed record ClaudeConnectionRead(ClaudeConnectionBinding? Binding, bool Unavailable = false);
 

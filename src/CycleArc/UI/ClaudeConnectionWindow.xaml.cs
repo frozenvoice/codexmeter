@@ -76,7 +76,7 @@ public partial class ClaudeConnectionWindow : Window
             ? auth.Email + (auth.Plan is { Length: > 0 } plan ? " · " + plan : "") : "";
         ConfigPath.Text = UiText.T("Claude settings: ", "Claude 설정 위치: ") + _overview.ConfigDirectory;
         OpenClaudeButton.Visibility = linked ? Visibility.Visible : Visibility.Collapsed;
-        DisconnectButton.Visibility = _overview.Binding is not null ? Visibility.Visible : Visibility.Collapsed;
+        DisconnectButton.Visibility = _overview.Binding is { Disconnected: false } ? Visibility.Visible : Visibility.Collapsed;
         LoginButton.Content = auth.Status == ClaudeAuthStatus.SignedIn
             ? UiText.T("Sign in to another account", "다른 계정으로 로그인") : UiText.T("Sign in to Claude", "Claude 로그인");
         OperationStatus.Text = linked ? UiText.T("Ready. Waiting for Claude Code usage updates.", "연결했습니다. Claude Code 사용량을 기다리는 중입니다.") : "";
@@ -157,7 +157,7 @@ public partial class ClaudeConnectionWindow : Window
     {
         await Task.Run(() => _connections!.DisconnectAsync(_profile.Id, token), token).ConfigureAwait(false);
         await InspectAsync(token).ConfigureAwait(false);
-        await Dispatcher.InvokeAsync(() => OperationStatus.Text = UiText.T("Disconnected. Previous status line restored.", "연결을 해제하고 기존 상태 표시줄을 복원했습니다."));
+        await Dispatcher.InvokeAsync(() => OperationStatus.Text = UiText.T("Disconnected.", "연결을 해제했습니다."));
     }, UiText.T("Disconnecting…", "연결 해제 중…"));
     private void OnOpenClaude(object sender, RoutedEventArgs e)
     {

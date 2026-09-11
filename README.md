@@ -106,6 +106,8 @@ Removing a profile forgets its reference without logging out or deleting its Cod
 
 The first launch opens the detail card. Later launches start in the tray; `CycleArc.exe --show` opens the card at startup. If Windows hides the tray icon, move it out of the notification-area overflow. Starting with Windows and showing the desktop widget are optional settings.
 
+The main view lists accounts with received usage. Unconnected profiles and profiles waiting for their first quota sample remain in **Manage accounts** and do not increase the displayed account count or attention count. After the first valid sample, they appear automatically. Previously received values remain visible as stale during a temporary update failure. Popup, tray and widget share the same visible account selection; if no account is ready, the widget stays hidden and the popup shows a connection hint.
+
 ### Claude Code connection
 
 1. Open **Manage accounts → Add an account → Connect Claude**. Set an optional nickname.

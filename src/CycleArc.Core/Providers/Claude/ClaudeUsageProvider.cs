@@ -41,7 +41,7 @@ public sealed class ClaudeQuotaService : IUsageAccountService
     }
 
     public CodexQuotaSnapshot Snapshot => ApplyFreshness(_snapshot, _clock.UtcNow);
-    public string? Email => _email?.Invoke(_connection?.Binding?.IdentityFingerprint);
+    public string? Email => _connection?.Binding?.Disconnected == true ? null : _email?.Invoke(_connection?.Binding?.IdentityFingerprint);
     public string? IdentityFingerprint => Email is null ? null : _connection?.Binding?.IdentityFingerprint;
     public bool IsRefreshing { get; private set; }
     public bool ReceivesPassiveUpdates => true;
@@ -68,6 +68,12 @@ public sealed class ClaudeQuotaService : IUsageAccountService
     private void Apply(ClaudeStatusLineRead read)
     {
         _lastRead = read;
+        if (_connection?.Binding?.Disconnected == true)
+        {
+            _snapshot = Empty("claude-disconnected") with { Status = CodexQuotaStatus.SignedOut };
+            PublishIfChanged(Snapshot);
+            return;
+        }
         if (_connection?.Unavailable == true)
         {
             _snapshot = Empty("claude-connection-unavailable");

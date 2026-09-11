@@ -1,4 +1,5 @@
 using CycleArc.Codex;
+using CycleArc.Providers.Usage;
 using System.Windows.Forms;
 
 namespace CycleArc.UI;
@@ -74,13 +75,12 @@ public sealed class TrayController : IDisposable
         return menu;
     }
 
-    public void Update(CodexQuotaSnapshot snapshot, TrayIconStyle style, string? accountName = null)
+    public void Update(UsageAccountOverview overview, TrayIconStyle style)
     {
         Application.Current.Dispatcher.Invoke(() =>
         {
-            _icon.Text = NotifyIconText.Safe((accountName is null ? "" : accountName + Environment.NewLine)
-                + CycleArcPresentation.Tooltip(snapshot));
-            var next = TrayIconRenderer.Render(snapshot, style, 32);
+            _icon.Text = NotifyIconText.Safe(overview.Tooltip);
+            var next = TrayIconRenderer.Render(overview.Snapshot, style, 32);
             _icon.Icon = next;
             _current?.Dispose();
             _current = next;

@@ -109,7 +109,12 @@ public partial class AccountsWindow : Window
             var id = account.Profile.Id;
             var content = new StackPanel();
             var summary = AccountSummary.Create(account, selected == id, () => SelectAccount?.Invoke(id));
-            summary.IsEnabled = _operation is null;
+            summary.IsEnabled = _operation is null && UsageAccountOverview.CanDisplay(account);
+            if (!UsageAccountOverview.CanDisplay(account))
+            {
+                summary.ToolTip = UiText.T("This profile appears in the main view after it connects and receives usage.", "연결 후 사용량을 받으면 메인 화면에 표시됩니다.");
+                ToolTipService.SetShowOnDisabled(summary, true);
+            }
             content.Children.Add(summary);
             var source = account.Profile.Provider == UsageProviderId.Claude ? UiText.T("Claude Code · statusLine", "Claude Code · statusLine")
                 : account.Profile.IsManaged ? UiText.T("Signed in through CycleArc", "CycleArc에서 로그인")

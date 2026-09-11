@@ -134,7 +134,7 @@ public partial class App : Application
                 if (_lifetime.IsCancellationRequested) break;
                 try
                 {
-                    if (new ClaudeConnectionStore(accounts, id).Read().Binding is not null)
+                    if (new ClaudeConnectionStore(accounts, id).Read().Binding is { Disconnected: false })
                         await _claudeConnections.InspectAsync(id, _lifetime.Token);
                 }
                 catch (OperationCanceledException) { break; }
@@ -173,10 +173,16 @@ public partial class App : Application
     {
         if (IsExiting || _codex is null || _refresh is null) return;
         var accounts = _codex.Accounts;
-        _tray.Update(_codex.Snapshot, _settings.TrayIconStyle, accounts.Count > 1 ? _codex.Selected?.DisplayName : null);
-        _flyout?.BindAccounts(accounts, _codex.SelectedId, _refresh.IsRefreshing);
-        _accountsWindow?.Bind(accounts, _codex.SelectedId);
-        _widget?.BindAccount(_codex.Selected, accounts.Count > 1);
+        var overview = UsageAccountOverview.Create(accounts, _codex.SelectedId);
+        _tray.Update(overview, _settings.TrayIconStyle);
+        _flyout?.BindAccounts(overview.Accounts, overview.SelectedId, _refresh.IsRefreshing);
+        _accountsWindow?.Bind(accounts, overview.SelectedId);
+        if (_widget is not null)
+        {
+            _widget.BindAccount(overview.Selected, overview.Accounts.Count > 1);
+            if (_settings.FloatingWidgetEnabled && overview.Selected is not null) { if (!_widget.IsVisible) _widget.Show(); }
+            else _widget.Hide();
+        }
     }
 
     private void ToggleFlyout()
@@ -324,7 +330,7 @@ public partial class App : Application
             }
             return result;
         };
-        window.Bind(_codex.Accounts, _codex.SelectedId);
+        window.Bind(_codex.Accounts, UsageAccountOverview.Create(_codex.Accounts, _codex.SelectedId).SelectedId);
         window.Closed += (_, _) => _accountsWindow = null;
         window.ShowDialog();
     }
@@ -383,8 +389,9 @@ public partial class App : Application
             _widget.ContextMenuRequested += () => _tray.ShowWidgetContextMenu();
         });
         _widget.Apply(_settings);
-        _widget.BindAccount(_codex.Selected, _codex.Accounts.Count > 1);
-        _widget.Show();
+        var overview = UsageAccountOverview.Create(_codex.Accounts, _codex.SelectedId);
+        _widget.BindAccount(overview.Selected, overview.Accounts.Count > 1);
+        if (overview.Selected is not null) _widget.Show(); else _widget.Hide();
     }
 
     private static void ApplyTheme(AppTheme theme)

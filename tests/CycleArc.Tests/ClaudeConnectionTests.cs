@@ -103,7 +103,7 @@ public class ClaudeConnectionTests
         Assert.Equal("echo existing", options!.PreviousStatusLine!["command"]!.GetValue<string>());
         await connection.DisconnectAsync(data.Profile.Id, default);
         Assert.True(JsonNode.DeepEquals(original, JsonNode.Parse(File.ReadAllText(Settings(data)))));
-        Assert.Null(new ClaudeConnectionStore(data.Accounts, data.Profile.Id).Read().Binding);
+        Assert.True(new ClaudeConnectionStore(data.Accounts, data.Profile.Id).Read().Binding!.Disconnected);
     }
 
     [Theory]
@@ -277,6 +277,38 @@ public class ClaudeConnectionTests
         Assert.Equal(ClaudeAuthStatus.Cancelled, (await login).Authentication.Status);
         Assert.Equal(ClaudeAuthStatus.SignedIn, (await inspect).Authentication.Status);
         Assert.Equal(2, cli.Calls);
+    }
+
+    [Fact]
+    public async Task DisconnectedProfileStaysHiddenAcrossRestartAndNeedsANewSampleAfterReconnect()
+    {
+        using var data = new ClaudeTestData();
+        var cli = new FakeCli(data.Root);
+        var connection = new ClaudeConnectionService(data.Accounts, cli, data.Clock);
+        Assert.True((await connection.ConnectAsync(data.Profile.Id, AppFor(data), false, DirectoryFor(data), default)).Success);
+        var options = await ClaudeStatusLineInstaller.InstallAsync(data.Accounts, data.Profile.Id, DirectoryFor(data), AppFor(data), default);
+        using var input = new MemoryStream(Encoding.UTF8.GetBytes(Payload()));
+        Assert.Equal(0, await ClaudeStatusLineBridge.RunAsync(options, input, new StringWriter(), data.Accounts, cli, data.Clock));
+        var provider = new ClaudeUsageProvider(data.Accounts, data.Clock, connection);
+        var service = provider.Create(data.Profile);
+        Assert.True(UsageAccountOverview.CanDisplay(new(data.Profile, service.Snapshot)));
+        data.Clock.UtcNow = data.Clock.UtcNow.AddSeconds(1);
+        await connection.DisconnectAsync(data.Profile.Id, default);
+        await service.RefreshAsync(default);
+        Assert.Equal(CodexQuotaStatus.SignedOut, service.Snapshot.Status);
+        Assert.False(UsageAccountOverview.CanDisplay(new(data.Profile, service.Snapshot)));
+        Assert.Equal(CodexQuotaStatus.SignedOut, provider.Create(data.Profile).Snapshot.Status);
+        Assert.Equal(23.5, data.Store().Read().State!.LastGood!.FiveHour!.UsedPercentage);
+        input.Position = 0;
+        Assert.Equal(1, await ClaudeStatusLineBridge.RunAsync(options, input, new StringWriter(), data.Accounts, cli, data.Clock));
+        var reconnected = await connection.ConnectAsync(data.Profile.Id, AppFor(data), false, null, default);
+        Assert.True(reconnected.Success); Assert.Equal(DirectoryFor(data), reconnected.Binding!.ConfigDirectory);
+        await service.RefreshAsync(default);
+        Assert.False(service.Snapshot.HasUsablePercentages);
+        input.Position = 0;
+        Assert.Equal(0, await ClaudeStatusLineBridge.RunAsync(options, input, new StringWriter(), data.Accounts, cli, data.Clock));
+        await service.RefreshAsync(default);
+        Assert.True(UsageAccountOverview.CanDisplay(new(data.Profile, service.Snapshot)));
     }
 
     private sealed class BlockingCli(string root) : IClaudeCli

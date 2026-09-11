@@ -48,7 +48,7 @@ public sealed class ClaudeConnectionService(CodexAccountStore accounts, IClaudeC
         var auth = executable is null ? new ClaudeAuthentication(ClaudeAuthStatus.NotInstalled)
             : await _cli.AuthenticateAsync(executable, useDefault ? null : directory, false, token).ConfigureAwait(false);
         _identities[profileId] = auth;
-        return new(binding, auth, binding is not null && ClaudeStatusLineInstaller.IsInstalled(directory, profileId), directory);
+        return new(binding, auth, binding is { Disconnected: false } && ClaudeStatusLineInstaller.IsInstalled(directory, profileId), directory);
     }
 
     public async Task<ClaudeConnectionResult> ConnectAsync(string profileId, string executable, bool login, string? directory, CancellationToken token)
@@ -74,7 +74,7 @@ public sealed class ClaudeConnectionService(CodexAccountStore accounts, IClaudeC
             if (auth.Status != ClaudeAuthStatus.SignedIn) return new(false, auth);
             RequireProfile(profileId);
             token.ThrowIfCancellationRequested();
-            var same = previous is not null && string.Equals(previous.ConfigDirectory, target, StringComparison.OrdinalIgnoreCase)
+            var same = previous is { Disconnected: false } && string.Equals(previous.ConfigDirectory, target, StringComparison.OrdinalIgnoreCase)
                 && previous.IdentityFingerprint == auth.Fingerprint && previous.UseDefaultConfig == useDefault;
             var binding = new ClaudeConnectionBinding(1, profileId, target, cliPath,
                 target.Equals(managedRoot, StringComparison.OrdinalIgnoreCase)
@@ -118,11 +118,11 @@ public sealed class ClaudeConnectionService(CodexAccountStore accounts, IClaudeC
             var store = new ClaudeConnectionStore(accounts, profileId);
             var read = store.Read();
             if (read.Unavailable) throw new ClaudeSetupException(ClaudeSetupFailure.ConnectionUnavailable);
-            if (read.Binding is not { } binding) return;
+            if (read.Binding is not { Disconnected: false } binding) return;
             await ClaudeStatusLineInstaller.RestoreAsync(binding.ConfigDirectory, profileId, token).ConfigureAwait(false);
             await new ClaudeStatusLineStore(accounts.ClaudeStatusLinePath(profileId), profileId)
                 .RecordAsync(new ClaudeStatusLineResult(ClaudeInputStatus.Missing), _clock.UtcNow, token).ConfigureAwait(false);
-            store.Delete();
+            store.Save(binding with { Disconnected = true });
             _identities.TryRemove(profileId, out _);
         }
         finally { _gate.Release(); }
@@ -131,8 +131,8 @@ public sealed class ClaudeConnectionService(CodexAccountStore accounts, IClaudeC
     public void OpenClaude(string profileId, string workingDirectory)
     {
         RequireProfile(profileId);
-        var binding = new ClaudeConnectionStore(accounts, profileId).Read().Binding
-            ?? throw new ClaudeSetupException(ClaudeSetupFailure.ConnectionUnavailable);
+        var binding = new ClaudeConnectionStore(accounts, profileId).Read().Binding;
+        if (binding is not { Disconnected: false }) throw new ClaudeSetupException(ClaudeSetupFailure.ConnectionUnavailable);
         if (!Directory.Exists(workingDirectory) || !File.Exists(binding.CliExecutable))
             throw new ClaudeSetupException(ClaudeSetupFailure.ConnectionUnavailable);
         var start = ClaudeCli.StartInfo(binding.CliExecutable, binding.UseDefaultConfig ? null : binding.ConfigDirectory, false);

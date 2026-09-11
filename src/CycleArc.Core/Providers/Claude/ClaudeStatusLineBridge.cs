@@ -28,7 +28,7 @@ public static class ClaudeStatusLineBridge
             {
                 var connections = new ClaudeConnectionStore(accounts, options.ProfileId);
                 var binding = connections.Read().Binding;
-                if (binding is not null && string.Equals(binding.ConfigDirectory, options.ConfigDirectory, StringComparison.OrdinalIgnoreCase))
+                if (binding is { Disconnected: false } && string.Equals(binding.ConfigDirectory, options.ConfigDirectory, StringComparison.OrdinalIgnoreCase))
                 {
                     var auth = await (cli ?? new ClaudeCli()).AuthenticateAsync(binding.CliExecutable,
                         binding.UseDefaultConfig ? null : binding.ConfigDirectory, false, bounded.Token).ConfigureAwait(false);
