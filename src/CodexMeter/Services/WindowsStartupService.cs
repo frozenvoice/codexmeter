@@ -5,7 +5,7 @@ namespace CodexMeter.Services;
 public sealed class WindowsStartupService : IWindowsStartup
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "CodexMeter";
+    private const string ValueName = "CycleArc";
 
     public void Apply(bool enabled)
     {
@@ -16,13 +16,15 @@ public sealed class WindowsStartupService : IWindowsStartup
             return;
         }
 
-        // Remove the previous product's entry only when it points into this installation.
-        if (key.GetValue(LegacyInstallation.StartupValueName) is string legacy && Environment.ProcessPath is string current)
+        // Preserve startup consent and touch only previous entries owned by this installation.
+        foreach (var (name, file) in new[]
         {
-            var previousExe = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(current)!, LegacyInstallation.ExecutableFileName);
-            if (string.Equals(legacy, "\"" + previousExe + "\"", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(legacy, "\"" + current + "\"", StringComparison.OrdinalIgnoreCase))
-                key.DeleteValue(LegacyInstallation.StartupValueName, throwOnMissingValue: false);
+            (LegacyInstallation.StartupValueName, LegacyInstallation.ExecutableFileName),
+            (LegacyInstallation.CodexMeterStartupValueName, LegacyInstallation.CodexMeterExecutableFileName)
+        })
+        {
+            if (LegacyInstallation.OwnsStartupCommand(key.GetValue(name) as string, Environment.ProcessPath, file))
+                key.DeleteValue(name, throwOnMissingValue: false);
         }
 
         if (enabled)

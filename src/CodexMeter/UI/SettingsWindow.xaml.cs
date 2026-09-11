@@ -21,7 +21,7 @@ public partial class SettingsWindow : Window
         WidgetTab.Header = UiText.T("Widget", "위젯");
         ConnectionTab.Header = UiText.T("Connection", "연결");
         AppearanceTitle.Text = UiText.T("Make it yours", "표시와 동작");
-        AppearanceHint.Text = UiText.T("Choose how CodexMeter looks and starts.", "화면과 시작 방식을 설정하세요.");
+        AppearanceHint.Text = UiText.T("Choose how CycleArc looks and starts.", "화면과 시작 방식을 설정하세요.");
         ThemeLabel.Text = UiText.T("Theme", "테마");
         ThemeBox.ItemsSource = new[] { UiText.T("System", "시스템"), UiText.T("Light", "밝게"), UiText.T("Dark", "어둡게") };
         ThemeBox.SelectedIndex = (int)settings.Theme;
@@ -50,10 +50,10 @@ public partial class SettingsWindow : Window
         WidgetClickThroughBox.IsChecked = settings.WidgetClickThrough;
         WidgetClickThroughBox.ToolTip = UiText.T("Mouse clicks pass to the window behind the widget.", "마우스 클릭이 위젯 뒤의 창에 전달됩니다.");
         CodexTitle.Text = UiText.T("Codex connection", "Codex 연결");
-        CodexHint.Text = UiText.T("CodexMeter uses the Codex CLI installed on this PC for sign-in and quota checks. Codex CLI must be installed separately.",
-            "CodexMeter는 이 PC에 설치된 Codex CLI로 로그인과 사용량 조회를 진행합니다. Codex CLI는 별도로 설치되어 있어야 합니다.");
-        ConnectionSteps.Text = UiText.T("1. Open Manage Codex accounts → Add an account · Connection guide. Choose New account sign-in for your first or another account; choose Find accounts on this PC for an existing Codex login.\n2. For a new login, select the intended ChatGPT account in the browser, then return to CodexMeter.\n3. Check each account's usage. Select a card for the tray/widget; set a nickname and use ↑ / ↓ to change the display order.",
-            "1. 아래 Codex 계정 관리 → 계정 추가 · 연결 방법을 여세요. 처음이거나 다른 계정을 추가하려면 새 계정 로그인, 이미 Codex에 로그인했다면 이 PC의 계정 찾기를 선택하세요.\n2. 새 로그인은 브라우저에서 사용할 ChatGPT 계정을 선택한 뒤 CodexMeter로 돌아오세요.\n3. 계정별 사용량을 확인하세요. 카드를 누르면 트레이·위젯에 표시되며, 별명을 정하고 ↑ / ↓로 표시 순서를 바꿀 수 있습니다.");
+        CodexHint.Text = UiText.T("CycleArc uses the Codex CLI installed on this PC for sign-in and quota checks. Codex CLI must be installed separately.",
+            "CycleArc는 이 PC에 설치된 Codex CLI로 로그인과 사용량 조회를 진행합니다. Codex CLI는 별도로 설치되어 있어야 합니다.");
+        ConnectionSteps.Text = UiText.T("1. Open Manage Codex accounts → Add an account · Connection guide. Choose New account sign-in for your first or another account; choose Find accounts on this PC for an existing Codex login.\n2. For a new login, select the intended ChatGPT account in the browser, then return to CycleArc.\n3. Check each account's usage. Select a card for the tray/widget; set a nickname and use ↑ / ↓ to change the display order.",
+            "1. 아래 Codex 계정 관리 → 계정 추가 · 연결 방법을 여세요. 처음이거나 다른 계정을 추가하려면 새 계정 로그인, 이미 Codex에 로그인했다면 이 PC의 계정 찾기를 선택하세요.\n2. 새 로그인은 브라우저에서 사용할 ChatGPT 계정을 선택한 뒤 CycleArc로 돌아오세요.\n3. 계정별 사용량을 확인하세요. 카드를 누르면 트레이·위젯에 표시되며, 별명을 정하고 ↑ / ↓로 표시 순서를 바꿀 수 있습니다.");
         ManageAccountsButton.Content = UiText.T("Manage Codex accounts", "Codex 계정 관리");
         CodexExeLabel.Text = UiText.CodexExecutable;
         CodexExeBox.Text = settings.CodexExePath ?? "";

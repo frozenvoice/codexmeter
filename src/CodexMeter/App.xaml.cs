@@ -357,6 +357,9 @@ public partial class App : Application
         app.Resources["CheckBoxBackgroundBrush"] = new SolidColorBrush(dark ? MediaColor(37, 42, 52) : MediaColor(255, 255, 255));
         app.Resources["CheckBoxBorderBrush"] = new SolidColorBrush(dark ? MediaColor(139, 147, 167) : MediaColor(90, 98, 114));
         app.Resources["CheckBoxDisabledCheckedBrush"] = new SolidColorBrush(dark ? MediaColor(59, 82, 122) : MediaColor(147, 197, 253));
+        app.Resources["ProviderBadgeBackgroundBrush"] = new SolidColorBrush(dark ? MediaColor(36, 53, 77) : MediaColor(229, 238, 255));
+        app.Resources["ProviderBadgeBorderBrush"] = new SolidColorBrush(dark ? MediaColor(54, 84, 123) : MediaColor(172, 195, 228));
+        app.Resources["ProviderBadgeTextBrush"] = new SolidColorBrush(dark ? MediaColor(217, 231, 255) : MediaColor(36, 74, 128));
     }
 
     private void OnSystemThemeChanged()

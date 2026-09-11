@@ -105,7 +105,8 @@ internal static class WidgetDpiChecks
         var row = (FrameworkElement)VisualTreeHelper.GetParent(label);
         var notice = (TextBlock)widget.FindName("HistoryValue");
         var scale = VisualTreeHelper.GetDpi(content).DpiScaleY;
-        var top = row.TranslatePoint(new Point(), content).Y;
+        var title = (TextBlock)widget.FindName("ProductTitle");
+        var top = title.TranslatePoint(new Point(), content).Y;
         var last = notice.Visibility == Visibility.Visible ? (FrameworkElement)notice : row;
         var bottom = content.ActualHeight - last.TranslatePoint(new Point(0, last.ActualHeight), content).Y;
         if (Math.Abs(top - bottom) * scale > 1.01)

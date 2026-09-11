@@ -22,7 +22,14 @@ internal static class AccountSummary
         identity.Children.Add(avatar);
         var name = Text((selected ? "● " : "") + account.DisplayName, 12, "TextBrush", bold: true);
         name.Margin = new Thickness(9, 0, 0, 0);
-        identity.Children.Add(name);
+        var nameAndProvider = new Grid { HorizontalAlignment = HorizontalAlignment.Left };
+        nameAndProvider.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        nameAndProvider.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        nameAndProvider.Children.Add(name);
+        var provider = new CodexProviderBadge { Margin = new Thickness(8, 0, 0, 0) };
+        Grid.SetColumn(provider, 1);
+        nameAndProvider.Children.Add(provider);
+        identity.Children.Add(nameAndProvider);
         header.Children.Add(identity);
         var status = Text(account.IsSigningIn ? UiText.T("Signing in…", "로그인 중…")
             : CodexMeterPresentation.StatusLabel(account.Snapshot), 11, "MutedBrush");
@@ -62,7 +69,8 @@ internal static class AccountSummary
         button.Content = content;
         button.ToolTip = account.Email ?? account.Profile.HomePath;
         System.Windows.Automation.AutomationProperties.SetName(button,
-            account.DisplayName + " · " + status.Text + (selected ? UiText.T(" · Selected", " · 선택됨") : ""));
+            account.DisplayName + " · " + UiText.CodexProviderName + " · " + status.Text
+                + (selected ? UiText.T(" · Selected", " · 선택됨") : ""));
         button.Click += (_, _) => select();
         return button;
     }
@@ -82,7 +90,7 @@ internal static class AccountSummary
         {
             Tag = "AccountAvatar", Width = 30, Height = 30, CornerRadius = new CornerRadius(15),
             Background = new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString(colors[hash % colors.Length])),
-            ToolTip = UiText.T("Icon made from the name in CodexMeter", "CodexMeter에서 이름으로 만든 아이콘"),
+            ToolTip = UiText.T($"Icon made from the name in {UiText.ProductName}", $"{UiText.ProductName}에서 이름으로 만든 아이콘"),
             Child = new TextBlock { Text = initials.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold,
                 Foreground = System.Windows.Media.Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center }

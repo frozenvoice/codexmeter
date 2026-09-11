@@ -98,6 +98,7 @@ public partial class FlyoutWindow : Window
             ? UiText.T("Select an account for details, tray and widget.", "계정을 선택하면 상세 카드·트레이·위젯에 표시됩니다.")
             : UiText.T("Add an account or connect an existing Codex sign-in.", "계정을 추가하거나 기존 Codex 로그인을 연결하세요.");
         SelectedAccountText.Text = selected?.DisplayName ?? UiText.T("Add your first account", "첫 계정을 추가하세요");
+        SelectedAccountText.Visibility = Visibility.Visible;
         SelectedAccountText.ToolTip = selected?.Email ?? selected?.Profile.HomePath;
         var failed = accounts.Count(a => a.Snapshot.Status != CodexQuotaStatus.Available);
         if (accounts.Count > 1 && !refreshing)

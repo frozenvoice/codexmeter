@@ -9,7 +9,7 @@ public partial class AboutWindow : Window
     public AboutWindow(string version, string dataSource)
     {
         InitializeComponent();
-        Title = UiText.T("About CodexMeter", "CodexMeter 정보");
+        Title = UiText.AboutTitle;
         SubtitleText.Text = UiText.T("Codex account usage monitor", "Codex 계정 사용량 모니터");
         GitHubLink.Inlines.Clear();
         GitHubLink.Inlines.Add(new Run(UiText.GitHubRepository));

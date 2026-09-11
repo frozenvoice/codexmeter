@@ -9,6 +9,14 @@ function Invoke-InstallRetry([scriptblock]$Action, [int]$Attempts = 30, [int]$De
     }
 }
 
+function Resolve-InstalledExecutable([string]$Directory) {
+    foreach ($name in @('CycleArc.exe', 'CodexMeter.exe', 'prometer.exe')) {
+        $candidate = Join-Path $Directory $name
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    throw 'No supported executable in the installation directory'
+}
+
 function Install-StagedApp {
     param(
         [string]$StagingDir, [string]$LocalDir, [string]$BackupDir,
@@ -16,12 +24,11 @@ function Install-StagedApp {
         [scriptblock]$Move = { param($Source, $Destination) Move-Item -LiteralPath $Source -Destination $Destination },
         [scriptblock]$Start = {
             param($Directory)
-            $exe = Join-Path $Directory 'CodexMeter.exe'
-            if (!(Test-Path -LiteralPath $exe)) { $exe = Join-Path $Directory 'prometer.exe' }
+            $exe = Resolve-InstalledExecutable $Directory
             $running = Start-Process -FilePath $exe -ArgumentList @('--show') -WorkingDirectory $Directory -WindowStyle Hidden -PassThru
             Start-Sleep -Seconds 2
-            if ($running.HasExited) { throw "CodexMeter exited at startup: $($running.ExitCode)" }
-            Write-Host "CodexMeter running: $exe (PID $($running.Id))"
+            if ($running.HasExited) { throw "CycleArc exited at startup: $($running.ExitCode)" }
+            Write-Host "CycleArc running: $exe (PID $($running.Id))"
         },
         [int]$Attempts = 30, [int]$DelayMilliseconds = 500
     )

@@ -51,8 +51,8 @@ public class DevRunScriptGuardTests
     [InlineData(" ")]
     public void ArtifactPaths_StopAtWhitespace(string separator)
     {
-        var paths = ExtractWorkflowRelativePaths("path: publish/win-x64/CodexMeter.exe" + separator + "next: value", "publish/win-x64/");
-        Assert.Equal(new[] { "CodexMeter.exe" }, paths);
+        var paths = ExtractWorkflowRelativePaths("path: publish/win-x64/CycleArc.exe" + separator + "next: value", "publish/win-x64/");
+        Assert.Equal(new[] { "CycleArc.exe" }, paths);
     }
 
     [Fact]

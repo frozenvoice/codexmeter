@@ -1,7 +1,7 @@
-# CodexMeter agent instructions
+# CycleArc agent instructions
 
-Repository/solution: `codexmeter` / `CodexMeter.sln`. Product: **CodexMeter**.
-Windows-only .NET 8 WPF tray app, distributed as one `CodexMeter.exe`.
+Repository/solution: `codexmeter` / `CodexMeter.sln`. Product: **CycleArc**.
+Windows-only .NET 8 WPF tray app, distributed as one `CycleArc.exe`.
 
 ## Active product direction
 
@@ -10,7 +10,7 @@ Windows-only .NET 8 WPF tray app, distributed as one `CodexMeter.exe`.
 - Keep Codex unavailable/stale/fresh states truthful; never fabricate counts from percentages.
 - Keep the native notification icon, optional widget, theme/language settings, bounded shared refresh,
   existing user preferences and quota-cache compatibility.
-- Publish exactly one self-contained `CodexMeter.exe`; do not ship a companion host or extension.
+- Publish exactly one self-contained `CycleArc.exe`; do not ship a companion host or extension.
 - Read `README.md` and the active sections of `docs/ARCHITECTURE.md` / `docs/VALIDATION.md`.
 - Browser/ChatGPT-specific rules below apply only when maintaining the retained legacy source/tests.
   They do not authorize re-enabling those features or require installing/reloading an extension
@@ -80,7 +80,7 @@ Windows-only .NET 8 WPF tray app, distributed as one `CodexMeter.exe`.
 
 - Start with Windows and automatic history synchronization require explicit user opt-in.
 - ChatGPT internal endpoints are unofficial and may change without notice.
-- Any retained legacy history-access UI must disclose its unsupported status; active CodexMeter has no history access.
+- Any retained legacy history-access UI must disclose its unsupported status; active CycleArc has no history access.
 - Onboarding must never display a quota count as successfully loaded when sync failed.
 
 ## Transport

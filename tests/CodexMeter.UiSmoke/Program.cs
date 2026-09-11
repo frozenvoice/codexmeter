@@ -31,7 +31,7 @@ internal static class Program
             app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             app.Resources.MergedDictionaries.Add(new ResourceDictionary
             {
-                Source = new Uri("/CodexMeter;component/UI/Themes.xaml", UriKind.Relative)
+                Source = new Uri("/CycleArc;component/UI/Themes.xaml", UriKind.Relative)
             });
             if (args is ["--widget-dpi", var dpiDirectory])
             {
@@ -200,13 +200,14 @@ internal static class Program
     }
     private static void CheckWidgetTextLayout(FloatingWidget widget, FrameworkElement content)
     {
-        foreach (var name in new[] { "CodexLabel", "CodexValue" })
+        var stack = (FrameworkElement)widget.FindName("WidgetStatusStack");
+        var top = stack.TranslatePoint(new Point(), content).Y;
+        var bottom = content.ActualHeight - top - stack.ActualHeight;
+        if (Math.Abs(top - bottom) > 1)
+            throw new InvalidOperationException($"Widget status stack is not vertically centered: {top}/{bottom}.");
+        foreach (var name in new[] { "ProductTitle", "CodexLabel", "CodexValue" })
         {
             var text = (System.Windows.Controls.TextBlock)widget.FindName(name);
-            var top = text.TranslatePoint(new Point(), content).Y;
-            var bottom = content.ActualHeight - top - text.ActualHeight;
-            if (Math.Abs(top - bottom) > 1)
-                throw new InvalidOperationException($"Widget {name} is not vertically centered: {top}/{bottom}.");
             if (!text.UseLayoutRounding || !text.SnapsToDevicePixels
                 || TextOptions.GetTextFormattingMode(text) != TextFormattingMode.Display)
                 throw new InvalidOperationException("Widget text must use pixel-aligned display formatting.");

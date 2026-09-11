@@ -9,11 +9,11 @@
     <NoWarn>$(NoWarn);WFAC010</NoWarn>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RootNamespace>CodexMeter</RootNamespace>
-    <AssemblyName>CodexMeter</AssemblyName>
+    <AssemblyName>CycleArc</AssemblyName>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Description>Windows tray monitor for Codex account usage</Description>
-    <Product>CodexMeter</Product>
+    <Product>CycleArc</Product>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\CodexMeter.Core\CodexMeter.Core.csproj" />

@@ -21,7 +21,10 @@ public static class UiText
 
     public static string T(string english, string korean) => IsKorean ? korean : english;
 
-    public static string ProductName => "CodexMeter";
+    public static string ProductName => "CycleArc";
+    public static string CodexProviderName => "Codex";
+    public static string AboutTitle => T($"About {ProductName}", $"{ProductName} 정보");
+    public static string WidgetTitle => T($"{ProductName} widget", $"{ProductName} 위젯");
     public static string GptPro => "GPT Pro";
     public static string Gpt6Pro => "GPT-6 Pro";
     public static string SolPro => "Sol Pro";
@@ -56,7 +59,7 @@ public static class UiText
     public static string EstimatedPeriodReconstructed => T("Last 7 days reconstructed", "최근 7일 기록 집계");
     public static string UnresolvedPending => T("Unresolved", "확인 보류");
     public static string MigrationBackupFailed => T(
-        "CodexMeter could not create a verified backup of the usage database, so it stopped before migrating it. Your data was not changed.",
+        "CycleArc could not create a verified backup of the usage database, so it stopped before migrating it. Your data was not changed.",
         "사용량 데이터베이스의 검증된 백업을 만들 수 없어 이전을 중단했습니다. 기존 데이터는 변경되지 않았습니다.");
     public static string UnresolvedPendingCount(int count) => T($"{count} items", $"{count}건");
     public static string ObservedRequestsNotBilled => T(
@@ -101,7 +104,7 @@ public static class UiText
     public static string Save => T("Save", "저장");
     public static string About => T("About", "정보");
     public static string Exit => T("Exit", "종료");
-    public static string OpenCodexMeter => T("Open CodexMeter", "CodexMeter 열기");
+    public static string OpenApp => T($"Open {ProductName}", $"{ProductName} 열기");
     public static string OpenLogin => T("Open Login", "로그인 열기");
     public static string ViewStatistics => T("View statistics", "통계 보기");
     public static string Finish => T("Finish", "마침");
@@ -409,17 +412,17 @@ public static class UiText
         "Local pairing token (not a ChatGPT secret). The native host attaches it automatically.",
         "로컬 페어링 토큰입니다. ChatGPT 비밀값이 아니며, 네이티브 호스트가 자동으로 붙입니다.");
     public static string AppRiskHint => T(
-        "CodexMeter uses unofficial ChatGPT web endpoints. They are not part of the public OpenAI API and may change. Programmatic history access is unsupported and may carry account or terms risk. Review current ChatGPT terms before enabling synchronization. Official ChatGPT Data Export import is the lower-risk fallback but is not real-time.",
-        "CodexMeter는 비공식 ChatGPT 웹 엔드포인트를 사용합니다. 공개 OpenAI API가 아니며 예고 없이 바뀔 수 있습니다. 프로그램으로 대화 기록에 접근하는 방식은 지원되지 않으며 계정 또는 이용약관 위험이 있을 수 있습니다. 동기화를 켜기 전에 현재 ChatGPT 약관을 확인하세요. 공식 ChatGPT 데이터 내보내기 가져오기는 위험이 더 낮지만 실시간이 아닙니다.");
+        "CycleArc uses unofficial ChatGPT web endpoints. They are not part of the public OpenAI API and may change. Programmatic history access is unsupported and may carry account or terms risk. Review current ChatGPT terms before enabling synchronization. Official ChatGPT Data Export import is the lower-risk fallback but is not real-time.",
+        "CycleArc는 비공식 ChatGPT 웹 엔드포인트를 사용합니다. 공개 OpenAI API가 아니며 예고 없이 바뀔 수 있습니다. 프로그램으로 대화 기록에 접근하는 방식은 지원되지 않으며 계정 또는 이용약관 위험이 있을 수 있습니다. 동기화를 켜기 전에 현재 ChatGPT 약관을 확인하세요. 공식 ChatGPT 데이터 내보내기 가져오기는 위험이 더 낮지만 실시간이 아닙니다.");
 
-    public static string WelcomeTitle => T("Welcome to CodexMeter", "CodexMeter에 오신 것을 환영합니다");
+    public static string WelcomeTitle => T("Welcome to CycleArc", "CycleArc에 오신 것을 환영합니다");
     public static string WelcomeSubtitle => T(
         "Windows tray monitor that reconstructs ChatGPT Pro usage from account conversation history.",
         "계정 대화 기록으로 ChatGPT Pro 사용량을 재구성하는 Windows 트레이 모니터입니다.");
     public static string WelcomeStep1 => T("1. Review before enabling sync", "1. 동기화를 켜기 전에 확인");
     public static string WelcomeStep1Body => T(
-        "CodexMeter uses unofficial ChatGPT web endpoints. These are not part of the public OpenAI API and may change without notice. Programmatic history access is unsupported and may conflict with applicable ChatGPT terms. Review current terms before enabling synchronization. Official ChatGPT Data Export import is the lower-risk fallback but is not real-time. Only a matching server quota counter is authoritative; reconstructed history counts are estimates. The browser companion avoids embedded OAuth; it does not make this integration official.",
-        "CodexMeter는 비공식 ChatGPT 웹 엔드포인트를 사용합니다. 공개 OpenAI API가 아니며 예고 없이 바뀔 수 있습니다. 프로그램으로 대화 기록에 접근하는 방식은 지원되지 않으며 적용되는 ChatGPT 약관과 충돌할 수 있습니다. 동기화를 켜기 전에 현재 약관을 확인하세요. 공식 ChatGPT 데이터 내보내기 가져오기는 위험이 더 낮지만 실시간이 아닙니다. 서버 한도 집계와 일치할 때만 공식으로 볼 수 있으며, 대화 기록으로 재구성한 횟수는 추정입니다. 브라우저 도우미는 내장 OAuth를 피하지만, 이 연동이 공식 기능이 되는 것은 아닙니다.");
+        "CycleArc uses unofficial ChatGPT web endpoints. These are not part of the public OpenAI API and may change without notice. Programmatic history access is unsupported and may conflict with applicable ChatGPT terms. Review current terms before enabling synchronization. Official ChatGPT Data Export import is the lower-risk fallback but is not real-time. Only a matching server quota counter is authoritative; reconstructed history counts are estimates. The browser companion avoids embedded OAuth; it does not make this integration official.",
+        "CycleArc는 비공식 ChatGPT 웹 엔드포인트를 사용합니다. 공개 OpenAI API가 아니며 예고 없이 바뀔 수 있습니다. 프로그램으로 대화 기록에 접근하는 방식은 지원되지 않으며 적용되는 ChatGPT 약관과 충돌할 수 있습니다. 동기화를 켜기 전에 현재 약관을 확인하세요. 공식 ChatGPT 데이터 내보내기 가져오기는 위험이 더 낮지만 실시간이 아닙니다. 서버 한도 집계와 일치할 때만 공식으로 볼 수 있으며, 대화 기록으로 재구성한 횟수는 추정입니다. 브라우저 도우미는 내장 OAuth를 피하지만, 이 연동이 공식 기능이 되는 것은 아닙니다.");
     public static string WelcomeStep2 => T("2. Choose how to connect", "2. 연결 방식 선택");
     public static string WelcomeTransportCompanion => T(
         "Browser companion (recommended for Chrome/Edge social login)",
@@ -431,8 +434,8 @@ public static class UiText
         "Data Export import only (not real-time)",
         "데이터 내보내기 가져오기만 (실시간 아님)");
     public static string WelcomeSocialHint => T(
-        "Google, Microsoft, and Apple sign-in are not supported inside WebView2. Use the browser companion with your normal browser session. CodexMeter never spoofs a user agent.",
-        "Google, Microsoft, Apple 로그인은 WebView2 안에서 지원되지 않습니다. 일반 브라우저 세션과 브라우저 도우미를 사용하세요. CodexMeter는 사용자 에이전트를 위장하지 않습니다.");
+        "Google, Microsoft, and Apple sign-in are not supported inside WebView2. Use the browser companion with your normal browser session. CycleArc never spoofs a user agent.",
+        "Google, Microsoft, Apple 로그인은 WebView2 안에서 지원되지 않습니다. 일반 브라우저 세션과 브라우저 도우미를 사용하세요. CycleArc는 사용자 에이전트를 위장하지 않습니다.");
     public static string WelcomeCompanionHint => T(
         "Load the unpacked extension, enter its ID, register the native host, then Connect in the popup. Finish can be used after registration without running a sync.",
         "압축 해제한 확장 프로그램을 로드하고 ID를 입력한 뒤 네이티브 호스트를 등록한 다음, 팝업에서 연결하세요. 등록 후에는 동기화 없이 마침을 사용할 수 있습니다.");
@@ -478,7 +481,7 @@ public static class UiText
     public static string GitHubRepository => T("GitHub repository", "GitHub 저장소");
     public static string VersionPrefix => T("Version ", "버전 ");
     public static string DataSourceStatus => T("Data source status: ", "데이터 원본 상태: ");
-    public static string SettingsTitle => T("CodexMeter Settings", "CodexMeter 설정");
+    public static string SettingsTitle => T($"{ProductName} Settings", $"{ProductName} 설정");
 
     public static string GptProUsage(string usage) => T($"GPT Pro usage: {usage}", $"GPT Pro 사용량: {usage}");
     public static string GptProUsageServer(string usage, int reconstructed) => T(
@@ -528,7 +531,7 @@ public static class UiText
     public static string ToastCombinedExhausted => T("Combined Pro daily quota is exhausted.", "합산 Pro 일일 한도가 소진되었습니다.");
     public static string ToastCombined10 => T("10% of combined Pro daily quota remaining.", "합산 Pro 일일 한도가 10% 남았습니다.");
     public static string ToastCombined20 => T("20% of combined Pro daily quota remaining.", "합산 Pro 일일 한도가 20% 남았습니다.");
-    public static string ToastSyncTitle => T("CodexMeter sync", "CodexMeter 동기화");
+    public static string ToastSyncTitle => T($"{ProductName} sync", $"{ProductName} 동기화");
 
     public static string ImportTitle => T("Import official ChatGPT conversations.json", "공식 ChatGPT conversations.json 가져오기");
     public static string ImportedEvents(int count) => T($"Imported {count} usage events.", $"{count}개의 사용 기록을 가져왔습니다.");

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using CodexMeter.Services;
 
 namespace CodexMeter.Codex;
 
@@ -41,8 +42,8 @@ public static class CodexProtocol
             {
                 ["clientInfo"] = new JsonObject
                 {
-                    ["name"] = "codexmeter",
-                    ["title"] = "CodexMeter",
+                    ["name"] = "cyclearc",
+                    ["title"] = UiText.ProductName,
                     ["version"] = version
                 },
                 ["capabilities"] = new JsonObject

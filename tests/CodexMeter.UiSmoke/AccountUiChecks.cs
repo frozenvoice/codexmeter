@@ -60,6 +60,7 @@ internal static class AccountUiChecks
                         Render(flyout, 440 * zoom / 100d, null, directory is not null && size == 3 && zoom == 100
                             ? Path.Combine(directory, $"accounts-{language}-{theme}.png") : null);
                         CheckSummaryRows(flyout);
+                        CheckProviderLabels(flyout, (size > 1 ? size : 0) + 1);
                         flyout.BindAccounts(accounts, id, true);
                         if (((Button)flyout.FindName("RefreshAllButton")).IsEnabled)
                             throw new InvalidOperationException("Batch refresh enabled early.");
@@ -70,21 +71,95 @@ internal static class AccountUiChecks
                         ? Path.Combine(directory, $"manage-{language}-{theme}.png") : null);
                     if (((ItemsControl)window.FindName("AccountRows")).Items.Count != size)
                         throw new InvalidOperationException("Account management list lost accounts.");
+                    CheckProviderLabels(window, size);
                     if (size > 0) CheckRenameSurvivesDisplayTick(window, accounts, id);
                     CheckGuidanceAndOrder(window, accounts, directory, language, theme);
                     widget.BindAccount(accounts.FirstOrDefault(), size > 1);
                     Render(widget, 245, null, null);
+                    CheckProviderLabels(widget, 1);
+                    if (((TextBlock)widget.FindName("ProductTitle")).Text != "CycleArc")
+                        throw new InvalidOperationException("Widget product title is incorrect.");
                     if (((TextBlock)widget.FindName("AccountName")).Visibility != (size > 1 ? Visibility.Visible : Visibility.Collapsed))
                         throw new InvalidOperationException("Widget does not identify selected account.");
                     count += 2;
                 }
                 finally { flyout.Close(); window.Close(); widget.Close(); }
             }
+            CheckLongNames();
         }
         CheckLoginCancellation();
         CheckCreditAccountCapture();
         CheckLocalIcons();
-        Console.WriteLine($"PASS: {count} multi-account WPF renders; guidance/compact scrolling, local icons, ordering, rename continuity, refresh, login cancellation and credit-account routing.");
+        Console.WriteLine($"PASS: {count} multi-account WPF renders; CycleArc branding, Codex badges/contrast/long names, guidance/compact scrolling, local icons, ordering, rename continuity, refresh, login cancellation and credit-account routing.");
+    }
+
+    private static void CheckProviderLabels(Window window, int expected)
+    {
+        if (!window.Title.StartsWith("CycleArc", StringComparison.Ordinal))
+            throw new InvalidOperationException("Window title does not identify CycleArc.");
+        if (Descendants<TextBlock>((FrameworkElement)window.Content).Any(text => text.Text.Contains("Codex Codex", StringComparison.Ordinal)))
+            throw new InvalidOperationException("Provider name is repeated within a usage label.");
+        var badges = Descendants<CodexProviderBadge>((FrameworkElement)window.Content).ToArray();
+        if (badges.Length != expected) throw new InvalidOperationException("Usage provider is missing from an account surface.");
+        foreach (var badge in badges)
+        {
+            var label = (TextBlock)badge.Child;
+            if (badge.Visibility != Visibility.Visible || label.Text != "Codex" || label.ActualWidth < label.DesiredSize.Width - 1)
+                throw new InvalidOperationException("Codex provider label is missing or clipped.");
+            var parent = (FrameworkElement)VisualTreeHelper.GetParent(badge);
+            var left = badge.TranslatePoint(new Point(), parent).X;
+            if (left < -1 || left + badge.ActualWidth > parent.ActualWidth + 1)
+                throw new InvalidOperationException("Provider badge overflows its identity row.");
+            static double Luminance(Color color)
+            {
+                static double Linear(byte value) { var c = value / 255d; return c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4); }
+                return 0.2126 * Linear(color.R) + 0.7152 * Linear(color.G) + 0.0722 * Linear(color.B);
+            }
+            var foreground = Luminance(((SolidColorBrush)label.Foreground).Color);
+            var background = Luminance(((SolidColorBrush)badge.Background).Color);
+            if ((Math.Max(foreground, background) + 0.05) / (Math.Min(foreground, background) + 0.05) < 4.5)
+                throw new InvalidOperationException("Provider label lacks contrast in the current theme.");
+        }
+    }
+
+    private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match) yield return match;
+            foreach (var descendant in Descendants<T>(child)) yield return descendant;
+        }
+    }
+
+    private static void CheckLongNames()
+    {
+        var accounts = Fixtures(3);
+        accounts[0] = accounts[0] with { Profile = accounts[0].Profile with
+            { Label = UiText.T(new string('W', 90), string.Concat(Enumerable.Repeat("아주 긴 별명 ", 20))) } };
+        var flyout = new FlyoutWindow();
+        var widget = new FloatingWidget();
+        try
+        {
+            foreach (var status in Enum.GetValues<CodexQuotaStatus>())
+            {
+                accounts[0] = accounts[0] with { Snapshot = accounts[0].Snapshot with { Status = status } };
+                flyout.BindAccounts(accounts, accounts[0].Profile.Id, status == CodexQuotaStatus.Refreshing);
+                Render(flyout, 440, null, null);
+                CheckSummaryRows(flyout);
+                CheckProviderLabels(flyout, 4);
+                var header = (Grid)flyout.FindName("SelectedAccountHeader");
+                var name = (TextBlock)flyout.FindName("SelectedAccountText");
+                var badge = (CodexProviderBadge)flyout.FindName("SelectedProviderBadge");
+                if (name.TranslatePoint(new Point(name.ActualWidth, 0), header).X
+                    > badge.TranslatePoint(new Point(), header).X + 1)
+                    throw new InvalidOperationException("Long selected-account name overlaps its provider.");
+                widget.BindAccount(accounts[0], true);
+                Render(widget, 245, null, null);
+                CheckProviderLabels(widget, 1);
+            }
+        }
+        finally { flyout.Close(); widget.Close(); }
     }
 
     private static CodexAccountView[] Fixtures(int count)

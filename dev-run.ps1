@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-Build, test, publish and run the single-file CodexMeter desktop app.
+Build, test, publish and run the single-file CycleArc desktop app.
 .PARAMETER Fast
 Skip tests only after they have already been run for these changes.
 .PARAMETER NoLaunch
@@ -42,13 +42,13 @@ if (!$Fast) { Invoke-Dotnet -Arguments @('test', 'CodexMeter.sln', '-c', 'Releas
 Invoke-Dotnet -Arguments @('run', '--project', 'tests/CodexMeter.UiSmoke/CodexMeter.UiSmoke.csproj', '-c', 'Release', '--no-build')
 Invoke-Dotnet -Arguments @('publish', 'src/CodexMeter/CodexMeter.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:IncludeNativeLibrariesForSelfExtract=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $StagingDir)
 $files = @(Get-ChildItem -LiteralPath $StagingDir -File -Recurse)
-if ($files.Count -ne 1 -or $files[0].Name -ne 'CodexMeter.exe') { throw 'Publish must contain exactly CodexMeter.exe' }
-Write-Host 'Publish artifacts verified: CodexMeter.exe only'
+if ($files.Count -ne 1 -or $files[0].Name -ne 'CycleArc.exe') { throw 'Publish must contain exactly CycleArc.exe' }
+Write-Host 'Publish artifacts verified: CycleArc.exe only'
 if ($NoLaunch) { Write-Host "Staged: $StagingDir"; exit 0 }
 
 # Stop only this workspace's existing installation, including its former executable name.
-$knownExecutables = @((Join-Path $LocalDir 'prometer.exe'), (Join-Path $LocalDir 'CodexMeter.exe'))
-foreach ($process in @(Get-Process -Name 'prometer', 'CodexMeter' -ErrorAction SilentlyContinue)) {
+$knownExecutables = @((Join-Path $LocalDir 'prometer.exe'), (Join-Path $LocalDir 'CodexMeter.exe'), (Join-Path $LocalDir 'CycleArc.exe'))
+foreach ($process in @(Get-Process -Name 'prometer', 'CodexMeter', 'CycleArc' -ErrorAction SilentlyContinue)) {
     if ($process.Path -and $knownExecutables -contains $process.Path) {
         Stop-Process -Id $process.Id -Force
         Wait-Process -Id $process.Id -Timeout 10 -ErrorAction SilentlyContinue

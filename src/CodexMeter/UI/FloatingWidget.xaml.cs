@@ -37,7 +37,8 @@ public partial class FloatingWidget : Window
 
     public void Bind(CodexQuotaSnapshot snapshot)
     {
-        CodexLabel.Text = CodexDisplayFormatting.CompactWindowKindLabel(snapshot.CompactWindow);
+        Title = UiText.WidgetTitle;
+        CodexLabel.Text = CodexRingPresentation.From(snapshot).CenterSubLabel;
         CodexValue.Text = CodexMeterPresentation.CompactText(snapshot).Replace("Codex ", "", StringComparison.Ordinal);
         var needsAttention = snapshot.Status is not (CodexQuotaStatus.Available or CodexQuotaStatus.Refreshing);
         HistoryValue.Text = needsAttention ? CodexMeterPresentation.StatusLabel(snapshot) : "";

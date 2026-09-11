@@ -29,6 +29,7 @@ public static class CodexMeterPresentation
         var usage = ring.IsAvailable
             ? CodexDisplayFormatting.CompactWindowKindLabel(snapshot.CompactWindow) + " " + ring.CenterValueText
             : CodexDisplayFormatting.StatusText(snapshot);
-        return UiText.ProductName + Environment.NewLine + usage + Environment.NewLine + StatusLabel(snapshot);
+        return UiText.ProductName + " · " + UiText.CodexProviderName + Environment.NewLine
+            + usage + Environment.NewLine + StatusLabel(snapshot);
     }
 }

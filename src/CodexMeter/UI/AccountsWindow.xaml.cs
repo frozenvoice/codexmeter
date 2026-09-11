@@ -40,7 +40,7 @@ public partial class AccountsWindow : Window
         ConnectionOptions.Header = UiText.T("Add an account · Connection guide", "계정 추가 · 연결 방법");
         NewLoginHint.Text = UiText.T("Choose New account sign-in, then select your ChatGPT account in the browser. Return here after login; quota is checked automatically. Your existing Codex login stays as it is.",
             "새 계정 로그인을 누르고 브라우저에서 사용할 ChatGPT 계정을 선택하세요. 로그인 후 돌아오면 사용량을 자동으로 확인합니다. 기존 Codex 로그인은 유지됩니다.");
-        LabelCaption.Text = UiText.T("Nickname in CodexMeter (optional; you can change it later)", "CodexMeter에서 쓸 별명 (선택 사항 · 나중에 변경 가능)");
+        LabelCaption.Text = UiText.T("Nickname in CycleArc (optional; you can change it later)", "CycleArc에서 쓸 별명 (선택 사항 · 나중에 변경 가능)");
         NewLabelExample.Text = UiText.T("e.g. Personal, Work", "예: 개인 계정, 업무용");
         AddAccountButton.Content = UiText.T("New account sign-in", "새 계정 로그인");
         ExistingHeading.Text = UiText.T("Already signed in to Codex on this PC", "이 PC의 Codex에 이미 로그인했다면");
@@ -53,8 +53,8 @@ public partial class AccountsWindow : Window
         ChooseHomeButton.Content = UiText.T("Choose Codex home folder…", "Codex 홈 폴더 선택…");
         ChooseHomeButton.ToolTip = ChooseHomeHint.Text;
         AccountHelp.Header = UiText.T("Nicknames, icons and account actions", "별명·아이콘과 버튼 사용 안내");
-        ProfileHelp.Text = UiText.T("ChatGPT's web nickname and profile picture are not provided by the current Codex account connection. Set a nickname below for CodexMeter; leaving it empty shows the email. The circular icon is made locally from the first two characters. It is not a synced ChatGPT profile image, and changing it here does not change your ChatGPT profile.",
-            "현재 Codex 계정 연결에서는 ChatGPT 웹의 닉네임·프로필 사진을 제공하지 않습니다. 아래 별명을 저장하면 CodexMeter에서 그 이름으로 표시하고, 비워 두면 이메일을 표시합니다. 원형 아이콘은 이름의 앞 두 글자로 이 앱에서 만듭니다. ChatGPT 프로필과 동기화되는 이미지가 아니며, 별명을 바꿔도 ChatGPT 프로필은 바뀌지 않습니다.");
+        ProfileHelp.Text = UiText.T("ChatGPT's web nickname and profile picture are not provided by the current Codex account connection. Set a nickname below for CycleArc; leaving it empty shows the email. The circular icon is made locally from the first two characters. It is not a synced ChatGPT profile image, and changing it here does not change your ChatGPT profile.",
+            "현재 Codex 계정 연결에서는 ChatGPT 웹의 닉네임·프로필 사진을 제공하지 않습니다. 아래 별명을 저장하면 CycleArc에서 그 이름으로 표시하고, 비워 두면 이메일을 표시합니다. 원형 아이콘은 이름의 앞 두 글자로 이 앱에서 만듭니다. ChatGPT 프로필과 동기화되는 이미지가 아니며, 별명을 바꿔도 ChatGPT 프로필은 바뀌지 않습니다.");
         ActionsHelp.Text = UiText.T("Select a card: use this account for the detail card, tray and widget. All accounts continue to refresh.\nOrder ↑ / ↓: move the account in this list and the usage popup. The order is saved immediately; the selected account stays the same.\nSign in again: renew or change the login in a profile added here. For a linked Codex account, sign in again in Codex itself.\nRemove from list: stop showing and checking this profile. Its Codex login and saved data are kept; it is not automatically added back.",
             "카드 선택: 상세 카드·트레이·위젯에 표시할 계정을 정합니다. 다른 계정도 계속 새로고침합니다.\n순서 ↑ / ↓: 이 목록과 사용량 팝업의 계정 순서를 바꿉니다. 즉시 저장되며 선택한 계정은 유지됩니다.\n다시 로그인: 여기서 추가한 계정의 로그인을 갱신하거나 변경합니다. 기존 Codex에서 연결한 계정은 원래 Codex에서 다시 로그인하세요.\n목록에서 제거: 이 프로필의 표시와 조회를 중단합니다. Codex 로그인과 저장된 데이터는 남으며, 자동으로 다시 추가되지 않습니다.");
         SelectionHint.Text = UiText.T("Select a card for the tray and widget. Save a nickname below to make accounts easier to recognize.",
@@ -102,14 +102,14 @@ public partial class AccountsWindow : Window
             var summary = AccountSummary.Create(account, selected == id, () => SelectAccount?.Invoke(id));
             summary.IsEnabled = _operation is null;
             content.Children.Add(summary);
-            var source = account.Profile.IsManaged ? UiText.T("Signed in through CodexMeter", "CodexMeter에서 로그인")
+            var source = account.Profile.IsManaged ? UiText.T("Signed in through CycleArc", "CycleArc에서 로그인")
                 : UiText.T("Linked from Codex on this PC", "이 PC의 기존 Codex에서 연결");
             var identity = new TextBlock { Text = (account.Email is not null && account.Email != account.DisplayName ? account.Email + " · " : "") + source,
                 FontSize = 11, Margin = new Thickness(4, 0, 4, 6), TextTrimming = TextTrimming.CharacterEllipsis,
                 ToolTip = account.Profile.HomePath };
             identity.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
             content.Children.Add(identity);
-            var caption = new TextBlock { Text = UiText.T("Nickname in CodexMeter", "CodexMeter에서 쓸 별명"),
+            var caption = new TextBlock { Text = UiText.T("Nickname in CycleArc", "CycleArc에서 쓸 별명"),
                 FontSize = 11, Margin = new Thickness(4, 2, 4, 5) };
             caption.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
             var editHeading = new Grid { Margin = new Thickness(0, 0, 0, 5) };
@@ -142,9 +142,9 @@ public partial class AccountsWindow : Window
             var rename = ActionButton(UiText.T("Save name", "별명 저장"), () =>
             {
                 RenameAccount?.Invoke(id, _labels.GetValueOrDefault(id, account.Profile.Label));
-                OperationStatus.Text = UiText.T("Nickname saved in CodexMeter. Your ChatGPT profile is unchanged.", "CodexMeter 별명을 저장했습니다. ChatGPT 프로필에는 영향을 주지 않습니다.");
+                OperationStatus.Text = UiText.T("Nickname saved in CycleArc. Your ChatGPT profile is unchanged.", "CycleArc 별명을 저장했습니다. ChatGPT 프로필에는 영향을 주지 않습니다.");
             });
-            rename.ToolTip = UiText.T("Use this nickname in CodexMeter. Leave it empty to show the email.", "이 앱에서 사용할 별명입니다. 비워서 저장하면 이메일을 표시합니다.");
+            rename.ToolTip = UiText.T("Use this nickname in CycleArc. Leave it empty to show the email.", "이 앱에서 사용할 별명입니다. 비워서 저장하면 이메일을 표시합니다.");
             DockPanel.SetDock(rename, Dock.Right); actions.Children.Add(rename);
             var label = new TextBox { Text = _labels.GetValueOrDefault(id, account.Profile.Label), MaxLength = 80,
                 MinWidth = 60, Padding = new Thickness(6, 4, 6, 4), VerticalContentAlignment = VerticalAlignment.Center };

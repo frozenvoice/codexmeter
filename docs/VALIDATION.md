@@ -1,6 +1,29 @@
-# CodexMeter validation
+# CycleArc validation
 
 ## Current release — Codex only
+
+- CycleArc branding and provider labels (2026-09-12): `./dev-run.ps1 -NoLaunch` passed
+  restore, Release build (0 warnings/errors), all 1,047 unit tests, 15 installer scenarios,
+  120 account WPF renders, 180 widget DPI/layout renders and 36 existing production renders.
+  The self-contained win-x64 publish contains exactly `CycleArc.exe` (product metadata: CycleArc).
+  Local replacement/startup passed; installed SHA-256 matches the tested artifact:
+  `808044C391F889F7B78B8F6021D4FDA43F5BCEDB23A6F8530A6D088A9289B6BA`.
+  - Changed presentation files: `UiText`, `AccountSummary`, shared `CodexProviderBadge`,
+    Flyout, FloatingWidget, About, Accounts/Settings and TrayController; application theme
+    resources provide explicit provider-badge colors. Project/manifest metadata, App Server
+    client identity, the launcher/installer and Windows artifact names use CycleArc.
+  - Product-identity tests cover both languages, retained storage/mutex identifiers and the
+    renamed handshake. Two new startup cases cover owned CodexMeter/ProMeter commands and
+    reject unrelated installations or commands. Installer tests cover all five deployment/
+    retry/rollback outcomes for each of CycleArc, CodexMeter and ProMeter.
+  - WPF checks verify visible Codex badges in 0/1/3/8-account views, selected details and
+    widgets, including long Korean/English names, every quota status, 80/100/150% zoom,
+    all three themes and a minimum text contrast of 4.5:1. Widget alignment now checks the
+    complete title/provider/usage stack; baseline and pixel-formatting checks remain.
+  - All 12 documentation PNGs were regenerated from production views with synthetic data
+    and visually inspected. Codex remains the only supported provider; no Claude/Gemini
+    integration or data-format migration was added. No new browser login or reset-credit
+    redemption was exercised, and live-account quota refresh was not independently verified.
 
 - Multi-account README examples (2026-09-11): eight new 2x PNGs show the production
   popup and account manager in English/Korean and Dark/Light themes. All use fictional

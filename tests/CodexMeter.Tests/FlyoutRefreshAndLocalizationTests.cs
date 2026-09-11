@@ -157,7 +157,7 @@ public class FlyoutRefreshAndLocalizationTests
         var title = header.Descendants(ns + "TextBlock")
             .Single(element => (string?)element.Attribute(x + "Name") == "TitleText");
         Assert.Equal("0", (string?)title.Parent!.Attribute("Grid.Column"));
-        Assert.Equal("CodexMeter", (string?)title.Attribute("Text") ?? title.Value.Trim());
+        Assert.Equal("{x:Static text:UiText.ProductName}", (string?)title.Attribute("Text") ?? title.Value.Trim());
         var statusHost = header.Elements(ns + "Grid").Single();
         Assert.Equal("1", (string?)statusHost.Attribute("Grid.Column"));
         var status = statusHost.Descendants(ns + "TextBlock")

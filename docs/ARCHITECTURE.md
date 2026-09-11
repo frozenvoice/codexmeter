@@ -1,6 +1,17 @@
-# CodexMeter architecture
+# CycleArc architecture
 
 ## Active product — Codex only (2026-09-07)
+
+- Product branding is **CycleArc** (formerly CodexMeter). The shipped assembly/executable,
+  window titles, localized menus, startup entry and App Server client identity use CycleArc.
+  Solution/project paths, namespaces, saved account/cache data and the shared single-instance
+  mutex retain their existing identifiers. Startup cleanup recognizes both previous product
+  entries only when their command points to this installation; existing opt-in still gates it.
+- A shared `CodexProviderBadge` identifies Codex on account cards, selected quota details and
+  the widget. Its explicit text/background/border colors follow Dark, Light and System themes.
+  Account usage rows and tray tooltips also identify Codex. The widget shows the CycleArc title.
+  These are presentation labels; Codex remains the only supported provider, with no added
+  provider selector, Claude/Gemini integration, registry schema or quota-collection changes.
 
 - Account ordering swaps profile references atomically in the existing registry; service/cache
   identity and selected account remain keyed by local ID. Reordering raises a presentation change
@@ -57,7 +68,7 @@
   key in memory; no automatic redemption/retry occurs. Cached/stale rows cannot redeem.
   App exit cancels and waits for the bounded redemption process as well as active refreshes.
 
-`CodexMeter.exe` → `CodexAccountManager` / shared `CodexRefreshCoordinator` → per-account `CodexQuotaService` →
+`CycleArc.exe` → `CodexAccountManager` / shared `CodexRefreshCoordinator` → per-account `CodexQuotaService` →
 installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit metadata.
 
 - Tray, flyout, widget and timer all share one bounded refresh. Cancelling a
@@ -69,7 +80,7 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
   percentages as current; stale data is explicitly marked.
 - The desktop never constructs ChatGPT transports, collectors, SQLite stores, pairing servers
   or Pro reset services. Retired WPF views and WebView2 are excluded from its build.
-- Publish bundles the .NET runtime and produces exactly one `CodexMeter.exe`; Codex CLI itself
+- Publish bundles the .NET runtime and produces exactly one `CycleArc.exe`; Codex CLI itself
   remains an external installed/sign-in prerequisite. No extension or companion host is shipped.
 - Existing settings/cache paths are retained; history is neither read nor deleted.
   Startup removes only known native-host registrations matching the old owned manifest path.
@@ -131,12 +142,12 @@ installed, signed-in Codex CLI (`app-server --stdio`) → account/rate-limit met
 - Cleanup audit: old WPF views/WebView2/companion are excluded from desktop build, but legacy
   Core logic, SQLite package, compatibility settings fields and regression tests remain.
   Removing that shared legacy layer requires a separate source/project split; none runs as
-  a CodexMeter history collector.
+  a CycleArc history collector.
 
 ## Historical ProMeter architecture (retired)
 
 The following describes retained legacy code and prior investigations. It is not the
-runtime or setup contract for CodexMeter.
+runtime or setup contract for CycleArc.
 # ProMeter architecture
 
 ProMeter reconstructs ChatGPT Pro usage from **account conversation history**, not from local request interception. History is the reconstruction input. Only a matching server quota counter is authoritative. That is what allows company PC, home PC, and mobile usage to share one meter.

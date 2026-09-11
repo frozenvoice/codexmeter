@@ -45,11 +45,11 @@ jobs:
 
       - name: Assert single-file artifact
         run: |
-          if (!(Test-Path publish/win-x64/CodexMeter.exe)) { throw "CodexMeter.exe missing" }
+          if (!(Test-Path publish/win-x64/CycleArc.exe)) { throw "CycleArc.exe missing" }
           if (@(Get-ChildItem publish/win-x64 -File -Recurse).Count -ne 1) { throw "Unexpected companion files" }
 
       - name: Upload executable
         uses: actions/upload-artifact@v4
         with:
-          name: CodexMeter-win-x64
-          path: publish/win-x64/CodexMeter.exe
+          name: CycleArc-win-x64
+          path: publish/win-x64/CycleArc.exe

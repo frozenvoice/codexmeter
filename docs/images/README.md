@@ -1,6 +1,7 @@
 # Documentation previews
 
 These PNGs render the actual production WPF views with synthetic profiles and quota metadata.
+They show the CycleArc product name and Codex provider badges; only Codex is currently supported.
 They are not captures of a user's account or fabricated UI mockups. The sample percentages,
 reset times and credits illustrate the layout; they do not promise specific plan entitlements.
 

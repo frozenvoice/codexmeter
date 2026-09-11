@@ -1,8 +1,10 @@
-# CodexMeter
+# CycleArc
 
 **Your Codex limits, one click away.**
 
 A native Windows tray app for checking multiple Codex accounts, remaining percentages, reset times, and reset credits—without opening a terminal.
+
+Formerly **CodexMeter**. The **Codex** badge on account cards, selected details and the widget identifies whose usage is shown. **Only Codex is currently supported**; Claude and Gemini integrations are not available.
 
 > **Pro subscriptions only.** This release supports Codex usage monitoring for ChatGPT Pro subscribers. **The ChatGPT Plus five-hour usage limit is not supported.**
 
@@ -39,12 +41,12 @@ A native Windows tray app for checking multiple Codex accounts, remaining percen
 
 **Requirements:** A ChatGPT Pro subscription, Windows 10/11 on x64, an installed Codex CLI, and network access for login and quota checks.
 
-1. Download **`CodexMeter.exe`** from the [latest release](https://github.com/frozenvoice/codexmeter/releases/latest).
+1. Download **`CycleArc.exe`** from the [latest release](https://github.com/frozenvoice/codexmeter/releases/latest).
 2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.
 3. Open the tray icon. Existing Codex sign-ins are discovered automatically. To add another account, choose **Manage accounts → Add an account · Connection guide → New account sign-in** and complete the official login in your browser.
 4. If Codex cannot be found, install the [Codex CLI](https://developers.openai.com/codex/cli/) or open **Settings → Connection** and select its executable path.
 
-CodexMeter discovers `codex.exe` or `codex.cmd` through PATH and supported installation locations. The Codex CLI itself is not bundled. Sign-in remains managed by Codex.
+CycleArc discovers `codex.exe` or `codex.cmd` through PATH and supported installation locations. The Codex CLI itself is not bundled. Sign-in remains managed by Codex.
 
 ### Accounts
 
@@ -73,13 +75,13 @@ To connect an account, choose the option that matches your setup:
 
 | Your situation | Choose | What happens |
 | --- | --- | --- |
-| First use, or adding another email account | **Add an account · Connection guide → New account sign-in** | Complete the official browser login for that account; CodexMeter checks its usage and keeps its Codex home separate. |
+| First use, or adding another email account | **Add an account · Connection guide → New account sign-in** | Complete the official browser login for that account; CycleArc checks its usage and keeps its Codex home separate. |
 | Already signed into Codex CLI on this PC | **Find accounts on this PC** | Connect the existing login from a known Codex home. A ChatGPT website-only login is not enough. |
 | Already use a custom `CODEX_HOME` | **Advanced · Connect a specific Codex folder → Choose Codex home folder** | Select that home folder, not the Codex executable or a project folder. |
 
-Set a **Nickname in CodexMeter** to recognize an account; leaving it empty shows the email. The current official Codex account API supplies email/plan, not the ChatGPT website's nickname or profile picture. Circular icons are generated locally from the displayed name and a stable account color. They are not synced web avatars; saving a nickname does not change the ChatGPT profile. Expand **Nicknames, icons and account actions** for details.
+Set a **Nickname in CycleArc** to recognize an account; leaving it empty shows the email. The current official Codex account API supplies email/plan, not the ChatGPT website's nickname or profile picture. Circular icons are generated locally from the displayed name and a stable account color. They are not synced web avatars; saving a nickname does not change the ChatGPT profile. Expand **Nicknames, icons and account actions** for details.
 
-Use **Order ↑ / ↓** beside each account's nickname to move it. The popup follows the same order, which is saved immediately and retained after restart. Reordering keeps the selected tray/widget account and does not initiate a quota refresh. Select a card to change which account drives the tray/widget. **Sign in again** changes the login for a profile added in CodexMeter; **Remove** only forgets the profile from this list.
+Use **Order ↑ / ↓** beside each account's nickname to move it. The popup follows the same order, which is saved immediately and retained after restart. Reordering keeps the selected tray/widget account and does not initiate a quota refresh. Select a card to change which account drives the tray/widget. **Sign in again** changes the login for a profile added in CycleArc; **Remove** only forgets the profile from this list.
 
 <details>
 <summary><strong>Account manager · Dark preview</strong></summary>
@@ -102,7 +104,7 @@ New profiles receive separate homes under `%LOCALAPPDATA%\ProMeter\accounts\<loc
 
 Removing a profile forgets its reference without logging out or deleting its Codex home. It will not be automatically re-added. A custom home can be connected again with the folder picker.
 
-The first launch opens the detail card. Later launches start in the tray; `CodexMeter.exe --show` opens the card at startup. If Windows hides the tray icon, move it out of the notification-area overflow. Starting with Windows and showing the desktop widget are optional settings.
+The first launch opens the detail card. Later launches start in the tray; `CycleArc.exe --show` opens the card at startup. If Windows hides the tray icon, move it out of the notification-area overflow. Starting with Windows and showing the desktop widget are optional settings.
 
 ### Controls
 
@@ -128,9 +130,9 @@ The zoom shortcuts also support the numeric keypad. Widget position can be reset
 
 ## How it works
 
-CodexMeter starts a bounded, short-lived **Codex App Server** process per account and requests account/rate-limit metadata. Every UI entry point shares the same refresh batch, with at most two simultaneous reads. One interactive login may run alongside reads for other accounts. It does not run a model turn to measure usage.
+CycleArc starts a bounded, short-lived **Codex App Server** process per account and requests account/rate-limit metadata. Every UI entry point shares the same refresh batch, with at most two simultaneous reads. One interactive login may run alongside reads for other accounts. It does not run a model turn to measure usage.
 
-Percentages come from the reported limit windows. CodexMeter does **not** turn them into invented request counts or combine unrelated reset periods. When a refresh fails, the last valid snapshot may remain visible with a stale label. Opening the card immediately after a failed check does not trigger repeated automatic retries; manual refresh remains available.
+Percentages come from the reported limit windows. CycleArc does **not** turn them into invented request counts or combine unrelated reset periods. When a refresh fails, the last valid snapshot may remain visible with a stale label. Opening the card immediately after a failed check does not trigger repeated automatic retries; manual refresh remains available.
 
 Countdowns and “last checked” ages update locally once a minute without another server request.
 
@@ -144,7 +146,7 @@ Countdowns and “last checked” ages update locally once a minute without anot
 Settings and quota cache remain under `%LOCALAPPDATA%\ProMeter` for upgrade compatibility. Settings use atomic replacement with a previous-good backup and recovery if the primary file is damaged.
 The account registry (`codex-accounts.json`) also uses atomic writes and a previous-good backup. The original account continues using `codex-snapshot.json`; additional profiles have separate quota caches. Existing preferences and historical files are preserved.
 
-CodexMeter is an independent project and is not affiliated with or endorsed by OpenAI. Compatibility depends on the installed Codex App Server protocol and the metadata available to your account.
+CycleArc is an independent project and is not affiliated with or endorsed by OpenAI. Compatibility depends on the installed Codex App Server protocol and the metadata available to your account.
 
 ## Build from source
 
@@ -156,11 +158,11 @@ cd codexmeter
 .\dev-run.ps1
 ```
 
-The launcher restores dependencies, builds Release, runs the tests and WPF checks, then publishes and launches **one self-contained `CodexMeter.exe`**. It retries transient deployment locks and restores the previous local build if replacement or startup fails.
+The launcher restores dependencies, builds Release, runs the tests and WPF checks, then publishes and launches **one self-contained `CycleArc.exe`**. It retries transient deployment locks and restores the previous local build if replacement or startup fails.
 
 - `-NoLaunch`: validate the staged executable without replacing the running local app.
 - `-Fast`: skip the unit suite only when it has already passed for the same changes.
-- CI also publishes the single executable as the `CodexMeter-win-x64` artifact.
+- CI also publishes the single executable as the `CycleArc-win-x64` artifact.
 
 | Path | Purpose |
 | --- | --- |
@@ -171,9 +173,9 @@ The launcher restores dependencies, builds Release, runs the tests and WPF check
 
 See [Architecture](docs/ARCHITECTURE.md), [Validation](docs/VALIDATION.md), and [preview generation](docs/images/README.md) for implementation and verification details.
 
-## Upgrading from ProMeter
+## Upgrading from CodexMeter or ProMeter
 
-Run `CodexMeter.exe` instead of `prometer.exe`. Existing preferences and quota-cache paths remain compatible. The former ChatGPT history reconstruction, browser companion, and WebView2 features are retired; old history data is neither read nor deleted by the active app. The old browser extension can be removed through your browser's extension manager.
+Run `CycleArc.exe` instead of `CodexMeter.exe` or `prometer.exe`. Existing preferences and quota-cache paths remain compatible. The former ChatGPT history reconstruction, browser companion, and WebView2 features are retired; old history data is neither read nor deleted by the active app. The old browser extension can be removed through your browser's extension manager.
 
 Retained legacy source and tests are identified in the architecture document. The companion host and retired screens are excluded from the shipped executable.
 

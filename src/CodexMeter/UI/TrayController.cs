@@ -55,7 +55,7 @@ public sealed class TrayController : IDisposable
             menu.Items.Add(UiText.T("Close widget", "위젯 닫기"), null, (_, _) => CloseWidgetRequested?.Invoke());
             menu.Items.Add(new ToolStripSeparator());
         }
-        menu.Items.Add(UiText.OpenCodexMeter, null, (_, _) => OpenRequested?.Invoke());
+        menu.Items.Add(UiText.OpenApp, null, (_, _) => OpenRequested?.Invoke());
         menu.Items.Add(UiText.RefreshAll, null, (_, _) => SyncRequested?.Invoke());
         menu.Items.Add(UiText.Settings, null, (_, _) => SettingsRequested?.Invoke());
         menu.Items.Add(UiText.OpenLogs, null, (_, _) => OpenLogsRequested?.Invoke());
