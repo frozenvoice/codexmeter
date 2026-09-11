@@ -16,7 +16,14 @@ internal static class AccountSummary
         var header = new Grid();
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        header.Children.Add(Text((selected ? "● " : "") + account.DisplayName, 12, "TextBrush", bold: true));
+        var identity = new DockPanel();
+        var avatar = Avatar(account);
+        DockPanel.SetDock(avatar, Dock.Left);
+        identity.Children.Add(avatar);
+        var name = Text((selected ? "● " : "") + account.DisplayName, 12, "TextBrush", bold: true);
+        name.Margin = new Thickness(9, 0, 0, 0);
+        identity.Children.Add(name);
+        header.Children.Add(identity);
         var status = Text(account.IsSigningIn ? UiText.T("Signing in…", "로그인 중…")
             : CodexMeterPresentation.StatusLabel(account.Snapshot), 11, "MutedBrush");
         status.Margin = new Thickness(12, 0, 0, 0);
@@ -58,6 +65,28 @@ internal static class AccountSummary
             account.DisplayName + " · " + status.Text + (selected ? UiText.T(" · Selected", " · 선택됨") : ""));
         button.Click += (_, _) => select();
         return button;
+    }
+
+    private static Border Avatar(CodexAccountView account)
+    {
+        // Local presentation only: the official account protocol provides no web profile image.
+        var source = account.DisplayName.Split('@', 2)[0].Trim();
+        var elements = StringInfo.GetTextElementEnumerator(source);
+        var initials = "";
+        for (var i = 0; i < 2 && elements.MoveNext(); i++) initials += elements.GetTextElement();
+        if (initials.Length == 0) initials = "C";
+        uint hash = 2166136261;
+        foreach (var character in account.Profile.Id) hash = unchecked((hash ^ character) * 16777619);
+        var colors = new[] { "#167048", "#956000", "#3864B5", "#7952A5", "#A84268", "#227575" };
+        return new Border
+        {
+            Tag = "AccountAvatar", Width = 30, Height = 30, CornerRadius = new CornerRadius(15),
+            Background = new SolidColorBrush((Color)System.Windows.Media.ColorConverter.ConvertFromString(colors[hash % colors.Length])),
+            ToolTip = UiText.T("Icon made from the name in CodexMeter", "CodexMeter에서 이름으로 만든 아이콘"),
+            Child = new TextBlock { Text = initials.ToUpperInvariant(), FontSize = 11, FontWeight = FontWeights.SemiBold,
+                Foreground = System.Windows.Media.Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center }
+        };
     }
 
     private static TextBlock Text(string text, double size, string brush, bool bold = false)

@@ -250,6 +250,7 @@ public partial class App : Application
         window.LogFailure = _log.Warn;
         window.SelectAccount = id => _codex.Select(id);
         window.RenameAccount = (id, label) => _codex.Rename(id, label);
+        window.MoveAccount = (id, direction) => _codex.Move(id, direction);
         window.RemoveAccount = id => _codex.Remove(id);
         window.SignIn = async (id, label, token) =>
         {

@@ -185,6 +185,64 @@ public class CodexAccountManagerTests
     }
 
     [Fact]
+    public async Task AccountOrderPersistsWithoutChangingSelectionQuotasOrStartingRefresh()
+    {
+        using var data = new AccountTestDirectory();
+        var store = new CodexAccountStore(data.Root);
+        var initial = store.LoadOrMigrate(data.Home("existing"));
+        var profiles = initial.Profiles.Concat(new[] { store.NewManaged("Work"), store.NewManaged("Other") }).ToArray();
+        store.Save(initial with { Profiles = profiles });
+        var requests = 0;
+        CodexQuotaService Service(CodexAccountProfile profile) => data.Service(profile,
+            new ScriptedCodexProcessFactory { Responder = line =>
+            {
+                Interlocked.Increment(ref requests);
+                var responses = AccountTestProtocol.Standard(line);
+                if (JsonNode.Parse(line)?["method"]?.ToString() != "account/rateLimits/read") return responses;
+                var response = JsonNode.Parse(responses.Single())!;
+                response["result"]!["rateLimits"]!["primary"]!["usedPercent"] = (Array.IndexOf(profiles, profile) + 1) * 10;
+                return [response.ToJsonString()];
+            } });
+        var manager = new CodexAccountManager(store, data.Root, Service, () => AccountTestDirectory.Executable);
+        await manager.RefreshManuallyAsync(CancellationToken.None);
+        manager.Select(profiles[1].Id);
+        var completedRequests = requests;
+        var selectedSnapshot = manager.Snapshot;
+        var caches = manager.Accounts.ToDictionary(a => a.Profile.Id, a => File.ReadAllText(store.SnapshotPath(a.Profile)));
+        Assert.True(manager.Move(profiles[1].Id, -1));
+        Assert.True(manager.Move(profiles[0].Id, 1));
+        var expected = new[] { profiles[1].Id, profiles[2].Id, profiles[0].Id };
+        Assert.Equal(expected, manager.Accounts.Select(a => a.Profile.Id));
+        Assert.Equal(profiles[1].Id, manager.SelectedId);
+        Assert.Same(selectedSnapshot, manager.Snapshot);
+        Assert.Equal(completedRequests, requests);
+        Assert.All(profiles, profile => Assert.Equal(caches[profile.Id], File.ReadAllText(store.SnapshotPath(profile))));
+        var restarted = new CodexAccountManager(store, data.Root, Service, () => AccountTestDirectory.Executable);
+        Assert.Equal(expected, restarted.Accounts.Select(a => a.Profile.Id));
+        Assert.Equal(profiles[1].Id, restarted.SelectedId);
+        Assert.Equal(new double?[] { 20, 30, 10 }, restarted.Accounts.Select(a => a.Snapshot.Windows.Single().UsedPercent));
+    }
+
+    [Fact]
+    public void AccountOrderIgnoresBoundariesAndInvalidRequests()
+    {
+        using var data = new AccountTestDirectory();
+        var store = new CodexAccountStore(data.Root);
+        var manager = new CodexAccountManager(store, data.Home("existing"),
+            profile => data.Service(profile, new ScriptedCodexProcessFactory()), () => null);
+        var changed = 0;
+        manager.Changed += () => changed++;
+        Assert.False(manager.Move("default", -1));
+        Assert.False(manager.Move("default", 1));
+        Assert.False(manager.Move("missing", 1));
+        Assert.False(manager.Move("default", 0));
+        Assert.False(manager.Move("default", 2));
+        Assert.Equal(0, changed);
+        Assert.Equal("default", manager.SelectedId);
+        Assert.Single(store.LoadOrMigrate(data.Root).Profiles);
+    }
+
+    [Fact]
     public async Task FirstSuccessfulNewLoginSelectsUsableAccountAndKeepsEveryProfile()
     {
         using var data = new AccountTestDirectory();

@@ -48,6 +48,10 @@ internal static class AccountUiChecks
                         flyout.BindAccounts(accounts, selected, false);
                         if (((TextBlock)flyout.FindName("SelectedAccountText")).Text != accounts[1].DisplayName)
                             throw new InvalidOperationException("Selected identity is not visible.");
+                        flyout.BindAccounts(accounts.Reverse().ToArray(), selected, false);
+                        if (!overview.Items.Cast<Button>().Select(button => button.Tag as string)
+                            .SequenceEqual(accounts.Reverse().Select(account => account.Profile.Id)))
+                            throw new InvalidOperationException("Usage popup did not follow saved account order.");
                     }
                     foreach (var zoom in new[] { 80, 100, 150 })
                     {
@@ -62,11 +66,12 @@ internal static class AccountUiChecks
                         count++;
                     }
                     window.Bind(accounts, id);
-                    Render(window, 616, 636, directory is not null && size == 3
+                    Render(window, 700, 800, directory is not null && size == 3
                         ? Path.Combine(directory, $"manage-{language}-{theme}.png") : null);
                     if (((ItemsControl)window.FindName("AccountRows")).Items.Count != size)
                         throw new InvalidOperationException("Account management list lost accounts.");
                     if (size > 0) CheckRenameSurvivesDisplayTick(window, accounts, id);
+                    CheckGuidanceAndOrder(window, accounts, directory, language, theme);
                     widget.BindAccount(accounts.FirstOrDefault(), size > 1);
                     Render(widget, 245, null, null);
                     if (((TextBlock)widget.FindName("AccountName")).Visibility != (size > 1 ? Visibility.Visible : Visibility.Collapsed))
@@ -78,7 +83,8 @@ internal static class AccountUiChecks
         }
         CheckLoginCancellation();
         CheckCreditAccountCapture();
-        Console.WriteLine($"PASS: {count} multi-account WPF renders; selection, rename continuity, refresh, login cancellation and credit-account routing.");
+        CheckLocalIcons();
+        Console.WriteLine($"PASS: {count} multi-account WPF renders; guidance/compact scrolling, local icons, ordering, rename continuity, refresh, login cancellation and credit-account routing.");
     }
 
     private static CodexAccountView[] Fixtures(int count)
@@ -106,6 +112,89 @@ internal static class AccountUiChecks
             if (right > left + 1 || left + second.ActualWidth > row.ActualWidth + 1)
                 throw new InvalidOperationException("Account name/status or quota row overlaps.");
         }
+    }
+
+    private static void CheckGuidanceAndOrder(AccountsWindow window, CodexAccountView[] accounts,
+        string? directory, UiLanguage language, AppTheme theme)
+    {
+        foreach (var name in new[] { "NewLoginHint", "ExistingHint", "ChooseHomeHint", "ProfileHelp", "ActionsHelp", "SelectionHint" })
+            if (string.IsNullOrWhiteSpace(((TextBlock)window.FindName(name)).Text))
+                throw new InvalidOperationException("Connection guidance is missing.");
+        if (((TextBlock)window.FindName("EmptyAccountsHint")).Visibility != (accounts.Length == 0 ? Visibility.Visible : Visibility.Collapsed))
+            throw new InvalidOperationException("First-use guidance is not visible.");
+        var rows = (ItemsControl)window.FindName("AccountRows");
+        var movedId = "";
+        var movedDirection = 0;
+        window.MoveAccount = (id, direction) => { movedId = id; movedDirection = direction; return true; };
+        for (var i = 0; i < rows.Items.Count; i++)
+        {
+            var order = ((StackPanel)rows.Items[i]).Children.OfType<Grid>().Single().Children.OfType<StackPanel>().Single();
+            var up = order.Children.OfType<Button>().Single(b => b.Tag as string == "MoveAccountUp");
+            var down = order.Children.OfType<Button>().Single(b => b.Tag as string == "MoveAccountDown");
+            if (up.IsEnabled != (i > 0) || down.IsEnabled != (i < accounts.Length - 1))
+                throw new InvalidOperationException("Account order boundary buttons are incorrect.");
+            if (i == 1)
+            {
+                up.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                if (movedId != accounts[i].Profile.Id || movedDirection != -1)
+                    throw new InvalidOperationException("Reordering targeted the wrong account.");
+            }
+        }
+        var advanced = (Expander)window.FindName("AdvancedConnection");
+        var help = (Expander)window.FindName("AccountHelp");
+        var connection = (Expander)window.FindName("ConnectionOptions");
+        if (connection.IsExpanded != (accounts.Length == 0))
+            throw new InvalidOperationException("First-use connection guide has the wrong initial state.");
+        if (advanced.IsExpanded || help.IsExpanded) throw new InvalidOperationException("Detailed guidance should start collapsed.");
+        connection.IsExpanded = advanced.IsExpanded = help.IsExpanded = true;
+        Render(window, 470, 400, null);
+        var scroll = (ScrollViewer)window.FindName("AccountsScroll");
+        if (scroll.ViewportHeight <= 30 || scroll.ScrollableHeight <= 0)
+            throw new InvalidOperationException("Guidance expansion hid the compact window's scrolling content.");
+        scroll.ScrollToBottom();
+        ((FrameworkElement)window.Content).UpdateLayout();
+        var target = accounts.Length > 0 ? (FrameworkElement)rows.Items[^1] : (FrameworkElement)window.FindName("EmptyAccountsHint");
+        var bottom = target.TransformToAncestor(scroll).Transform(new Point(0, target.ActualHeight)).Y;
+        if (bottom > scroll.ViewportHeight + 2 || bottom < 0)
+            throw new InvalidOperationException("Last account cannot be reached after opening guidance.");
+        scroll.ScrollToTop();
+        Render(window, 700, 800, null);
+        if (directory is not null && accounts.Length == 3)
+            Render(window, 700, 800, Path.Combine(directory, $"guide-{language}-{theme}.png"));
+    }
+
+    private static void CheckLocalIcons()
+    {
+        var accounts = Fixtures(2);
+        var window = new AccountsWindow();
+        Border Icon()
+        {
+            var row = (StackPanel)((ItemsControl)window.FindName("AccountRows")).Items[0];
+            var content = (StackPanel)row.Children.OfType<Button>().Single().Content;
+            return ((DockPanel)content.Children.OfType<Grid>().First().Children[0]).Children.OfType<Border>().Single();
+        }
+        try
+        {
+            Color? color = null;
+            foreach (var pair in new[] { ("frozenvoice", "FR"), ("D", "D"), ("개인 계정", "개인"), ("👩‍💻work", "👩‍💻W") })
+            {
+                accounts[0] = accounts[0] with { Profile = accounts[0].Profile with { Label = pair.Item1 } };
+                window.Bind(accounts, accounts[0].Profile.Id);
+                var icon = Icon();
+                if (((TextBlock)icon.Child).Text != pair.Item2)
+                    throw new InvalidOperationException("Local avatar initials are incorrect.");
+                var background = ((SolidColorBrush)icon.Background).Color;
+                if (color is not null && color != background)
+                    throw new InvalidOperationException("Renaming changed the account's identifying color.");
+                color = background;
+                static double Linear(byte value) { var c = value / 255d; return c <= 0.04045 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4); }
+                var luminance = 0.2126 * Linear(background.R) + 0.7152 * Linear(background.G) + 0.0722 * Linear(background.B);
+                if (1.05 / (luminance + 0.05) < 4.5) throw new InvalidOperationException("Account icon text lacks contrast.");
+                // Supply a new collection, as the manager does, before the next changed profile.
+                accounts = accounts.ToArray();
+            }
+        }
+        finally { window.Close(); }
     }
 
     private static void CheckLoginCancellation()

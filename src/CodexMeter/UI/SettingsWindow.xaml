@@ -174,7 +174,8 @@
                     <ScrollViewer FontWeight="Normal" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,6,0">
                         <StackPanel>
                             <TextBlock x:Name="CodexTitle" Style="{StaticResource SettingsHeading}"/>
-                            <TextBlock x:Name="CodexHint" Style="{StaticResource SettingsHint}" Margin="0,0,0,28"/>
+                            <TextBlock x:Name="CodexHint" Style="{StaticResource SettingsHint}" Margin="0,0,0,12"/>
+                            <TextBlock x:Name="ConnectionSteps" Style="{StaticResource SettingsHint}" Margin="0,0,0,16"/>
                             <Button x:Name="ManageAccountsButton" Style="{StaticResource SettingsAction}" HorizontalAlignment="Left" Margin="0,0,0,16" Click="OnAccounts"/>
                             <TextBlock x:Name="CodexExeLabel" Margin="0,0,0,10"/>
                             <Grid>

@@ -41,16 +41,20 @@ A native Windows tray app for checking multiple Codex accounts, remaining percen
 
 1. Download **`CodexMeter.exe`** from the [latest release](https://github.com/frozenvoice/codexmeter/releases/latest).
 2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.
-3. Open the tray icon. Existing Codex sign-ins are discovered automatically. To add another account, choose **Manage accounts → Add account · Sign in** and complete the official login in your browser.
+3. Open the tray icon. Existing Codex sign-ins are discovered automatically. To add another account, choose **Manage accounts → Add an account · Connection guide → New account sign-in** and complete the official login in your browser.
 4. If Codex cannot be found, install the [Codex CLI](https://developers.openai.com/codex/cli/) or open **Settings → Connection** and select its executable path.
 
 CodexMeter discovers `codex.exe` or `codex.cmd` through PATH and supported installation locations. The Codex CLI itself is not bundled. Sign-in remains managed by Codex.
 
 ### Accounts
 
-**Manage accounts** is available in the popup and **Settings → Connection**. You can name accounts, select the account for the tray/widget, or remove a profile from the list. All accounts retain separate percentages, reset windows, credit actions and refresh states; values are never added together.
+**Manage accounts** is available in the popup and **Settings → Connection**. The connection guide explains new browser login, linking a Codex login on this PC, and advanced folder selection. The guide opens automatically when there is no previously checked account; existing users see their account list first. All accounts retain separate percentages, reset windows, credit actions and refresh states; values are never added together.
 
-Discovery checks `CODEX_HOME` from the process/user/machine environment and the default `~/.codex` directory through `account/read`. **Choose Codex folder** connects another known home. It does not search the disk for credentials or copy an existing login. Imported homes stay linked to their original Codex installation; reauthenticate those in Codex itself.
+Set a **Nickname in CodexMeter** to recognize an account; leaving it empty shows the email. The current official Codex account API supplies email/plan, not the ChatGPT website's nickname or profile picture. Circular icons are generated locally from the displayed name and a stable account color. They are not synced web avatars; saving a nickname does not change the ChatGPT profile. Expand **Nicknames, icons and account actions** for details.
+
+Use **Order ↑ / ↓** beside each account's nickname to move it. The popup follows the same order, which is saved immediately and retained after restart. Reordering keeps the selected tray/widget account and does not initiate a quota refresh. Select a card to change which account drives the tray/widget. **Sign in again** changes the login for a profile added in CodexMeter; **Remove** only forgets the profile from this list.
+
+**Find accounts on this PC** checks `CODEX_HOME` from the process/user/machine environment and the default `~/.codex` directory through `account/read`. It cannot discover an account signed in only on the ChatGPT website. **Advanced · Connect a specific Codex folder → Choose Codex home folder** connects another known home; choose the home, not the executable or a project folder. It does not search the disk for credentials or copy an existing login. Imported homes stay linked to their original Codex installation; reauthenticate those in Codex itself.
 
 New profiles receive separate homes under `%LOCALAPPDATA%\ProMeter\accounts\<local-id>\codex-home`. Only the installed Codex process stores and renews credentials there. Browser sign-in has a five-minute deadline and can be cancelled. Choose the intended email account in the browser; if two profiles report the same email and plan, both display a matching-login notice. The protocol does not expose a stable workspace identifier, so that notice does not establish whether workspaces are identical.
 

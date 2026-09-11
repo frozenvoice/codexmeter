@@ -50,19 +50,23 @@ public partial class SettingsWindow : Window
         WidgetClickThroughBox.IsChecked = settings.WidgetClickThrough;
         WidgetClickThroughBox.ToolTip = UiText.T("Mouse clicks pass to the window behind the widget.", "마우스 클릭이 위젯 뒤의 창에 전달됩니다.");
         CodexTitle.Text = UiText.T("Codex connection", "Codex 연결");
-        CodexHint.Text = UiText.T("Connect existing Codex sign-ins or add accounts with the official browser login.", "기존 Codex 로그인을 연결하거나 공식 브라우저 로그인으로 계정을 추가하세요.");
+        CodexHint.Text = UiText.T("CodexMeter uses the Codex CLI installed on this PC for sign-in and quota checks. Codex CLI must be installed separately.",
+            "CodexMeter는 이 PC에 설치된 Codex CLI로 로그인과 사용량 조회를 진행합니다. Codex CLI는 별도로 설치되어 있어야 합니다.");
+        ConnectionSteps.Text = UiText.T("1. Open Manage Codex accounts → Add an account · Connection guide. Choose New account sign-in for your first or another account; choose Find accounts on this PC for an existing Codex login.\n2. For a new login, select the intended ChatGPT account in the browser, then return to CodexMeter.\n3. Check each account's usage. Select a card for the tray/widget; set a nickname and use ↑ / ↓ to change the display order.",
+            "1. 아래 Codex 계정 관리 → 계정 추가 · 연결 방법을 여세요. 처음이거나 다른 계정을 추가하려면 새 계정 로그인, 이미 Codex에 로그인했다면 이 PC의 계정 찾기를 선택하세요.\n2. 새 로그인은 브라우저에서 사용할 ChatGPT 계정을 선택한 뒤 CodexMeter로 돌아오세요.\n3. 계정별 사용량을 확인하세요. 카드를 누르면 트레이·위젯에 표시되며, 별명을 정하고 ↑ / ↓로 표시 순서를 바꿀 수 있습니다.");
         ManageAccountsButton.Content = UiText.T("Manage Codex accounts", "Codex 계정 관리");
         CodexExeLabel.Text = UiText.CodexExecutable;
         CodexExeBox.Text = settings.CodexExePath ?? "";
         AutoDetectHint.Text = UiText.T("Detect automatically", "자동으로 찾기");
-        CodexPathHint.Text = UiText.T("Leave empty for automatic detection. Set an absolute path only if Codex cannot be found.", "보통은 비워 두면 됩니다. Codex를 찾지 못할 때만 실행 파일의 전체 경로를 입력하세요.");
+        CodexPathHint.Text = UiText.T("Usually leave this empty for automatic detection. If Codex cannot be found, enter the full path to codex.exe or codex.cmd. Save a changed path before reopening account management.",
+            "보통은 비워 두면 자동으로 찾습니다. Codex를 찾지 못할 때 codex.exe 또는 codex.cmd의 전체 경로를 입력하세요. 경로를 바꿨다면 저장한 뒤 계정 관리를 다시 여세요.");
         RefreshScheduleTitle.Text = UiText.T("Automatic refresh", "자동 확인");
         RefreshIntervalBox.ItemsSource = AppSettings.CodexRefreshIntervals.Select(minutes =>
             minutes == 5 ? UiText.T("5 minutes (default)", "5분 (기본값)") :
             minutes == 1 ? UiText.T("1 minute", "1분") : UiText.T($"{minutes} minutes", $"{minutes}분")).ToArray();
         RefreshIntervalBox.SelectedIndex = AppSettings.CodexRefreshIntervals.ToList().IndexOf(settings.CodexRefreshIntervalMinutes);
         SetName(RefreshIntervalBox, RefreshScheduleTitle.Text);
-        RefreshScheduleHint.Text = UiText.T("You can refresh at any time from the usage card.", "사용량 카드에서 언제든 새로고침할 수 있습니다.");
+        RefreshScheduleHint.Text = UiText.T("Check all connected accounts at this interval. You can also refresh them at any time from the usage popup.", "연결된 모든 계정의 사용량을 이 간격으로 확인합니다. 사용량 팝업에서 언제든 직접 새로고침할 수도 있습니다.");
         LogsButton.Content = UiText.T("Open logs", "로그 열기");
         SaveButton.Content = new System.Windows.Controls.TextBlock
         {

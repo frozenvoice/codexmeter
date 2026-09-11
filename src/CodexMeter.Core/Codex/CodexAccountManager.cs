@@ -70,6 +70,23 @@ public sealed class CodexAccountManager
         Changed?.Invoke();
     }
 
+    public bool Move(string id, int direction)
+    {
+        if (direction is not (-1 or 1)) return false;
+        lock (_gate)
+        {
+            var profiles = _configuration.Profiles.ToArray();
+            var index = Array.FindIndex(profiles, profile => profile.Id == id);
+            var destination = index + direction;
+            if (index < 0 || destination < 0 || destination >= profiles.Length) return false;
+            (profiles[index], profiles[destination]) = (profiles[destination], profiles[index]);
+            // Ordering is presentation only; selected identity, services, homes and caches stay bound to their IDs.
+            Save(_configuration with { Profiles = profiles });
+        }
+        Changed?.Invoke();
+        return true;
+    }
+
     // Forget only local references. Never delete/log out shared Codex credentials or histories.
     public bool Remove(string id)
     {

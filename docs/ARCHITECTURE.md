@@ -2,6 +2,17 @@
 
 ## Active product — Codex only (2026-09-07)
 
+- Account ordering swaps profile references atomically in the existing registry; service/cache
+  identity and selected account remain keyed by local ID. Reordering raises a presentation change
+  without starting a refresh, and every account list follows the saved profile order.
+- Connection settings and account management include contextual Korean/English setup guidance.
+  Connection options initially expand for accounts with no successful check; existing users start
+  with their list. The complete account body scrolls, including expanded advanced/action guidance.
+- The official account projection has no ChatGPT web nickname/avatar. Existing local labels remain
+  the nickname source; WPF generates a two-grapheme badge and stable profile-ID color without
+  another network request, credential access or new persistence format. These icons are explicitly
+  described as local presentation, and label edits do not change the ChatGPT profile.
+
 - Multi-account support uses one `CodexAccountManager` with a registry of local profile IDs,
   labels and absolute Codex homes. `CodexRefreshCoordinator` owns the shared batch; account
   services own independent snapshots and read/redemption gates. At most two reads run at once.

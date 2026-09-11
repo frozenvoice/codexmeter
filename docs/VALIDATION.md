@@ -2,6 +2,24 @@
 
 ## Current release — Codex only
 
+- Connection guidance, local nickname icons and account order (2026-09-11):
+  `./dev-run.ps1 -NoLaunch` passed restore, Release build (0 warnings/errors),
+  1,045 unit tests, five installer scenarios, 120 account WPF renders, 180 widget
+  DPI/layout renders, 36 existing WPF renders and one-file self-contained win-x64 publish.
+  Two new core tests verify saved account order after restart, unchanged selected snapshot
+  and cache files, no refresh request, and boundary/invalid moves. The WPF checks additionally
+  verify popup ordering, movement-button targets/boundaries, visible first-use instructions,
+  all expanded guidance in a 470x400 window with the last account reachable, local initials
+  (Latin, Korean and combined emoji), stable icon color/contrast and retained editing state.
+  Korean dark and English light account management, expanded guidance, usage overview and
+  Connection settings were rendered and visually checked with synthetic data.
+  Official account documentation and the installed 0.147.0 generated schema expose email/plan,
+  not a ChatGPT web nickname or avatar; no web profile scraping was added. Authentication and
+  quota request paths are unchanged. This change did not require another live login or a real
+  reset-credit use; order/persistence checks used isolated synthetic profiles.
+  Local replacement/startup passed with the account-management entry point, and the
+  installed executable's SHA-256 matched the verified staging artifact.
+
 - Multi-account support (2026-09-11): `./dev-run.ps1 -NoLaunch` passed restore,
   Release build (0 warnings/errors), 1,043 unit tests (50 added cases), five installer
   recovery scenarios, 120 multi-account WPF renders, 180 widget DPI/layout renders and
