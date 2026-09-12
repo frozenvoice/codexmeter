@@ -3,6 +3,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using CycleArc.Codex;
 using CycleArc.Providers.Usage;
+using CycleArc.Providers.Claude;
 
 namespace CycleArc.UI;
 
@@ -46,6 +47,13 @@ public partial class FloatingWidget : Window
             || snapshot.Status is not (CodexQuotaStatus.Available or CodexQuotaStatus.Refreshing);
         HistoryValue.Text = showStatus ? CycleArcPresentation.StatusLabel(snapshot) : "";
         HistoryValue.Visibility = showStatus ? Visibility.Visible : Visibility.Collapsed;
+        var stale = ClaudeUsagePresentation.IsStale(snapshot);
+        HistoryValue.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, stale ? "StaleBrush" : "MutedBrush");
+        HistoryValue.FontWeight = stale ? FontWeights.SemiBold : FontWeights.Normal;
+        CodexValue.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, stale ? "StaleBrush" : "TextBrush");
+        ClaudeReceipt.Text = ClaudeUsagePresentation.LastReceivedText(snapshot);
+        ClaudeReceipt.Visibility = snapshot.Provider == UsageProviderId.Claude && snapshot.LastSuccessfulRefresh is not null
+            ? Visibility.Visible : Visibility.Collapsed;
         ToolTip = CycleArcPresentation.Tooltip(snapshot);
     }
 

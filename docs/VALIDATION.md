@@ -2,6 +2,26 @@
 
 ## Current release — Codex and Claude Code
 
+- Explicit Claude stale display (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore,
+  Release build (0 warnings/errors), **1,143 unit tests**, 15 installer scenarios,
+  120 account, 150 mixed-provider, 180 widget and 36 resource WPF renders, plus built
+  and published headless receiver checks. The single-file win-x64 executable SHA-256 is
+  `8C2BA8F6A5A446970194F0D973ED5722A58A4EA26D4CFA26C1C15A86261DB84F`.
+  - Regression checks cover the 4:59/5:00 stale boundary, unchanged values/timestamps
+    during repeated reads, restart and new-sample recovery. Two new language cases
+    retain an old receipt's full date/time and shared scope inside the 127-character
+    native tooltip even with a very long nickname. Codex labels remain unchanged.
+  - WPF checks verify explicit stale text, warning colors with at least 4.5:1 contrast
+    against actual card/hover backgrounds, dated receipts, ring color and removal of
+    emphasis after a new sample. Four changed documentation previews and six widget
+    renders were visually inspected; only the four affected documentation PNGs were
+    replaced, with matching hashes. The guides passed 41 local link/anchor checks.
+  - The validated executable was installed locally and restarted; the running process
+    was responsive and its hash matched. Read-only connection verification still found
+    3 visible profiles, 1 connected Claude account awaiting its first actual quota,
+    and 0 attention items. UI fixtures were synthetic. No new query, model request,
+    scraping, login change or receipt-renewing refresh was introduced.
+
 - Claude shared subscription meaning (2026-09-12): reviewed official help, statusLine,
   CLI, Agent SDK and organization API documentation; the installed CLI was 2.1.233.
   No supported independent personal-subscription quota query was identified. The

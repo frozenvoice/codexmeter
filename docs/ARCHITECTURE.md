@@ -11,6 +11,11 @@
   even recent samples as Received, with shared scope and last-sample guidance. A user action
   opens the official usage page in the default browser for manual inspection; no page or
   credential collection occurs. See [the official-interface review](CLAUDE-USAGE-RESEARCH.md).
+- Claude stale presentation uses explicit localized warning text and a theme-aware amber
+  resource on details, account cards and widget, with an amber detail ring. These surfaces
+  retain the receipt date/time. A separate bounded tray formatter places freshness,
+  receipt and shared scope ahead of a potentially long nickname; full tooltips also retain
+  the Code delivery context. Presentation changes never refresh provider metadata.
 - Public `CodexAccount*` / `CodexQuota*` type names remain as shared presentation records for
   caller/cache compatibility; their default provider is Codex. Claude accounts carry
   `Provider = Claude`, an empty shared home path and no Codex authentication/credit capabilities.

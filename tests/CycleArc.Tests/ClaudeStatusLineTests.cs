@@ -110,13 +110,15 @@ public class ClaudeStatusLineTests
         var changes = 0;
         service.Changed += _ => changes++;
         Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
-        data.Clock.UtcNow = Now.AddMinutes(4);
+        data.Clock.UtcNow = Now.AddMinutes(5).AddSeconds(-1);
         await service.RefreshAsync(CancellationToken.None);
         Assert.Equal(Now, service.Snapshot.LastSuccessfulRefresh);
         Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
+        Assert.False(ClaudeUsagePresentation.IsStale(service.Snapshot));
         data.Clock.UtcNow = Now.AddMinutes(5);
         await service.RefreshAsync(CancellationToken.None);
         Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
+        Assert.True(ClaudeUsagePresentation.IsStale(service.Snapshot));
         Assert.Equal(1, changes); // One expiry event; unchanged polls do not rebuild nickname editors.
         await service.RefreshAsync(CancellationToken.None);
         Assert.Equal(1, changes);
@@ -128,6 +130,7 @@ public class ClaudeStatusLineTests
         await data.Receive(Payload(27));
         await service.RefreshAsync(CancellationToken.None);
         Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
+        Assert.False(ClaudeUsagePresentation.IsStale(service.Snapshot));
         Assert.Equal(data.Clock.UtcNow, service.Snapshot.LastSuccessfulRefresh);
         Assert.Equal(27, service.Snapshot.Windows[0].UsedPercent);
     }
@@ -274,6 +277,44 @@ public class ClaudeStatusLineTests
             Assert.Contains(ClaudeUsagePresentation.SharedScope, CycleArcPresentation.Tooltip(snapshot));
             foreach (var surface in new[] { "Web", "Desktop", "Code" }) Assert.Contains(surface, ClaudeUsagePresentation.SharedScope);
             Assert.Equal(UiText.T("Updated", "업데이트됨"), CycleArcPresentation.StatusLabel(snapshot with { Provider = UsageProviderId.Codex }));
+        }
+        finally { UiText.SetLanguage(UiLanguage.English); }
+    }
+
+    [Theory]
+    [InlineData(UiLanguage.English)]
+    [InlineData(UiLanguage.Korean)]
+    public async Task OldClaudeReceiptAndSharedScopeSurviveNativeTooltipLimitAndRestart(UiLanguage language)
+    {
+        UiText.SetLanguage(language);
+        try
+        {
+            using var data = new ClaudeTestData();
+            await data.Receive(Payload());
+            data.Clock.UtcNow = Now.AddDays(400);
+            var snapshot = data.Service().Snapshot;
+            Assert.True(ClaudeUsagePresentation.IsStale(snapshot));
+            Assert.Equal(UiText.T("Stale data", "오래된 데이터"), CycleArcPresentation.StatusLabel(snapshot));
+            var stamp = Now.ToLocalTime().ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+            var receipt = Assert.Single(CodexDisplayFormatting.Rows(snapshot, data.Clock.UtcNow),
+                row => row.Label == ClaudeUsagePresentation.LastReceivedLabel);
+            Assert.Equal(stamp[..10], receipt.Value);
+            Assert.StartsWith(stamp[11..], receipt.Detail);
+            Assert.Contains(stamp, receipt.Tooltip);
+            Assert.Contains(stamp, CycleArcPresentation.Tooltip(snapshot));
+            var account = new CodexAccountView(data.Profile with { Label = new string('x', 200) + "😀" }, snapshot);
+            var other = new CodexAccountView(data.Profile with { Id = "other" }, snapshot);
+            var tooltip = NotifyIconText.Safe(UsageAccountOverview.Create([other, account], account.Profile.Id).Tooltip);
+            Assert.True(tooltip.Length <= NotifyIconText.MaximumLength);
+            Assert.Contains(CycleArcPresentation.StatusLabel(snapshot), tooltip);
+            Assert.Contains(ClaudeUsagePresentation.LastReceivedLabel + " " + stamp, tooltip);
+            Assert.Contains("Web·Desktop·Code", tooltip);
+            Assert.Contains(UiText.T("shared quota", "공유 한도"), tooltip);
+            Assert.Contains(UiText.T("Via Code", "Code에서 수신"), tooltip);
+            Assert.Contains("41.2%", tooltip);
+            Assert.False(char.IsHighSurrogate(tooltip[^1]));
+            Assert.Equal(Now, snapshot.LastSuccessfulRefresh);
+            Assert.Equal(UiText.T("Saved data", "이전 데이터"), CycleArcPresentation.StatusLabel(snapshot with { Provider = UsageProviderId.Codex }));
         }
         finally { UiText.SetLanguage(UiLanguage.English); }
     }

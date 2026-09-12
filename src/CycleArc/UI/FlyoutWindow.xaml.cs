@@ -269,6 +269,7 @@ public partial class FlyoutWindow : Window
 
     private void BindCodex(CodexQuotaSnapshot snapshot)
     {
+        var stale = ClaudeUsagePresentation.IsStale(snapshot);
         ClaudeUsageHeader.Visibility = ClaudeUsagePageButton.Visibility = snapshot.Provider == UsageProviderId.Claude
             ? Visibility.Visible : Visibility.Collapsed;
         ClaudeUsageTitle.Text = ClaudeUsagePresentation.Title;
@@ -276,6 +277,9 @@ public partial class FlyoutWindow : Window
         ClaudeUsagePageButton.Content = ClaudeUsagePresentation.UsagePageLabel;
         ClaudeUsagePageButton.ToolTip = MakeTooltip(ClaudeUsagePresentation.UsagePageHint);
         CodexStatusText.Text = snapshot.Status == CodexQuotaStatus.Refreshing ? "" : CodexDisplayFormatting.StatusText(snapshot);
+        CodexStatusText.SetResourceReference(TextBlock.ForegroundProperty, stale ? "StaleBrush" : "MutedBrush");
+        CodexStatusText.FontWeight = stale ? FontWeights.SemiBold : FontWeights.Normal;
+        CodexStatusText.FontSize = stale ? 12 : 11;
         CodexStatusText.Visibility = string.IsNullOrWhiteSpace(CodexStatusText.Text)
             ? Visibility.Collapsed
             : Visibility.Visible;
@@ -521,7 +525,9 @@ One credit will be consumed.",
         CodexRingValueText.Text = ring.CenterValueText;
         CodexRingSubLabel.Text = ring.CenterSubLabel;
 
-        var arcColor = (Brush)FindResource(ring.IsDangerLevel ? "DangerBrush" : "AccentBrush");
+        var stale = ClaudeUsagePresentation.IsStale(snapshot);
+        CodexRingValueText.SetResourceReference(TextBlock.ForegroundProperty, stale ? "StaleBrush" : "TextBrush");
+        var arcColor = (Brush)FindResource(stale ? "StaleBrush" : ring.IsDangerLevel ? "DangerBrush" : "AccentBrush");
         CodexRingArcPath.Stroke = arcColor;
         CodexRingFullCircle.Stroke = arcColor;
         CodexRingTrack.Stroke = (Brush)FindResource(ring.IsAvailable ? "LineBrush" : "DisabledBrush");

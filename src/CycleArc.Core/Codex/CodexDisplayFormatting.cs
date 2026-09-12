@@ -102,8 +102,11 @@ public static class CodexDisplayFormatting
         {
             var elapsed = CodexDeadlineFormatting.Elapsed(checkedAt, at);
             var value = elapsed is null ? TimeOfDay(checkedAt) : $"{TimeOfDay(checkedAt)} · {elapsed}";
-            rows.Add(new CodexDisplayRow(snapshot.Provider == UsageProviderId.Claude
-                ? UiText.T("Last received", "마지막 수신") : UiText.LastChecked, value, false));
+            rows.Add(snapshot.Provider == UsageProviderId.Claude
+                ? new CodexDisplayRow(ClaudeUsagePresentation.LastReceivedLabel,
+                    checkedAt.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), false, value,
+                    ClaudeUsagePresentation.LastReceivedText(snapshot))
+                : new CodexDisplayRow(UiText.LastChecked, value, false));
         }
 
         return rows;

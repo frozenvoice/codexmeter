@@ -15,6 +15,7 @@ public static class CycleArcPresentation
         CodexQuotaStatus.Available when snapshot.Provider == UsageProviderId.Claude => UiText.T("Received", "수신됨"),
         CodexQuotaStatus.Available => UiText.T("Updated", "업데이트됨"),
         CodexQuotaStatus.Refreshing => UiText.T("Refreshing", "새로고침 중"),
+        CodexQuotaStatus.Stale when snapshot.Provider == UsageProviderId.Claude => UiText.T("Stale data", "오래된 데이터"),
         CodexQuotaStatus.Stale => UiText.T("Saved data", "이전 데이터"),
         CodexQuotaStatus.SignedOut => UiText.T("Sign in required", "로그인 필요"),
         CodexQuotaStatus.CodexNotFound => UiText.T("Codex not found", "Codex 찾을 수 없음"),
@@ -40,8 +41,25 @@ public static class CycleArcPresentation
         var title = snapshot.Provider == UsageProviderId.Claude ? ClaudeUsagePresentation.Title : snapshot.Provider.Name();
         var context = snapshot.Provider == UsageProviderId.Claude
             ? Environment.NewLine + ClaudeUsagePresentation.SharedScope
+                + Environment.NewLine + ClaudeUsagePresentation.LastReceivedText(snapshot)
                 + Environment.NewLine + UiText.T("Last sample via Claude Code", "Claude Code를 통한 마지막 수신값") : "";
         return UiText.ProductName + " · " + title + Environment.NewLine
             + usage + Environment.NewLine + StatusLabel(snapshot) + context;
+    }
+
+    public static string TrayTooltip(CodexQuotaSnapshot snapshot, string? accountName = null)
+    {
+        if (snapshot.Provider != UsageProviderId.Claude)
+            return NotifyIconText.Safe((accountName is null ? "" : accountName + Environment.NewLine) + Tooltip(snapshot));
+
+        // The native limit is 127 characters: preserve status, receipt and scope before an optional nickname.
+        var ring = CodexRingPresentation.From(snapshot);
+        return NotifyIconText.Safe(string.Join("\n",
+            "Claude · " + StatusLabel(snapshot),
+            ring.CenterSubLabel + " " + ring.CenterValueText,
+            ClaudeUsagePresentation.LastReceivedText(snapshot),
+            UiText.T("Web·Desktop·Code shared quota", "Web·Desktop·Code 공유 한도"),
+            UiText.T("Via Code", "Code에서 수신"))
+            + (accountName is null ? "" : "\n" + accountName));
     }
 }

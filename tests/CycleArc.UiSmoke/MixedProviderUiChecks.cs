@@ -60,6 +60,11 @@ internal static class MixedProviderUiChecks
                                 "Claude quota is not identified as a shared subscription.");
                             Check(((TextBlock)flyout.FindName("CodexStatusText")).Visibility == Visibility.Visible,
                                 "Recent Claude values hide their receipt limitation.");
+                            CheckStaleText((TextBlock)flyout.FindName("CodexStatusText"), selected.Snapshot);
+                            var ringColor = ((SolidColorBrush)((System.Windows.Shapes.Path)flyout.FindName("CodexRingArcPath")).Stroke).Color;
+                            var expectedRing = (SolidColorBrush)Application.Current.FindResource(
+                                selected.Snapshot.Status == CodexQuotaStatus.Stale ? "StaleBrush" : "AccentBrush");
+                            Check(ringColor == expectedRing.Color, "Claude ring does not distinguish stale values.");
                             string? opened = null;
                             var refreshed = false;
                             void Refreshed() => refreshed = true;
@@ -78,8 +83,14 @@ internal static class MixedProviderUiChecks
                         {
                             var account = accounts.Single(a => a.Profile.Id == (string)button.Tag);
                             if (account.Profile.Provider == UsageProviderId.Claude)
+                            {
                                 Check(!AccountUiChecks.Descendants<TextBlock>(button).Any(text => text.Text.Contains("Codex", StringComparison.Ordinal)),
                                     "Claude account rows contain a Codex label.");
+                                var texts = AccountUiChecks.Descendants<TextBlock>(button).ToArray();
+                                CheckStaleText(texts.Single(text => text.Text == CycleArcPresentation.StatusLabel(account.Snapshot)), account.Snapshot);
+                                Check(texts.Any(text => text.Text == ClaudeUsagePresentation.LastReceivedText(account.Snapshot)),
+                                    "Claude account card hides the last receipt date/time.");
+                            }
                         }
                         count++;
                     }
@@ -94,12 +105,28 @@ internal static class MixedProviderUiChecks
                             && widget.ToolTip.ToString()!.Contains(ClaudeUsagePresentation.SharedScope), "Claude widget hides the shared subscription scope.");
                         Check(((TextBlock)widget.FindName("HistoryValue")).Visibility == Visibility.Visible,
                             "Claude widget hides receipt status.");
+                        CheckStaleText((TextBlock)widget.FindName("HistoryValue"), selected.Snapshot);
+                        var receipt = (TextBlock)widget.FindName("ClaudeReceipt");
+                        Check(receipt.Visibility == Visibility.Visible && receipt.Text == ClaudeUsagePresentation.LastReceivedText(selected.Snapshot),
+                            "Claude widget hides the last receipt date/time.");
+                        Check(receipt.ActualWidth >= receipt.DesiredSize.Width - 1, "Claude widget clips the last receipt date/time.");
                     }
                     if (selected.Snapshot.Status == CodexQuotaStatus.Stale)
                         Check(((TextBlock)widget.FindName("HistoryValue")).Visibility == Visibility.Visible
                             && ((TextBlock)widget.FindName("CodexValue")).Text.Contains('~'), "Claude widget hides stale state.");
                     count++;
                 }
+                // Reuse the same views after the stale account: a real new sample clears the warning.
+                var renewed = accounts[1] with { Snapshot = accounts[1].Snapshot with { LastSuccessfulRefresh = DateTimeOffset.Now } };
+                flyout.Bind(renewed.Snapshot);
+                AccountUiChecks.Render(flyout, 440, null, null);
+                CheckStaleText((TextBlock)flyout.FindName("CodexStatusText"), renewed.Snapshot);
+                widget.BindAccount(renewed, true);
+                AccountUiChecks.Render(widget, 245, null, null);
+                CheckStaleText((TextBlock)widget.FindName("HistoryValue"), renewed.Snapshot);
+                Check(((TextBlock)widget.FindName("ClaudeReceipt")).Text == ClaudeUsagePresentation.LastReceivedText(renewed.Snapshot),
+                    "New sample did not update the receipt timestamp.");
+                count += 2;
                 foreach (var status in new[] { CodexQuotaStatus.Unavailable, CodexQuotaStatus.ProtocolMismatch })
                 {
                     flyout.Bind(accounts[1].Snapshot with { Status = status, Windows = [], LastSuccessfulRefresh = null });
@@ -289,6 +316,28 @@ internal static class MixedProviderUiChecks
             var parent = (FrameworkElement)VisualTreeHelper.GetParent(badge);
             var left = badge.TranslatePoint(new Point(), parent).X;
             Check(left >= -1 && left + badge.ActualWidth <= parent.ActualWidth + 1, "Provider badge overflows its account row.");
+        }
+    }
+
+    private static void CheckStaleText(TextBlock text, CodexQuotaSnapshot snapshot)
+    {
+        var stale = snapshot.Status == CodexQuotaStatus.Stale;
+        var foreground = ((SolidColorBrush)text.Foreground).Color;
+        var expected = ((SolidColorBrush)Application.Current.FindResource(stale ? "StaleBrush" : "MutedBrush")).Color;
+        Check(foreground == expected && text.FontWeight == (stale ? FontWeights.SemiBold : FontWeights.Normal),
+            "Claude stale emphasis is missing or remains after a new sample.");
+        if (!stale) return;
+        Check(text.Text.Contains(UiText.T("Stale data", "오래된 데이터")), "Stale Claude state depends only on color.");
+        static double Luminance(Color color)
+        {
+            static double Linear(byte value) { var channel = value / 255d; return channel <= .04045 ? channel / 12.92 : Math.Pow((channel + .055) / 1.055, 2.4); }
+            return .2126 * Linear(color.R) + .7152 * Linear(color.G) + .0722 * Linear(color.B);
+        }
+        foreach (var background in new[] { "CardBrush", "PanelBrush", "GhostBrush", "ControlBrush" })
+        {
+            var a = Luminance(foreground);
+            var b = Luminance(((SolidColorBrush)Application.Current.FindResource(background)).Color);
+            Check((Math.Max(a, b) + .05) / (Math.Min(a, b) + .05) >= 4.5, "Stale warning contrast is insufficient in the active theme.");
         }
     }
     private static void Check(bool condition, string message)

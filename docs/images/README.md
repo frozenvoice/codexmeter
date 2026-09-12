@@ -24,7 +24,8 @@ Account-management previews scroll to the bottom so all three sets of actions ar
 
 The waiting view shows Research after connection but before any quota sample. The Claude
 overview then supplies a synthetic sample with 91% five-hour usage and 47%
-seven-day usage, received 12 minutes ago. Its stale values remain visible, and selecting
+seven-day usage, received 12 minutes ago. Its explicit amber stale warning, amber ring,
+last receipt date/time and preserved values remain visible, and selecting
 Claude removes the Codex reset-credit card. Connection previews drive the production
 window through `IClaudeConnectionActions` using `PreviewClaudeConnection`; the adapter
 returns fictional login metadata and only changes in-memory state. It never runs a CLI,

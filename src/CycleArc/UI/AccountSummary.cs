@@ -33,8 +33,9 @@ internal static class AccountSummary
         nameAndProvider.Children.Add(provider);
         identity.Children.Add(nameAndProvider);
         header.Children.Add(identity);
+        var stale = ClaudeUsagePresentation.IsStale(account.Snapshot);
         var status = Text(account.IsSigningIn ? UiText.T("Signing in…", "로그인 중…")
-            : CycleArcPresentation.StatusLabel(account.Snapshot), 11, "MutedBrush");
+            : CycleArcPresentation.StatusLabel(account.Snapshot), 11, stale ? "StaleBrush" : "MutedBrush", bold: stale);
         status.Margin = new Thickness(12, 0, 0, 0);
         Grid.SetColumn(status, 1);
         header.Children.Add(status);
@@ -49,7 +50,7 @@ internal static class AccountSummary
                 row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 row.Children.Add(Text(CodexDisplayFormatting.CompactWindowKindLabel(window, account.Profile.Provider), 11, "MutedBrush"));
                 var value = Text(UiText.T($"Used {CodexDisplayFormatting.PercentText(window.UsedPercent, account.Profile.Provider)} · Left {CodexDisplayFormatting.PercentText(window.RemainingPercent, account.Profile.Provider)}",
-                    $"사용 {CodexDisplayFormatting.PercentText(window.UsedPercent, account.Profile.Provider)} · 잔여 {CodexDisplayFormatting.PercentText(window.RemainingPercent, account.Profile.Provider)}"), 12, "TextBrush");
+                    $"사용 {CodexDisplayFormatting.PercentText(window.UsedPercent, account.Profile.Provider)} · 잔여 {CodexDisplayFormatting.PercentText(window.RemainingPercent, account.Profile.Provider)}"), 12, stale ? "StaleBrush" : "TextBrush");
                 Grid.SetColumn(value, 1); row.Children.Add(value); content.Children.Add(row);
             }
         }
@@ -61,6 +62,12 @@ internal static class AccountSummary
             notice.Margin = new Thickness(0, 5, 0, 0);
             content.Children.Add(notice);
         }
+        if (account.Profile.Provider == UsageProviderId.Claude && account.Snapshot.LastSuccessfulRefresh is not null)
+        {
+            var receipt = Text(ClaudeUsagePresentation.LastReceivedText(account.Snapshot), 11, "MutedBrush");
+            receipt.Margin = new Thickness(0, 5, 0, 0);
+            content.Children.Add(receipt);
+        }
         if (account.HasMatchingIdentity)
         {
             var duplicate = Text(UiText.T("Same sign-in details as another profile", "다른 프로필과 동일한 로그인 정보"), 11, "MutedBrush");
@@ -71,7 +78,7 @@ internal static class AccountSummary
         button.Content = content;
         button.ToolTip = (account.Email ?? account.DisplayName + " · " + account.ProviderName)
             + (account.Profile.Provider == UsageProviderId.Claude
-                ? Environment.NewLine + ClaudeUsagePresentation.Title + Environment.NewLine + ClaudeUsagePresentation.SharedScope : "");
+                ? Environment.NewLine + CycleArcPresentation.Tooltip(account.Snapshot) : "");
         System.Windows.Automation.AutomationProperties.SetName(button,
             account.DisplayName + " · " + account.ProviderName + " · " + status.Text
                 + (selected ? UiText.T(" · Selected", " · 선택됨") : ""));
