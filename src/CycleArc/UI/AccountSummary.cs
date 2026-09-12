@@ -2,6 +2,8 @@ using System.Windows.Controls;
 using Button = System.Windows.Controls.Button;
 using Control = System.Windows.Controls.Control;
 using CycleArc.Codex;
+using CycleArc.Providers.Claude;
+using CycleArc.Providers.Usage;
 
 namespace CycleArc.UI;
 
@@ -67,7 +69,9 @@ internal static class AccountSummary
             content.Children.Add(duplicate);
         }
         button.Content = content;
-        button.ToolTip = account.Email ?? account.DisplayName + " · " + account.ProviderName;
+        button.ToolTip = (account.Email ?? account.DisplayName + " · " + account.ProviderName)
+            + (account.Profile.Provider == UsageProviderId.Claude
+                ? Environment.NewLine + ClaudeUsagePresentation.Title + Environment.NewLine + ClaudeUsagePresentation.SharedScope : "");
         System.Windows.Automation.AutomationProperties.SetName(button,
             account.DisplayName + " · " + account.ProviderName + " · " + status.Text
                 + (selected ? UiText.T(" · Selected", " · 선택됨") : ""));

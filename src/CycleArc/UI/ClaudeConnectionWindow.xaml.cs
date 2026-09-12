@@ -17,6 +17,7 @@ public partial class ClaudeConnectionWindow : Window
     private bool _closed;
     private bool _closing;
     public Task ActiveOperation { get; private set; } = Task.CompletedTask;
+    internal Action<string>? OpenExternalForTest { get; set; }
 
     public ClaudeConnectionWindow(CodexAccountProfile profile, string executable,
         IClaudeConnectionActions? connections = null, CancellationToken lifetime = default)
@@ -25,15 +26,17 @@ public partial class ClaudeConnectionWindow : Window
         _activeProfileId = profile.Id; _executable = executable; _connections = connections; _lifetime = lifetime;
         InitializeComponent();
         Title = UiText.ProductName + " · Claude";
-        Heading.Text = UiText.T("Connect Claude Code", "Claude Code 연결");
+        Heading.Text = UiText.T("Connect Claude usage", "Claude 사용량 연결");
         ProfileName.Text = new CodexAccountView(profile, CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable)).DisplayName;
-        SetupSteps.Text = UiText.T("Connect your current Claude login, or sign in through the official browser flow. CycleArc sets up usage updates automatically.",
-            "현재 Claude 로그인을 연결하거나 공식 브라우저에서 로그인하세요. 사용량을 받을 수 있도록 CycleArc가 자동으로 설정합니다.");
+        SetupSteps.Text = UiText.T("View the subscription quota shared by Web, Desktop and Code. Connect your current Claude login, or sign in through the official browser flow.",
+            "Web·Desktop·Code가 공유하는 구독 한도를 표시합니다. 현재 Claude 로그인을 연결하거나 공식 브라우저에서 로그인하세요.");
         ConnectExistingButton.Content = UiText.T("Connect current login", "현재 로그인 연결");
         LoginButton.Content = UiText.T("Sign in to Claude", "Claude 로그인");
         OpenClaudeButton.Content = UiText.T("Open Claude Code…", "Claude Code 열기…");
-        FreshnessHint.Text = UiText.T("Usage arrives after a response in the Claude Code terminal. Chats on claude.ai or in the desktop app do not update CycleArc. Until the first update, limits stay unknown; after 5 minutes, the last values are marked stale.",
-            "Claude Code 터미널에서 응답을 받으면 사용량을 수신합니다. claude.ai 웹·데스크톱 채팅만으로는 갱신되지 않습니다. 첫 수신 전에는 한도를 알 수 없으며, 5분간 새 데이터가 없으면 마지막 값을 오래됨으로 표시합니다.");
+        FreshnessHint.Text = UiText.T("Last shared-quota sample via Claude Code; Web/Desktop do not send updates here. Limits are unknown until received. After 5 minutes without new input, saved values are marked stale.",
+            "Claude Code를 통해 마지막으로 받은 공유 한도입니다. Web·Desktop은 이 앱으로 업데이트를 보내지 않습니다. 첫 수신 전에는 미확인, 5분간 새 수신이 없으면 오래됨으로 표시합니다.");
+        UsagePageButton.Content = ClaudeUsagePresentation.UsagePageLabel;
+        UsagePageHint.Text = ClaudeUsagePresentation.UsagePageHint;
         AdvancedDetails.Header = UiText.T("Connection details", "연결 상세 설정");
         ExistingStatusLineHint.Text = UiText.T("Your other settings and existing status line are preserved. Disconnect restores the previous status line. Authentication stays in the official Claude CLI; CycleArc does not read credential files.",
             "다른 설정과 기존 상태 표시줄을 유지합니다. 연결을 해제하면 이전 상태 표시줄로 복원합니다. 인증은 공식 Claude CLI가 관리하며 CycleArc는 인증 파일을 읽지 않습니다.");
@@ -79,7 +82,7 @@ public partial class ClaudeConnectionWindow : Window
         DisconnectButton.Visibility = _overview.Binding is { Disconnected: false } ? Visibility.Visible : Visibility.Collapsed;
         LoginButton.Content = auth.Status == ClaudeAuthStatus.SignedIn
             ? UiText.T("Sign in to another account", "다른 계정으로 로그인") : UiText.T("Sign in to Claude", "Claude 로그인");
-        OperationStatus.Text = linked ? UiText.T("Ready. Waiting for Claude Code usage updates.", "연결했습니다. Claude Code 사용량을 기다리는 중입니다.") : "";
+        OperationStatus.Text = linked ? UiText.T("Connected. Subscription usage is received via Claude Code.", "연결됨. Claude Code를 통해 구독 사용량을 받습니다.") : "";
     }
 
     private void Begin(Func<CancellationToken, Task> action, string progress)
@@ -121,8 +124,8 @@ public partial class ClaudeConnectionWindow : Window
             await Dispatcher.InvokeAsync(() =>
             {
                 if (_overview?.Installed == true && _overview.Authentication.Fingerprint == result.Binding?.IdentityFingerprint)
-                    OperationStatus.Text = UiText.T("Connected. Claude Code will send usage automatically after a response.",
-                        "연결했습니다. Claude Code에서 응답을 받으면 사용량이 자동으로 표시됩니다.");
+                    OperationStatus.Text = UiText.T("Connected. Claude Code responses can supply shared subscription usage.",
+                        "연결했습니다. Claude Code 응답을 통해 공유 구독 사용량을 받을 수 있습니다.");
             });
         }
         else await Dispatcher.InvokeAsync(() => OperationStatus.Text = result.Failure is { } failure ? FailureText(failure) : AuthText(result.Authentication.Status));
@@ -172,6 +175,7 @@ public partial class ClaudeConnectionWindow : Window
         catch { OperationStatus.Text = UiText.T("Could not open Claude Code.", "Claude Code를 열지 못했습니다."); }
     }
     private void OnCancel(object sender, RoutedEventArgs e) => CancelOperation();
+    private void OnUsagePage(object sender, RoutedEventArgs e) => ClaudeUsagePage.Open(this, OpenExternalForTest);
     private void OnDocs(object sender, RoutedEventArgs e) => Process.Start(new ProcessStartInfo("https://code.claude.com/docs/en/setup") { UseShellExecute = true });
     private void OnDone(object sender, RoutedEventArgs e) => Close();
     private void OnDrag(object sender, MouseButtonEventArgs e)

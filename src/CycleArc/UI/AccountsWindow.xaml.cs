@@ -56,9 +56,9 @@ public partial class AccountsWindow : Window
             "CODEX_HOME을 따로 지정해 사용하던 경우에만 필요합니다. 로그인 정보가 있는 Codex 홈 폴더를 고르세요. codex.exe나 작업 프로젝트 폴더가 아닙니다. 보통은 위의 두 방법으로 연결하면 됩니다.");
         ChooseHomeButton.Content = UiText.T("Choose Codex home folder…", "Codex 홈 폴더 선택…");
         ChooseHomeButton.ToolTip = ChooseHomeHint.Text;
-        ClaudeHeading.Text = "Claude · Claude Code";
-        ClaudeHint.Text = UiText.T("Connect a Claude Code login. Usage updates arrive after responses in the Claude Code terminal. Chats on claude.ai or in the desktop app do not update CycleArc.",
-            "Claude Code 로그인을 연결하세요. Claude Code 터미널에서 응답을 받으면 사용량이 갱신됩니다. claude.ai 웹·데스크톱 채팅만으로는 갱신되지 않습니다.");
+        ClaudeHeading.Text = UiText.T("Claude subscription usage", "Claude 구독 사용량");
+        ClaudeHint.Text = UiText.T("Web, Desktop and Code share this quota. Connect a Claude login to display the last values received via Claude Code. Open the usage page in Connect to check current limits.",
+            "Web·Desktop·Code가 공유하는 한도입니다. Claude 로그인을 연결하면 Claude Code를 통해 마지막으로 받은 값을 표시합니다. 현재 한도는 연결 창의 사용량 페이지에서 확인하세요.");
         ClaudeLabelCaption.Text = UiText.T("Nickname in CycleArc (optional)", "CycleArc에서 쓸 별명 (선택 사항)");
         AddClaudeButton.Content = UiText.T("Connect Claude", "Claude 연결");
         System.Windows.Automation.AutomationProperties.SetName(ClaudeAccountLabel, ClaudeLabelCaption.Text + " · Claude");
@@ -117,7 +117,7 @@ public partial class AccountsWindow : Window
                 ToolTipService.SetShowOnDisabled(summary, true);
             }
             content.Children.Add(summary);
-            var source = account.Profile.Provider == UsageProviderId.Claude ? UiText.T("Claude Code · statusLine", "Claude Code · statusLine")
+            var source = account.Profile.Provider == UsageProviderId.Claude ? UiText.T("Via Claude Code statusLine", "Claude Code statusLine 수신")
                 : account.Profile.IsManaged ? UiText.T("Signed in through CycleArc", "CycleArc에서 로그인")
                 : UiText.T("Linked from Codex on this PC", "이 PC의 기존 Codex에서 연결");
             var identity = new TextBlock { Text = (account.Email is not null && account.Email != account.DisplayName ? account.Email + " · " : "") + source,

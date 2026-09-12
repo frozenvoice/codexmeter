@@ -48,6 +48,31 @@ internal static class MixedProviderUiChecks
                             "Reset credit actions crossed providers.");
                         Check(((TextBlock)flyout.FindName("CodexRingValueText")).Text ==
                             CodexRingPresentation.From(selected.Snapshot).CenterValueText, "Selected provider values differ from its snapshot.");
+                        var isClaude = selected.Profile.Provider == UsageProviderId.Claude;
+                        Check(((StackPanel)flyout.FindName("ClaudeUsageHeader")).Visibility ==
+                            (isClaude ? Visibility.Visible : Visibility.Collapsed), "Shared subscription context crossed providers.");
+                        var usagePage = (Button)flyout.FindName("ClaudeUsagePageButton");
+                        Check(usagePage.Visibility == (isClaude ? Visibility.Visible : Visibility.Collapsed), "Usage page action crossed providers.");
+                        if (isClaude)
+                        {
+                            Check(((TextBlock)flyout.FindName("ClaudeUsageTitle")).Text == ClaudeUsagePresentation.Title
+                                && ((TextBlock)flyout.FindName("ClaudeUsageScope")).Text == ClaudeUsagePresentation.SharedScope,
+                                "Claude quota is not identified as a shared subscription.");
+                            Check(((TextBlock)flyout.FindName("CodexStatusText")).Visibility == Visibility.Visible,
+                                "Recent Claude values hide their receipt limitation.");
+                            string? opened = null;
+                            var refreshed = false;
+                            void Refreshed() => refreshed = true;
+                            typeof(FlyoutWindow).GetProperty("OpenExternalForTest", BindingFlags.Instance | BindingFlags.NonPublic)!
+                                .SetValue(flyout, (Action<string>)(url => opened = url));
+                            flyout.SyncRequested += Refreshed;
+                            usagePage.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            flyout.SyncRequested -= Refreshed;
+                            Check(opened == "https://claude.ai/settings/usage" && !refreshed,
+                                "Usage page action must only open the official page, without refreshing the sample.");
+                            Check(((TextBlock)flyout.FindName("CodexRingValueText")).Text == CodexRingPresentation.From(selected.Snapshot).CenterValueText,
+                                "Opening the usage page altered the displayed quota.");
+                        }
                         var overview = (ItemsControl)flyout.FindName("AccountOverview");
                         foreach (var button in overview.Items.Cast<Button>())
                         {
@@ -64,7 +89,12 @@ internal static class MixedProviderUiChecks
                     CheckBadges(widget, [selected.Profile.Provider]);
                     Check(((TextBlock)widget.FindName("AccountName")).Text == selected.DisplayName, "Widget lost the selected alias.");
                     if (selected.Profile.Provider == UsageProviderId.Claude)
-                        Check(!widget.ToolTip.ToString()!.Contains("Codex", StringComparison.Ordinal), "Claude widget tooltip names Codex.");
+                    {
+                        Check(widget.ToolTip.ToString()!.Contains(ClaudeUsagePresentation.Title)
+                            && widget.ToolTip.ToString()!.Contains(ClaudeUsagePresentation.SharedScope), "Claude widget hides the shared subscription scope.");
+                        Check(((TextBlock)widget.FindName("HistoryValue")).Visibility == Visibility.Visible,
+                            "Claude widget hides receipt status.");
+                    }
                     if (selected.Snapshot.Status == CodexQuotaStatus.Stale)
                         Check(((TextBlock)widget.FindName("HistoryValue")).Visibility == Visibility.Visible
                             && ((TextBlock)widget.FindName("CodexValue")).Text.Contains('~'), "Claude widget hides stale state.");
@@ -110,6 +140,14 @@ internal static class MixedProviderUiChecks
                 Check(!connection.LastLogin && connection.Calls == 1, "Existing-login action unexpectedly started interactive login.");
                 Check(((Button)guide.FindName("OpenClaudeButton")).Visibility == Visibility.Visible, "Successful connection has no Claude launch action.");
                 Check(((TextBlock)guide.FindName("AccountIdentity")).Text.Contains("person@example.invalid"), "Verified identity is missing.");
+                string? guideOpened = null;
+                typeof(ClaudeConnectionWindow).GetProperty("OpenExternalForTest", BindingFlags.Instance | BindingFlags.NonPublic)!
+                    .SetValue(guide, (Action<string>)(url => guideOpened = url));
+                ((Button)guide.FindName("UsagePageButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Check(guideOpened == "https://claude.ai/settings/usage" && connection.Calls == 1,
+                    "Opening current usage unexpectedly invoked Claude authentication or a model session.");
+                Check(((TextBlock)guide.FindName("UsagePageHint")).Text == ClaudeUsagePresentation.UsagePageHint,
+                    "Usage page lacks browser-account guidance.");
                 foreach (var size in new[] { new Size(610, 580), new Size(470, 400) })
                 {
                     AccountUiChecks.Render(guide, size.Width, size.Height, directory is not null && size.Width == 610
@@ -182,7 +220,9 @@ internal static class MixedProviderUiChecks
         AccountUiChecks.Render(flyout, 440, null, directory is null ? null : Path.Combine(directory, $"connected-waiting-{language}-{theme}.png"));
         Check(rows.Items.Count == 3 && flyout.SelectedProfileId == connected.Profile.Id, "Connected Claude without usage is hidden.");
         Check(((TextBlock)flyout.FindName("StatusText")).Text == UiText.T("1 awaiting usage", "1개 수신 대기"), "A connected account awaiting usage was labeled as an error.");
-        Check(((TextBlock)flyout.FindName("CodexStatusText")).Text.Contains("claude.ai"), "Web-only limitation is missing.");
+        Check(((TextBlock)flyout.FindName("ClaudeUsageScope")).Text == ClaudeUsagePresentation.SharedScope
+            && ((Button)flyout.FindName("ClaudeUsagePageButton")).Visibility == Visibility.Visible,
+            "Waiting profile lacks shared quota meaning or access to current usage.");
         Check(((ItemsControl)flyout.FindName("CodexRows")).Items.Count == 0, "Waiting connection invented quota numbers.");
         manager.Bind([first, connected, second], connected.Profile.Id);
         Check(((Button)((StackPanel)managed.Items[1]).Children[0]).IsEnabled, "Connected waiting account cannot be selected.");
@@ -191,6 +231,8 @@ internal static class MixedProviderUiChecks
         AccountUiChecks.Render(flyout, 440, null, null);
         Check(rows.Items.Count == 3 && flyout.SelectedProfileId == pending.Profile.Id
             && ((Border)flyout.FindName("CodexCard")).Visibility == Visibility.Visible, "First valid usage did not restore the account and detail card.");
+        Check(((TextBlock)flyout.FindName("StatusText")).Text == UiText.T("Samples received", "수신값 표시"),
+            "A recently received Claude sample was presented as a current account query.");
     }
 
     private sealed class FakeConnection(string profileId) : IClaudeConnectionActions

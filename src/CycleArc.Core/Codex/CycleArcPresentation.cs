@@ -1,5 +1,6 @@
 using CycleArc.Services;
 using CycleArc.Providers.Usage;
+using CycleArc.Providers.Claude;
 
 namespace CycleArc.Codex;
 
@@ -11,6 +12,7 @@ public static class CycleArcPresentation
         CodexQuotaStatus.Unavailable when snapshot.Provider == UsageProviderId.Claude => UiText.T("Waiting for data", "데이터 대기 중"),
         CodexQuotaStatus.ProtocolMismatch when snapshot.Provider == UsageProviderId.Claude => UiText.ProviderSchemaMismatch,
         CodexQuotaStatus.SignedOut when snapshot.Provider == UsageProviderId.Claude => UiText.T("Disconnected", "미연결"),
+        CodexQuotaStatus.Available when snapshot.Provider == UsageProviderId.Claude => UiText.T("Received", "수신됨"),
         CodexQuotaStatus.Available => UiText.T("Updated", "업데이트됨"),
         CodexQuotaStatus.Refreshing => UiText.T("Refreshing", "새로고침 중"),
         CodexQuotaStatus.Stale => UiText.T("Saved data", "이전 데이터"),
@@ -35,7 +37,11 @@ public static class CycleArcPresentation
         var usage = ring.IsAvailable
             ? CodexDisplayFormatting.CompactWindowKindLabel(snapshot.CompactWindow, snapshot.Provider) + " " + ring.CenterValueText
             : CodexDisplayFormatting.StatusText(snapshot);
-        return UiText.ProductName + " · " + snapshot.Provider.Name() + Environment.NewLine
-            + usage + Environment.NewLine + StatusLabel(snapshot);
+        var title = snapshot.Provider == UsageProviderId.Claude ? ClaudeUsagePresentation.Title : snapshot.Provider.Name();
+        var context = snapshot.Provider == UsageProviderId.Claude
+            ? Environment.NewLine + ClaudeUsagePresentation.SharedScope
+                + Environment.NewLine + UiText.T("Last sample via Claude Code", "Claude Code를 통한 마지막 수신값") : "";
+        return UiText.ProductName + " · " + title + Environment.NewLine
+            + usage + Environment.NewLine + StatusLabel(snapshot) + context;
     }
 }

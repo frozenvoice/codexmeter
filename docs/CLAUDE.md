@@ -1,4 +1,11 @@
-# Claude Code statusLine provider
+# Claude subscription usage via statusLine
+
+The five-hour and seven-day percentages describe the subscription allowance shared
+across Web, Desktop and Code. Claude Code is the delivery source. CycleArc displays
+the **last received sample**, which may differ from current account usage. The
+[official usage-limit explanation](https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work)
+confirms the shared scope. The [2026-09-12 interface review](CLAUDE-USAGE-RESEARCH.md)
+found no supported independent personal-subscription quota query without a model request.
 
 CycleArc reads the [official Claude Code statusLine JSON](https://code.claude.com/docs/en/statusline), delivered to a configured command on stdin. It projects only:
 
@@ -19,10 +26,13 @@ In **Manage accounts → Add an account → Connect Claude**, set an optional ni
 - **Sign in to Claude / Sign in to another account** starts the official `claude auth login --claudeai` browser flow in a new per-profile configuration folder. CycleArc waits for `claude auth status --json` to verify completion, then installs the connection. Login can be cancelled; closing the window or exiting the app cancels and reaps the child process.
 - **Open Claude Code…** lets you choose a working folder and opens Claude with the connected configuration. Use this action for a login created by CycleArc so the correct Claude account and settings are active.
 - **Connection details → Disconnect** restores the previous status line. It disconnects usage collection, without logging out of Claude or deleting CLI-owned credentials.
+- **Open usage page**, also available on the detail card, opens `https://claude.ai/settings/usage`
+  in the user's default browser. Check the intended browser account; CycleArc neither
+  switches that account nor reads the page or imports its values.
 
 Verified connected profiles appear in the main view even before the first sample, with **Awaiting usage** and unknown limits. Waiting does not increase the attention count. Unconnected profiles appear only in **Manage accounts**. An explicit disconnection hides the account across restarts while preserving its cache and configuration; reconnecting shows it awaiting a new sample. Temporary delays keep received values visible as stale.
 
-**Chats on claude.ai or in the desktop app do not update CycleArc.** This provider receives data from Claude Code terminal responses only. Repeated current-login connection reuses an existing binding when its configuration directory, implicit/explicit directory mode and verified identity all match. It preserves that profile's name, order and quota history. Closing or cancelling a new connection removes only that flow's empty, never-connected draft; existing profiles and any saved connection/usage data are retained.
+**Web/Desktop activity uses the shared quota but does not send updates to CycleArc.** This provider receives samples through Claude Code statusLine, whose quota fields require a response in the session. Repeated current-login connection reuses an existing binding when its configuration directory, implicit/explicit directory mode and verified identity all match. It preserves that profile's name, order and quota history. Closing or cancelling a new connection removes only that flow's empty, never-connected draft; existing profiles and any saved connection/usage data are retained.
 
 An installed Claude CLI is required. CycleArc recognizes the native Windows executable and npm `claude.cmd`. Authentication uses only [official CLI commands](https://code.claude.com/docs/en/cli-reference); it never reads auth/token files or retains login URLs, codes or secrets. The binding preserves whether `CLAUDE_CONFIG_DIR` is unset or explicit: the CLI can resolve login metadata differently even when the directory path looks the same. Status checks have an eight-second bound; browser login has a five-minute bound. A missing, signed-out, unsupported or malformed login response cannot be shown as a connected account.
 
@@ -42,7 +52,7 @@ The previous manual `--claude-statusline <profile-id>` receiver remains for exis
 
 ## Freshness and persistence
 
-- A sample is fresh for less than five minutes after CycleArc receives valid input, provided no included reset timestamp has passed. Receipt time is local observation metadata, not an authoritative source timestamp.
+- A valid callback has a recent receipt for less than five minutes, provided no included reset timestamp has passed. Receipt time records local delivery, not an authoritative source timestamp. StatusLine may rerun on non-response events; even a recent callback is labeled **Received** with a last-sample explanation, without promising a current account query.
 - Missing/malformed input preserves the last valid sample as stale. A later valid callback recovers the profile. A valid one-window callback replaces the previous sample; it does not carry an absent older window into fresh data.
 - The provider checks its small projected inbox every two seconds. The Codex refresh schedule remains independent. Neither this poll nor manual refresh renews receipt time, invokes Claude, reads authentication data or generates a model response.
 - After five minutes without valid input, at an elapsed reset, or after clock rollback makes a sample future-dated, the last values remain visible as stale. CycleArc never rolls percentages back to zero locally. The state survives application restarts.

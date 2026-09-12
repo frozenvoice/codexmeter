@@ -1,6 +1,7 @@
 using System.Text;
 using CycleArc.Codex;
 using CycleArc.Providers.Claude;
+using CycleArc.Services;
 using CycleArc.Providers.Usage;
 using static CycleArc.Tests.ClaudeStatusLineTests;
 
@@ -208,7 +209,8 @@ public class ClaudeConnectionTests
         Assert.False(service.Snapshot.HasUsablePercentages);
         Assert.Null(service.Snapshot.LastSuccessfulRefresh);
         Assert.Equal(Auth.Email, View().Email);
-        Assert.Contains("claude.ai", ClaudeUsagePresentation.StatusText(service.Snapshot));
+        Assert.Contains("Claude Code", ClaudeUsagePresentation.StatusText(service.Snapshot));
+        Assert.Contains(UiText.T("usage page", "사용량 페이지"), ClaudeUsagePresentation.StatusText(service.Snapshot));
         connection = new ClaudeConnectionService(data.Accounts, cli, data.Clock);
         service = new ClaudeUsageProvider(data.Accounts, data.Clock, connection).Create(data.Profile);
         Assert.False(service.IsConnected);

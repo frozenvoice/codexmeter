@@ -256,6 +256,28 @@ public class ClaudeStatusLineTests
         finally { UiText.SetLanguage(UiLanguage.English); }
     }
 
+    [Theory]
+    [InlineData(UiLanguage.English)]
+    [InlineData(UiLanguage.Korean)]
+    public async Task RecentClaudeSampleDescribesSharedSubscriptionAndReceiptWithoutPromisingCurrentUsage(UiLanguage language)
+    {
+        UiText.SetLanguage(language);
+        try
+        {
+            using var data = new ClaudeTestData();
+            await data.Receive(Payload());
+            var snapshot = data.Service().Snapshot;
+            Assert.Equal(CodexQuotaStatus.Available, snapshot.Status);
+            Assert.Equal(UiText.T("Received", "수신됨"), CycleArcPresentation.StatusLabel(snapshot));
+            Assert.Contains(UiText.T("Last values received", "마지막으로 받은 값"), ClaudeUsagePresentation.StatusText(snapshot));
+            Assert.Contains(ClaudeUsagePresentation.Title, CycleArcPresentation.Tooltip(snapshot));
+            Assert.Contains(ClaudeUsagePresentation.SharedScope, CycleArcPresentation.Tooltip(snapshot));
+            foreach (var surface in new[] { "Web", "Desktop", "Code" }) Assert.Contains(surface, ClaudeUsagePresentation.SharedScope);
+            Assert.Equal(UiText.T("Updated", "업데이트됨"), CycleArcPresentation.StatusLabel(snapshot with { Provider = UsageProviderId.Codex }));
+        }
+        finally { UiText.SetLanguage(UiLanguage.English); }
+    }
+
     [Fact]
     public void SettingsCommandSafelyCarriesInstallationPathsAcrossWindowsShells()
     {

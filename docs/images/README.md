@@ -10,9 +10,9 @@ reset times and credits illustrate the layout; they do not promise specific plan
 | `overview-dark.png`, `overview-light.png`, `settings.png`, `widget.png` | English single-account, settings and widget previews |
 | `accounts-overview-{en,ko}-{dark,light}.png` | Two ready Codex accounts, with Work / 업무용 selected; the unconnected Claude profile is absent from the cards and counts |
 | `accounts-manage-{en,ko}-{dark,light}.png` | All three registered profiles, including unconnected Research / 실험용 Claude, with connection, nickname and saved-order controls |
-| `claude-waiting-{en,ko}-{dark,light}.png` | Connected Research is visible before its first sample, with unknown limits, Awaiting usage and the web/desktop limitation |
-| `claude-overview-{en,ko}-{dark,light}.png` | The same list after Claude usage arrives: Research selected, separate five-hour/weekly windows and a visibly stale receipt |
-| `claude-connection-{en,ko}-{dark,light}.png` | Automatic Claude connection, official-login choices and Open Claude Code; advanced settings collapsed |
+| `claude-waiting-{en,ko}-{dark,light}.png` | Connected Research before its first sample, with unknown shared subscription limits, Awaiting usage and Open usage page |
+| `claude-overview-{en,ko}-{dark,light}.png` | Research selected with shared subscription usage, separate five-hour/weekly windows, a visibly stale receipt and the manual usage-page action |
+| `claude-connection-{en,ko}-{dark,light}.png` | Automatic Claude connection, shared quota/receipt guidance, official-login choices and manual usage-page access; advanced settings collapsed |
 
 The multi-account fixtures live in `DocumentationScreenshots.SampleAccounts`. They use the
 names Personal / Work / Research (개인용 / 업무용 / 실험용), reserved `example.invalid` email

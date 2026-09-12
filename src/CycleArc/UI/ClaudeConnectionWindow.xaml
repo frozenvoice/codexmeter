@@ -40,6 +40,8 @@
                         </StackPanel>
                     </Border>
                     <TextBlock x:Name="FreshnessHint" Style="{StaticResource GuideText}"/>
+                    <Button x:Name="UsagePageButton" Style="{StaticResource CreditUseButton}" Click="OnUsagePage" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+                    <TextBlock x:Name="UsagePageHint" Style="{StaticResource GuideText}"/>
                     <Expander x:Name="AdvancedDetails" Margin="0,16,0,4">
                         <StackPanel Margin="4,10,4,0">
                             <TextBlock x:Name="ExistingStatusLineHint" Style="{StaticResource GuideText}" Margin="0"/>

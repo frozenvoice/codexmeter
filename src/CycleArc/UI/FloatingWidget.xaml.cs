@@ -42,9 +42,10 @@ public partial class FloatingWidget : Window
         ProviderBadge.Provider = snapshot.Provider;
         CodexLabel.Text = CodexRingPresentation.From(snapshot).CenterSubLabel;
         CodexValue.Text = CycleArcPresentation.CompactText(snapshot)[(snapshot.Provider.Name().Length + 1)..];
-        var needsAttention = snapshot.Status is not (CodexQuotaStatus.Available or CodexQuotaStatus.Refreshing);
-        HistoryValue.Text = needsAttention ? CycleArcPresentation.StatusLabel(snapshot) : "";
-        HistoryValue.Visibility = needsAttention ? Visibility.Visible : Visibility.Collapsed;
+        var showStatus = snapshot.Provider == UsageProviderId.Claude
+            || snapshot.Status is not (CodexQuotaStatus.Available or CodexQuotaStatus.Refreshing);
+        HistoryValue.Text = showStatus ? CycleArcPresentation.StatusLabel(snapshot) : "";
+        HistoryValue.Visibility = showStatus ? Visibility.Visible : Visibility.Collapsed;
         ToolTip = CycleArcPresentation.Tooltip(snapshot);
     }
 

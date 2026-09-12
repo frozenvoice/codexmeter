@@ -2,6 +2,33 @@
 
 ## Current release — Codex and Claude Code
 
+- Claude shared subscription meaning (2026-09-12): reviewed official help, statusLine,
+  CLI, Agent SDK and organization API documentation; the installed CLI was 2.1.233.
+  No supported independent personal-subscription quota query was identified. The
+  [research record](CLAUDE-USAGE-RESEARCH.md) separates shared quota from its Code
+  delivery source. The app retains the passive receiver and adds manual usage-page access.
+  - `./dev-run.ps1 -NoLaunch` passed restore, Release build (0 warnings/errors),
+    **1,141 unit tests**, 15 installer scenarios, 120 account, 138 mixed-provider,
+    180 widget and 36 resource WPF renders, plus both built and published headless
+    receiver checks. The single-file win-x64 executable SHA-256 is
+    `E9389D5D8CCAF19BC9925CD3F57789202F24FEF8DAFE3B5CC54B1A73D4EF9B32`.
+  - Two added language cases verify that recent Claude samples say Received and
+    describe shared subscription scope without changing Codex semantics. WPF checks
+    exercise source guidance for recent/stale/waiting values, provider-scoped buttons,
+    browser-account guidance, and a usage-page click that leaves displayed usage intact
+    and invokes neither refresh nor Claude login. Existing tests cover unchanged
+    receipt timestamps during polling, resets, waiting connections and disconnection.
+  - All 24 production documentation previews were generated with synthetic data,
+    visually inspected and copied with matching hashes. The five user/research/image
+    guides passed 41 local link/anchor checks and balanced table/details checks.
+  - The validated executable was installed locally and restarted with a matching hash
+    and responsive process. Read-only official login inspection confirmed 3 profiles,
+    1 connected Claude account, 3 visible accounts and 0 attention items. Claude still
+    has no real received quota sample and correctly remains Awaiting usage. No model
+    request, browser scraping, credential extraction or account-setting change was used
+    to obtain a value. The usage-page action was exercised through an offline opener;
+    no authenticated browser quota reading is claimed.
+
 - Claude connected visibility and duplicate drafts (2026-09-12): `./dev-run.ps1 -NoLaunch`
   passed restore, Release build (0 warnings/errors), **1,139 unit tests** (9 added cases),
   15 installer scenarios, 120 account, 138 mixed-provider, 180 widget and 36 resource WPF

@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using CycleArc.Codex;
 using CycleArc.Providers.Usage;
+using CycleArc.Providers.Claude;
 
 namespace CycleArc.UI;
 
@@ -19,6 +20,7 @@ public partial class FlyoutWindow : Window
     private CodexQuotaSnapshot? _creditSnapshot;
     // Injectable only for offline UI tests. Production always asks the user.
     internal Func<string, bool>? ConfirmCreditForTest { get; set; }
+    internal Action<string>? OpenExternalForTest { get; set; }
     public event Action? SettingsRequested;
     public event Action<bool>? PinChanged;
     public event Action<double, double>? PositionChanged;
@@ -77,7 +79,8 @@ public partial class FlyoutWindow : Window
         SelectedProviderBadge.Provider = snapshot.Provider;
         ResetCreditsCard.Visibility = snapshot.Provider == UsageProviderId.Codex ? Visibility.Visible : Visibility.Collapsed;
         ApplyLocalizedTexts();
-        StatusText.Text = snapshot.Status == CodexQuotaStatus.Available ? UiText.T("Up to date", "정상 작동 중") : CycleArcPresentation.StatusLabel(snapshot);
+        StatusText.Text = snapshot.Status == CodexQuotaStatus.Available && snapshot.Provider == UsageProviderId.Codex
+            ? UiText.T("Up to date", "정상 작동 중") : CycleArcPresentation.StatusLabel(snapshot);
         StatusDot.Fill = (Brush)FindResource(refreshing ? "AccentBrush" : snapshot.Status == CodexQuotaStatus.Available ? "OkBrush" : "MutedBrush");
         BindCodex(snapshot);
         BindCreditCard(snapshot);
@@ -112,7 +115,9 @@ public partial class FlyoutWindow : Window
         var waiting = accounts.Count(a => a.IsAwaitingUsage);
         if (accounts.Count > 1 && !refreshing)
             StatusText.Text = failed > 0 ? UiText.T($"{failed} need attention", $"{failed}개 확인 필요")
-                : waiting > 0 ? UiText.T($"{waiting} awaiting usage", $"{waiting}개 수신 대기") : UiText.T("All updated", "전체 최신");
+                : waiting > 0 ? UiText.T($"{waiting} awaiting usage", $"{waiting}개 수신 대기")
+                : accounts.Any(a => a.Profile.Provider == UsageProviderId.Claude) ? UiText.T("Samples received", "수신값 표시")
+                : UiText.T("All updated", "전체 최신");
         StatusDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,
             refreshing ? "AccentBrush" : accounts.Count > 0 && failed == 0 && waiting == 0 ? "OkBrush" : "MutedBrush");
         if (selected is null)
@@ -123,6 +128,7 @@ public partial class FlyoutWindow : Window
     }
 
     private void OnAccountsClick(object sender, RoutedEventArgs e) => AccountsRequested?.Invoke();
+    private void OnClaudeUsagePage(object sender, RoutedEventArgs e) => ClaudeUsagePage.Open(this, OpenExternalForTest);
 
     public void SetRefreshPresentation(FlyoutRefreshPresentation presentation)
     {
@@ -263,6 +269,12 @@ public partial class FlyoutWindow : Window
 
     private void BindCodex(CodexQuotaSnapshot snapshot)
     {
+        ClaudeUsageHeader.Visibility = ClaudeUsagePageButton.Visibility = snapshot.Provider == UsageProviderId.Claude
+            ? Visibility.Visible : Visibility.Collapsed;
+        ClaudeUsageTitle.Text = ClaudeUsagePresentation.Title;
+        ClaudeUsageScope.Text = ClaudeUsagePresentation.SharedScope;
+        ClaudeUsagePageButton.Content = ClaudeUsagePresentation.UsagePageLabel;
+        ClaudeUsagePageButton.ToolTip = MakeTooltip(ClaudeUsagePresentation.UsagePageHint);
         CodexStatusText.Text = snapshot.Status == CodexQuotaStatus.Refreshing ? "" : CodexDisplayFormatting.StatusText(snapshot);
         CodexStatusText.Visibility = string.IsNullOrWhiteSpace(CodexStatusText.Text)
             ? Visibility.Collapsed

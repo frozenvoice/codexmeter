@@ -35,7 +35,7 @@ The **Codex** or **Claude** label on account cards, selected details, tray toolt
 - **Reset credits.** View the available count and expiry times when the server supplies them. Use an individual reset after confirmation. Missing expiry information stays explicitly unknown.
 - **Optional desktop widget.** A compact, draggable meter with adjustable opacity, always-on-top, and click-through options. Off-screen positions recover automatically.
 - **Your preferred appearance.** Dark, Light, or live System theme; English and Korean; keyboard zoom from 80% to 150%.
-- **Honest refresh states.** Check Codex at a selectable 1, 2, 5, 10, 30 or 60-minute interval (default: five minutes). Claude receives updates from Claude Code terminal responses. Previously received values remain visibly stale during a temporary update failure; unconnected profiles stay in account management.
+- **Honest refresh states.** Check Codex at a selectable 1, 2, 5, 10, 30 or 60-minute interval (default: five minutes). Claude shows the last received shared subscription quota, delivered through Claude Code. Previously received values remain visibly stale during a temporary update failure; unconnected profiles stay in account management.
 
 ## Get started
 
@@ -112,16 +112,20 @@ The first launch opens the detail card. Later launches start in the tray; `Cycle
 
 ### Claude Code connection
 
+**Claude subscription usage is shared across Web, Desktop and Code.** CycleArc displays the last shared-quota sample received through Claude Code. Web/Desktop activity also consumes that allowance, so the current account usage may have changed since the sample. [Official usage-limit explanation](https://support.claude.com/en/articles/11647753-how-do-usage-and-length-limits-work).
+
+To check current usage without using Code, choose **Open usage page** on the Claude detail card or connection window. It opens [Claude Settings → Usage](https://claude.ai/settings/usage) in your browser; check that the intended account is signed in. Opening the page does not refresh CycleArc. A review of official APIs, CLI and SDK documentation found no supported independent query for a personal subscription's current shared quota. See the [dated research and decision](docs/CLAUDE-USAGE-RESEARCH.md).
+
 1. Open **Manage accounts → Add an account → Connect Claude**. Set an optional nickname.
 2. Choose **Connect current login** to use the signed-in Claude CLI, or **Sign in to Claude** to complete the official browser login. CycleArc verifies `claude auth status --json` and configures the connection automatically. Other settings and the existing status line are preserved; no JSON copying is required.
-3. Complete a response in the **Claude Code terminal**. For a separate login created by CycleArc, choose **Open Claude Code…** and select your working folder. This launches Claude with that profile's configuration. Only the official `rate_limits.five_hour` / `rate_limits.seven_day` → `used_percentage` and `resets_at` fields supply usage; absent values stay unknown.
+3. During normal **Claude Code** use, responses can supply shared subscription usage. For a separate login created by CycleArc, **Open Claude Code…** launches it with that profile's configuration and your chosen working folder. Only the official `rate_limits.five_hour` / `rate_limits.seven_day` → `used_percentage` and `resets_at` fields supply usage; absent values stay unknown.
 
-**Chats on claude.ai or in the Claude desktop app do not update CycleArc.** Connection and usage receipt are separate: a connected account stays visible with **Awaiting usage** until Claude Code sends a sample. Repeating **Connect current login** reuses the same verified configuration binding and preserves its name and usage history. Closing or cancelling a new connection before it succeeds removes its empty draft from the list.
+**Web and Desktop do not send updates to CycleArc.** Connection and usage receipt are separate: a connected account stays visible with **Awaiting usage** until Claude Code sends a sample. Repeating **Connect current login** reuses the same verified configuration binding and preserves its name and usage history. Closing or cancelling a new connection before it succeeds removes its empty draft from the list.
 
 <details>
 <summary><strong>Connected, awaiting usage · Dark and Light</strong></summary>
 
-<p><img src="docs/images/claude-waiting-en-dark.png" alt="Connected Claude visible with awaiting usage, unknown limits and the claude.ai limitation" width="440"> <img src="docs/images/claude-waiting-en-light.png" alt="The same connected waiting state in the light theme" width="440"></p>
+<p><img src="docs/images/claude-waiting-en-dark.png" alt="Connected Claude awaiting shared subscription usage, with unknown limits and an Open usage page action" width="440"> <img src="docs/images/claude-waiting-en-light.png" alt="The same connected waiting state in the light theme" width="440"></p>
 
 </details>
 
@@ -137,7 +141,7 @@ The first launch opens the detail card. Later launches start in the tray; `Cycle
 
 The official statusLine JSON has **no account email or account ID**. The official CLI supplies the current login's email and subscription metadata; CycleArc derives an identity fingerprint for the local binding. Email stays in memory. Each callback checks that the current login still matches; a different login requires reconnecting. This checks the configured login, not the identity of an already-running session, so restart existing Claude sessions after switching their login outside CycleArc. Browser logins started by CycleArc use separate configuration folders. A nickname takes precedence over the verified login email, with `Claude · <local profile ID>` as the fallback. Account selection, order and aliases share the existing UI; profiles are never added together.
 
-The last valid sample becomes **stale after five minutes without valid statusLine input**, when its reported reset time passes, or after missing/malformed input. Stale values survive restarts. Manual refresh and the passive inbox poll do not renew the sample's receipt time, query Claude, or synthesize a new quota period. The detail card shows **Last received**. Claude has no Codex reset-credit controls.
+The last valid sample becomes **stale after five minutes without valid statusLine input**, when its reported reset time passes, or after missing/malformed input. Stale values survive restarts. Manual refresh and the passive inbox poll do not renew the sample's receipt time, query Claude, or synthesize a new quota period. The detail card shows **Last received**; even recent input is labeled **Received**, since its timestamp records local delivery rather than an independent account query. Claude has no Codex reset-credit controls.
 
 <details>
 <summary><strong>Claude usage after the first sample · Dark and Light</strong></summary>

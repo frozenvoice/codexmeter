@@ -6,6 +6,11 @@
   manager. `CodexUsageProvider` adapts the existing Codex service without changing its
   protocol/client, identity verification, concurrency or cache format. `ClaudeUsageProvider`
   reads only a local inbox populated by Claude Code's official statusLine stdin.
+- Claude's projected windows describe shared Web/Desktop/Code subscription quota. Code is
+  the delivery source; receipt recency does not prove current server usage. Claude UI labels
+  even recent samples as Received, with shared scope and last-sample guidance. A user action
+  opens the official usage page in the default browser for manual inspection; no page or
+  credential collection occurs. See [the official-interface review](CLAUDE-USAGE-RESEARCH.md).
 - Public `CodexAccount*` / `CodexQuota*` type names remain as shared presentation records for
   caller/cache compatibility; their default provider is Codex. Claude accounts carry
   `Provider = Claude`, an empty shared home path and no Codex authentication/credit capabilities.
@@ -54,7 +59,8 @@
   is hidden. The projection never deletes profiles or rewrites the user's saved selection.
   Explicit Claude disconnection is persisted separately from its preserved quota cache, so a restart
   cannot resurrect the disconnected card. Reconnection shows **Awaiting usage** until a new official
-  sample arrives. Claude Code terminal responses supply updates; web/desktop chats do not.
+  sample arrives. Claude Code responses supply quota fields; Web/Desktop activity consumes
+  the same allowance but sends no update to this receiver.
 
 - The repository is `frozenvoice/cyclearc`; clone instructions use the folder `cyclearc`.
   Clone instructions, documentation badges/download links and the app's repository link use

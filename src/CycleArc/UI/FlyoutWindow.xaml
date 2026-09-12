@@ -229,6 +229,10 @@
                     </Grid>
                     <Border x:Name="CodexCard" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="12">
                         <StackPanel>
+                            <StackPanel x:Name="ClaudeUsageHeader" Visibility="Collapsed" Margin="0,0,0,8">
+                                <TextBlock x:Name="ClaudeUsageTitle" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                <TextBlock x:Name="ClaudeUsageScope" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                            </StackPanel>
                             <TextBlock x:Name="CodexStatusText" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,0,8" Visibility="Collapsed"/>
                             <Grid x:Name="CodexBodyGrid">
                                 <Grid.ColumnDefinitions>
@@ -252,6 +256,8 @@
                                     <ItemsControl x:Name="CodexRows" VerticalAlignment="Center"/>
                                 </Border>
                             </Grid>
+                            <Button x:Name="ClaudeUsagePageButton" Style="{StaticResource CreditUseButton}" Click="OnClaudeUsagePage"
+                                    HorizontalAlignment="Left" Margin="0,10,0,0" Visibility="Collapsed"/>
                         </StackPanel>
                     </Border>
                     <Border x:Name="ResetCreditsCard" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,12,0,0">
