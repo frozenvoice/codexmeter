@@ -128,9 +128,8 @@ public sealed class ClaudeQuotaService : IUsageAccountService
         var received = snapshot.LastSuccessfulRefresh;
         if (received is null || received > now)
             return snapshot with { Status = CodexQuotaStatus.Stale, TechnicalDetail = "claude-receipt-invalid" };
-        // Idle time alone does not invalidate a sample; its original receipt remains visible.
-        if (snapshot.Windows.Any(window => window.ResetsAt is { } reset && reset <= now))
-            return snapshot with { Status = CodexQuotaStatus.Stale, TechnicalDetail = "claude-reset-elapsed" };
+        // Even after a reported reset, these remain the last received values, not a live query.
+        // Preserve their percentages, reset times and original receipt without an age warning.
         return snapshot;
     }
 

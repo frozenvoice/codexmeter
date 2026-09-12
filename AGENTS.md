@@ -43,8 +43,9 @@ Repository: `cyclearc`; solution: `CycleArc.sln`; distribution: one self-contain
   official statusLine `rate_limits.five_hour` / `seven_day` (`used_percentage`, `resets_at`).
   Preserve fractional percentages. Code is the delivery source, not the whole scope of account usage.
 - Label Claude samples as received, not live/current. Keep idle samples in Received with last-good values
-  and their original receipt time. Reserve stale warnings for an elapsed reset, missing/malformed input,
-  cache/identity failures or invalid receipt metadata. Elapsed idle time alone must not raise attention.
+  and their original receipt time, including after reported reset times pass. Reserve stale warnings for
+  missing/malformed input, cache/identity failures or invalid receipt metadata. Elapsed time or a passed
+  reset alone must not raise attention.
   Keep the last receipt date/time and shared scope in the UI.
   Polling, manual refresh and opening the usage page must not renew a receipt or invent zero after reset.
 - Do not force a Claude quota refresh without a supported, safe official query. The current refresh reads

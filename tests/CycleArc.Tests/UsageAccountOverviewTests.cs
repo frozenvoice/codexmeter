@@ -100,7 +100,7 @@ public class UsageAccountOverviewTests
         await service.RefreshAsync(default);
         Assert.Single(UsageAccountOverview.Create([View()], data.Profile.Id).Accounts);
         var receivedAt = service.Snapshot.LastSuccessfulRefresh;
-        data.Clock.UtcNow = data.Clock.UtcNow.AddMinutes(6);
+        data.Clock.UtcNow = data.Clock.UtcNow.AddHours(8);
         await service.RefreshAsync(default);
         var idle = UsageAccountOverview.Create([View()], data.Profile.Id);
         Assert.Equal(CodexQuotaStatus.Available, idle.Snapshot.Status);

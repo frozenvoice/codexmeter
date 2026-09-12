@@ -150,15 +150,37 @@ internal static class MixedProviderUiChecks
                     : Path.Combine(directory, $"claude-reset-elapsed-{language}-{theme}.png"));
                 var resetNotice = (TextBlock)flyout.FindName("CodexStatusText");
                 CheckStaleText(resetNotice, elapsed.Snapshot);
-                Check(resetNotice.Text.Contains(UiText.T("reset time has passed", "리셋 시각이 지났습니다"))
-                    && ((TextBlock)flyout.FindName("StatusText")).Text == UiText.T("1 need attention", "1개 확인 필요"),
-                    "Elapsed reset does not explain why the saved Claude values need attention.");
+                Check(elapsed.Snapshot.Status == CodexQuotaStatus.Available
+                    && !resetNotice.Text.Contains(UiText.T("Stale data", "오래된 데이터"))
+                    && ((TextBlock)flyout.FindName("StatusText")).Text == UiText.T("Samples received", "수신값 표시"),
+                    "Elapsed reset unnecessarily raises attention for the last received Claude sample.");
+                var elapsedCard = ((ItemsControl)flyout.FindName("AccountOverview")).Items.Cast<Button>().Last();
+                CheckStaleText(AccountUiChecks.Descendants<TextBlock>(elapsedCard).Single(text =>
+                    text.Text == CycleArcPresentation.StatusLabel(elapsed.Snapshot)), elapsed.Snapshot);
+                Check(((TextBlock)flyout.FindName("CodexRingValueText")).Text == CodexRingPresentation.From(idle.Snapshot).CenterValueText,
+                    "Elapsed reset changed the last received percentage.");
                 widget.BindAccount(elapsed, true);
-                AccountUiChecks.Render(widget, 245, null, null);
+                AccountUiChecks.Render(widget, 245, null, directory is null ? null
+                    : Path.Combine(directory, $"claude-reset-elapsed-widget-{language}-{theme}.png"));
                 CheckStaleText((TextBlock)widget.FindName("HistoryValue"), elapsed.Snapshot);
+                Check(!((TextBlock)widget.FindName("CodexValue")).Text.Contains('~')
+                    && ((TextBlock)widget.FindName("ClaudeReceipt")).Text == ClaudeUsagePresentation.LastReceivedText(idle.Snapshot),
+                    "Elapsed reset adds a warning or renews the original receipt.");
                 count += 2;
 
-                // Reuse the same views after the expired sample: a real new sample clears the warning.
+                // A real input failure still warns, and a later valid sample clears that warning.
+                var failed = elapsed with { Snapshot = elapsed.Snapshot with
+                    { Status = CodexQuotaStatus.Stale, TechnicalDetail = "claude-statusline-malformed" } };
+                flyout.BindAccounts([accounts[0], failed], failed.Profile.Id, false);
+                AccountUiChecks.Render(flyout, 440, null, null);
+                CheckStaleText((TextBlock)flyout.FindName("CodexStatusText"), failed.Snapshot);
+                Check(((TextBlock)flyout.FindName("StatusText")).Text == UiText.T("1 need attention", "1개 확인 필요"),
+                    "A real Claude input failure no longer raises attention.");
+                widget.BindAccount(failed, true);
+                AccountUiChecks.Render(widget, 245, null, null);
+                CheckStaleText((TextBlock)widget.FindName("HistoryValue"), failed.Snapshot);
+                count += 2;
+
                 var renewed = accounts[1] with { Snapshot = accounts[1].Snapshot with { LastSuccessfulRefresh = DateTimeOffset.Now } };
                 flyout.Bind(renewed.Snapshot);
                 AccountUiChecks.Render(flyout, 440, null, null);

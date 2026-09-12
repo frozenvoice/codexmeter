@@ -36,9 +36,6 @@ public static class ClaudeUsagePresentation
                     "오래된 데이터 · 마지막 정상 수신값입니다. 새 Claude 데이터를 읽지 못했습니다.")
                 : UiText.T("Unsupported Claude statusLine data. Check your Claude Code version and connection command.",
                     "Claude statusLine 형식을 확인할 수 없습니다. Claude Code 버전과 연결 명령을 확인하세요.");
-        if (snapshot.Status == CodexQuotaStatus.Stale && snapshot.TechnicalDetail == "claude-reset-elapsed")
-            return UiText.T("Stale data · The reported reset time has passed. Showing the last received values until a new sample arrives.",
-                "오래된 데이터 · 표시된 리셋 시각이 지났습니다. 새 데이터를 받을 때까지 마지막 수신값을 표시합니다.");
         if (snapshot.Status == CodexQuotaStatus.Stale && snapshot.TechnicalDetail == "claude-receipt-invalid")
             return UiText.T("Stale data · The receipt time could not be verified. Showing the last valid values.",
                 "오래된 데이터 · 수신 시각을 확인할 수 없어 마지막 정상값을 표시합니다.");

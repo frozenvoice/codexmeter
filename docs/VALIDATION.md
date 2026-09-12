@@ -2,6 +2,24 @@
 
 ## Current release — Codex and Claude Code
 
+- Claude elapsed-reset receipts (2026-09-13): a passed reset no longer marks a received
+  sample stale or raises attention. This supersedes the elapsed-reset warning retained in
+  the 2026-09-12 idle-receipt change below. Original percentages, reset times and receipt
+  timestamps remain visible; real input/cache/identity failures and invalid receipt times
+  still warn.
+  - `./dev-run.ps1 -NoLaunch` passed restore, Release build (0 warnings/errors), **1,158 unit
+    tests**, 15 installer scenarios, all **666 WPF renders**, and built/published headless
+    receiver checks. The single-file win-x64 executable SHA-256 is
+    `A19C9E28D9F1D3D3665972070F99E40332F2F64EE8536DC4C186F44964D088C5`.
+  - Regression checks cover five-hour/weekly reset boundaries, 400-day receipts, unchanged
+    polling/cache/restart state, weekly-only samples, tooltip limits and real input-failure
+    recovery. The 186 mixed-provider renders include neutral elapsed-reset cards/widgets,
+    zero attention for time alone, and retained warnings for actual malformed input.
+  - English/Korean dark/light popup previews and two widget previews were visually inspected.
+    Read-only projection of the existing Claude receipt returned Available after its reset,
+    preserving both quotas and the original receipt with an unchanged cache hash. No model
+    response was requested, and existing documentation images remain representative.
+
 - Claude idle receipts (2026-09-12): elapsed idle time no longer marks a valid sample stale
   or raises attention. This supersedes the five-minute cutoff in the earlier checks below.
   Last-good percentages and original receipt timestamps remain unchanged; elapsed resets,

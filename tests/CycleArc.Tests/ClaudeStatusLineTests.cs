@@ -175,32 +175,65 @@ public class ClaudeStatusLineTests
         Assert.Equal(0, snapshot.Windows[0].UsedPercent);
     }
 
+    [Theory]
+    [InlineData(5)]
+    [InlineData(7 * 24)]
+    [InlineData(400 * 24)]
+    public async Task ElapsedResetsRemainReceivedAcrossPollingAndRestartWithoutInventingANewPeriod(int hours)
+    {
+        using var data = new ClaudeTestData();
+        await data.Receive(Payload());
+        var bytes = File.ReadAllBytes(data.Path);
+        var service = data.Service();
+        var original = service.Snapshot;
+        var changes = 0;
+        service.Changed += _ => changes++;
+        foreach (var elapsed in new[] { TimeSpan.FromHours(hours).Add(TimeSpan.FromSeconds(-1)),
+            TimeSpan.FromHours(hours), TimeSpan.FromHours(hours).Add(TimeSpan.FromSeconds(1)) })
+        {
+            data.Clock.UtcNow = Now + elapsed;
+            await service.RefreshAsync(default);
+            await service.RefreshAsync(default);
+            foreach (var snapshot in new[] { service.Snapshot, data.Service().Snapshot })
+            {
+                Assert.Equal(CodexQuotaStatus.Available, snapshot.Status);
+                Assert.Null(snapshot.TechnicalDetail);
+                Assert.Equal(original.Windows.ToArray(), snapshot.Windows.ToArray());
+                Assert.Equal(Now, snapshot.LastSuccessfulRefresh);
+                Assert.Equal(Now, snapshot.LastAttemptedRefresh);
+            }
+            Assert.Equal(0, changes);
+            Assert.Equal(bytes, File.ReadAllBytes(data.Path));
+        }
+    }
+
     [Fact]
-    public async Task ResetExpiryAndClockRollbackNeverInventANewPeriod()
+    public async Task ClockRollbackStillWarnsWithoutChangingTheReceivedValues()
     {
         using var data = new ClaudeTestData();
         await data.Receive(JsonSerializer.Serialize(new { rate_limits = new { five_hour = new
             { used_percentage = 100, resets_at = Now.AddSeconds(30).ToUnixTimeSeconds() } } }));
         var service = data.Service();
-        data.Clock.UtcNow = Now.AddSeconds(29);
-        Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
-        data.Clock.UtcNow = Now.AddSeconds(30);
-        Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
-        Assert.Equal("claude-reset-elapsed", service.Snapshot.TechnicalDetail);
-        Assert.Equal(100, service.Snapshot.CompactWindow!.UsedPercent);
-        Assert.Equal(Now, service.Snapshot.LastSuccessfulRefresh);
-        Assert.Equal(CodexQuotaStatus.Stale, data.Service().Snapshot.Status);
         data.Clock.UtcNow = Now.AddMinutes(-1);
         Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
         Assert.Equal("claude-receipt-invalid", service.Snapshot.TechnicalDetail);
+        Assert.Equal(100, service.Snapshot.CompactWindow!.UsedPercent);
+        Assert.Equal(Now, service.Snapshot.LastSuccessfulRefresh);
+        Assert.Equal(CodexQuotaStatus.Stale, data.Service().Snapshot.Status);
+        data.Clock.UtcNow = Now.AddHours(1);
+        Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
+        Assert.Equal(100, service.Snapshot.CompactWindow!.UsedPercent);
     }
 
-    [Fact]
-    public async Task WeeklyOnlySampleRemainsReceivedAfterDaysOfIdleTimeBeforeItsReset()
+    [Theory]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    public async Task WeeklyOnlySampleRemainsReceivedBeforeAndAfterItsReset(int days)
     {
         using var data = new ClaudeTestData();
         await data.Receive("""{"rate_limits":{"seven_day":{"used_percentage":41.2,"resets_at":1894060800}}}""");
-        data.Clock.UtcNow = Now.AddDays(6);
+        data.Clock.UtcNow = Now.AddDays(days);
         var snapshot = data.Service().Snapshot;
         Assert.Equal(CodexQuotaStatus.Available, snapshot.Status);
         Assert.Equal(Now, snapshot.LastSuccessfulRefresh);
@@ -310,19 +343,27 @@ public class ClaudeStatusLineTests
     }
 
     [Theory]
-    [InlineData(UiLanguage.English)]
-    [InlineData(UiLanguage.Korean)]
-    public async Task OldClaudeReceiptAndSharedScopeSurviveNativeTooltipLimitAndRestart(UiLanguage language)
+    [InlineData(UiLanguage.English, false)]
+    [InlineData(UiLanguage.Korean, false)]
+    [InlineData(UiLanguage.English, true)]
+    [InlineData(UiLanguage.Korean, true)]
+    public async Task OldClaudeReceiptAndSharedScopeSurviveNativeTooltipLimitAndRestart(UiLanguage language, bool inputFailed)
     {
         UiText.SetLanguage(language);
         try
         {
             using var data = new ClaudeTestData();
             await data.Receive(Payload());
+            if (inputFailed)
+            {
+                data.Clock.UtcNow = Now.AddSeconds(30);
+                await data.Receive("{broken");
+            }
             data.Clock.UtcNow = Now.AddDays(400);
             var snapshot = data.Service().Snapshot;
-            Assert.True(ClaudeUsagePresentation.IsStale(snapshot));
-            Assert.Equal(UiText.T("Stale data", "오래된 데이터"), CycleArcPresentation.StatusLabel(snapshot));
+            Assert.Equal(inputFailed, ClaudeUsagePresentation.IsStale(snapshot));
+            Assert.Equal(inputFailed ? UiText.T("Stale data", "오래된 데이터") : UiText.T("Received", "수신됨"),
+                CycleArcPresentation.StatusLabel(snapshot));
             var stamp = Now.ToLocalTime().ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture);
             var receipt = Assert.Single(CodexDisplayFormatting.Rows(snapshot, data.Clock.UtcNow),
                 row => row.Label == ClaudeUsagePresentation.LastReceivedLabel);
@@ -342,7 +383,8 @@ public class ClaudeStatusLineTests
             Assert.Contains("41.2%", tooltip);
             Assert.False(char.IsHighSurrogate(tooltip[^1]));
             Assert.Equal(Now, snapshot.LastSuccessfulRefresh);
-            Assert.Equal(UiText.T("Saved data", "이전 데이터"), CycleArcPresentation.StatusLabel(snapshot with { Provider = UsageProviderId.Codex }));
+            Assert.Equal(inputFailed ? UiText.T("Saved data", "이전 데이터") : UiText.T("Updated", "업데이트됨"),
+                CycleArcPresentation.StatusLabel(snapshot with { Provider = UsageProviderId.Codex }));
         }
         finally { UiText.SetLanguage(UiLanguage.English); }
     }
