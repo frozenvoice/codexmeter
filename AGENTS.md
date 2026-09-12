@@ -1,257 +1,114 @@
 # CycleArc agent instructions
 
-Repository/solution: `cyclearc` / `CycleArc.sln`. Product: **CycleArc**.
-Windows-only .NET 8 WPF tray app, distributed as one `CycleArc.exe`.
+**CycleArc** is a Windows-only .NET 8 WPF tray app for Codex and Claude subscription limits.
+Repository: `cyclearc`; solution: `CycleArc.sln`; distribution: one self-contained `CycleArc.exe`.
+`src/CycleArc` contains the desktop app; `src/CycleArc.Core` contains provider/shared logic;
+`tests/CycleArc.Tests` and `tests/CycleArc.UiSmoke` contain unit and production WPF checks.
 
-## Active product direction
+## Scope and workflow
 
-- Monitor Codex account limits through the installed, signed-in Codex App Server protocol.
-- Also support Claude Code through official statusLine stdin JSON only: project
-  `rate_limits.five_hour` / `seven_day` `used_percentage` and `resets_at`. Never parse
-  `/usage`, inspect auth/token files or transcripts, or use undocumented usage endpoints.
-- Claude sign-in and automatic connection use the official CLI `auth login --claudeai` and
-  `auth status --json` commands. Preserve unrelated settings and any existing statusLine;
-  never open CLI-owned credential files. Login must be cancellable and single-flight.
-- Keep providers behind `IUsageProvider` / `IUsageAccountService`. Claude profiles are
-  explicit local command bindings; statusLine supplies no verified email/account ID.
-  Keep existing nickname, order, selection and widget behavior with the correct provider badge.
-- Without a new valid Claude sample, retain the last good percentages as stale. Polling
-  or manual refresh must never renew receipt time or invent usage after a reset.
-- The single executable owns a bounded headless statusLine mode before WPF/mutex/account
-  startup. Persist only the projected quotas and receipt/status metadata, never raw stdin.
-- No ChatGPT Pro/Sol counters, browser extension, WebView2, conversation sync or active SQLite collector.
-- Keep Codex unavailable/stale/fresh states truthful; never fabricate counts from percentages.
-- Keep the native notification icon, optional widget, theme/language settings, bounded shared refresh,
-  existing user preferences and quota-cache compatibility.
-- Publish exactly one self-contained `CycleArc.exe`; do not ship a companion host or extension.
-- Read `README.md` and the active sections of `docs/ARCHITECTURE.md` / `docs/VALIDATION.md`.
-- Browser/ChatGPT-specific rules below apply only when maintaining the retained legacy source/tests.
-  They do not authorize re-enabling those features or require installing/reloading an extension
-  for the current product. Active UI must not show Pro reconstruction.
-## Correctness
+- Check the repository root, branch/upstream and working-tree changes before editing. Preserve unrelated work.
+- Follow the user's current request and earlier approvals. Resolve routine reversible choices without asking again;
+  clarify only a missing decision that materially affects the result. Respect host permissions.
+- Inspect the affected implementation and relevant recent history, then implement, run the appropriate check,
+  fix failures and verify the result. A plan, first implementation or passing compile alone is not completion.
+- Keep changes focused. Do not add collectors, dependencies, features or cleanup merely to make a check pass.
+- Read only the context needed below. Select skills for the actual operation, not incidental keywords.
+  A wording change does not require another protocol investigation or every project document.
+- Keep this file focused on current product contracts and recurring failures. Put detailed explanations in
+  the relevant document; consolidate an existing rule before adding another blanket requirement.
 
-- Never convert an unknown or malformed API shape into a successful empty result.
-- Never silently undercount.
-- Schema mismatch must be surfaced (`ProviderSchemaMismatch` / coverage incomplete).
-- Incomplete pagination must reduce coverage.
-- Failed or incomplete scans must never advance the successful watermark.
-- Missing `update_time` must never become a trusted incremental watermark.
-- Fatal 401/403, 429, and offline conditions must abort the entire sync. Do not record remaining conversations as failed after a global auth/rate-limit/offline error.
-- Quota windows with different reset periods must never be mixed. Never use a daily reset to compute the seven-day reconstruction period.
-- Ambiguous quota metadata must remain diagnostic-only.
-- Reconstructed counts must never be labeled Authoritative.
-- Conversation-history reconstruction is never an authoritative remaining-quota count unless the server explicitly supplies authoritative used/remaining metadata.
-- A locally configured plan limit must never be combined with reconstructed usage to present an exact "remaining" count.
-- Server model-limit reset metadata may be authoritative for reset timing even when server used/remaining counts are unavailable.
-- Count confidence and reset confidence are separate concepts.
-- blocked_features metadata may be correlated with Pro model-limit reset metadata, but correlation must not be presented as an explicit server relationship unless the server actually provides one.
-- A null block_reason must not be converted into "quota exhausted", "safeguard", or another invented cause.
-- Every visible UI surface must use the same Pro status presentation semantics: tray, Flyout, Main window, taskbar strip, floating widget, tooltip and notifications.
-- Reconstructed counts must be labelled as reconstructed observed requests, not as billed quota. Use `N+` / “minimum” only when identity, model, time, period, and duplicate uncertainty allow a true lower bound. Missing history alone does not justify `N+` on an arbitrary reconstructed number. Otherwise use an explicit reconstruction/estimate label and keep unresolved evidence separate. See `docs/metering-contract.md`.
-- Fake Monday/local reset anchors are allowed only for historical reconstruction estimates, never as authoritative quota reset times.
-- Taskbar and floating widget must never show a reconstructed value in a form that looks like authoritative remaining quota.
-- Lightweight server-status refresh must not require a full conversation-history scan.
-- Count confidence must include confidence in the quota-period boundary. Untouched default Monday 00:00 local is not a confirmed reset.
-- Last sync means completion time, not scan start/reference time.
-- Coverage must describe concrete collection state, not imply a probabilistic accuracy percentage.
-- The same conversation encountered through multiple indexes in one sync must not be counted as multiple unique failures.
-- The same conversation should not be unnecessarily body-fetched twice in the same sync.
-- Unknown denominators must use human-readable wording rather than a bare "Unknown".
-- Estimated reset anchors must never visually resemble confirmed server reset times.
-- NotifyIcon.Text must always satisfy the platform length limit.
-- User-visible localization must never make tray tooltip assignment capable of crashing startup.
-- Last successful/partial completed sync time must survive application restart.
-- Persisted last-sync state must not be confused with an in-progress or failed sync.
+## Read on demand
 
-## Privacy and security
+| When the task involves | Read the relevant section of |
+| --- | --- |
+| Product behavior, setup or user-facing wording | [README.md](README.md) and the corresponding [Korean guide](docs/README.ko.md) |
+| Provider boundaries, account state, cache compatibility or startup | The active-product section of [ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Claude login, bindings, statusLine or receipt handling | [Claude integration](docs/CLAUDE.md) |
+| Changing Claude's data source or assessing a current-quota query | [Official-interface research](docs/CLAUDE-USAGE-RESEARCH.md); recheck official sources if the decision may have changed |
+| Prior regressions, test coverage or release evidence | Matching entries in [VALIDATION.md](docs/VALIDATION.md), not its entire history |
+| Creating or replacing UI documentation images | [Image guide](docs/images/README.md) |
+| Retained ChatGPT history, reconstruction, WebView or companion code/tests | [Legacy maintenance](docs/LEGACY-MAINTENANCE.md); those rules do not apply to ordinary Codex/Claude work |
 
-- Never extract Chrome/Edge/Whale cookie databases.
-- Never persist access tokens, session tokens, Authorization headers, or cookies.
-- Access tokens may be cached only in process memory and must never be persisted or logged.
-- Never store prompt or assistant response bodies.
-- Never write prompt/response bodies or secrets into logs.
-- No external telemetry or analytics.
+## Product contracts
 
-## Authentication and origin
+- Keep providers behind `IUsageProvider` / `IUsageAccountService`. Never combine accounts' percentages,
+  windows, caches or reset credits. Selection changes the detail/tray/widget account, not another app's login.
+  Preserve nicknames, order, selected IDs, provider badges and existing settings/cache compatibility.
+- Codex data comes from the installed, signed-in App Server. Classify windows by `windowDurationMins`,
+  not primary/secondary position. Keep root metadata separate from selected-bucket metadata.
+  Missing optional windows are allowed; malformed protocol input is a failure, not successful empty data.
+  Unknown percentages/credit expiries stay unknown. Reset-credit IDs stay in memory; persist expiry timestamps only.
+- Claude values describe the **shared Web·Desktop·Code subscription quota**, last delivered via Code's
+  official statusLine `rate_limits.five_hour` / `seven_day` (`used_percentage`, `resets_at`).
+  Preserve fractional percentages. Code is the delivery source, not the whole scope of account usage.
+- Label Claude samples as received, not live/current. Retain last-good values and original receipt time;
+  clearly mark stale after five minutes without valid input, an elapsed reset, missing/malformed input,
+  or future-dated receipt metadata. Keep the last receipt date/time and shared scope in the UI.
+  Polling, manual refresh and opening the usage page must not renew a receipt or invent zero after reset.
+- Do not force a Claude quota refresh without a supported, safe official query. The current refresh reads
+  the local inbox only; the usage-page button opens the normal browser without collecting its contents.
+  Never scrape usage pages, parse `/usage`, call undocumented quota endpoints, or run a model turn to measure limits.
+- Connection and usage receipt are separate. Connected Claude accounts remain visible with unknown limits
+  and **Awaiting usage**, without increasing attention totals. Unconnected/disconnected profiles stay in management;
+  temporary failures retain usable stale data. Popup, tray, widget, counts and fallback selection use one projection.
+- Reconnecting the same verified Claude binding reuses the existing profile. Remove only empty drafts created by
+  the cancelled/failed connection flow; preserve connected profiles and saved data. Disconnection survives restart.
+- Claude authentication uses official `auth login --claudeai` / `auth status --json`, with bounded, cancellable,
+  single-flight operations. StatusLine does not verify identity: preserve configuration/account binding checks,
+  reject old or mismatched callbacks, and preserve unrelated settings and any existing statusLine command/output.
+- Persist only projected quota, receipt and binding metadata. Never read/copy/monitor CLI credential files,
+  tokens, cookies, prompts, responses or conversation files; never log secrets or add telemetry.
+  Keep Claude email in memory and login with the official flow. Diagnostics/tests must not change real accounts/settings.
+- Unknown usage is never zero or a fabricated request count. Failed attempts must not advance the last success.
+  Preserve the last valid snapshot on transient failure and across restart. Cache/settings writes remain atomic
+  with a valid backup; branding changes must preserve `LegacyInstallation` data/mutex/registry identifiers.
+- Marshal background and system-event callbacks to the WPF Dispatcher. Bound subprocess startup, requests,
+  cancellation and shutdown; do not leak child processes. Shared refresh is single-flight across entry points:
+  only its owner clears busy state, with visible progress until the operation actually finishes.
+- Use the existing Korean/English localization and Dark/Light/System resources. State must be clear without
+  relying only on color or hover. Preserve readable controls, scaling, scrolling and widget recovery after DPI changes.
+  Keep native tray text within 127 characters, retaining Claude freshness/receipt/scope before long nicknames.
+- Windows owns the native notification-icon slot. Do not restore taskbar overlays, Explorer hooks, browser
+  extensions, WebView2, conversation synchronization or active SQLite history collection. Retained legacy code
+  is not a supported runtime path. Starting with Windows requires opt-in; preserve saved widget preferences.
+- The bounded headless Claude receiver runs before WPF/mutex/account startup in the same executable.
+  Ship no companion host or extension. Codex reset-credit actions remain Codex-only.
 
-- Interactive OAuth navigation must never be interrupted by background probes.
-- External authentication origins such as Google, Microsoft, Apple, and auth.openai.com may be visited only during an explicit interactive sign-in.
-- Embedded WebView OAuth must not be presented as a supported authentication path for Google, Microsoft, Apple, or other providers that disallow embedded user agents.
-- Never spoof a user agent or bypass an identity provider's embedded-browser restrictions.
-- Social-login support must use the user's normal browser session through an explicit browser companion integration.
-- WebView2 may remain only as an optional fallback for authentication methods that actually work in WebView2.
-- ChatGPT backend fetches must execute only from the exact validated ChatGPT application origin, never from substring-matched or arbitrary origins.
-- Backend execution origin and requested target URI must both be validated.
-- Backend fetches require HTTPS and the exact expected origin.
-- Absolute external URLs, scheme-relative URLs, non-default ports, backslashes, control characters, and path traversal must be rejected before credentials are attached.
-- A failed session refresh must return the refresh failure, not mask it as the original 401.
-- Do not fetch `/api/auth/session` before every backend request.
-- Do not use host substring matching for origin validation.
-- Login and session-probe operations must be single-flight and cancellable.
+## Verification matched to the change
 
-## Consent and disclosure
+| Change | Required local checks |
+| --- | --- |
+| Markdown, instructions, comments or Git tracking only | Review the diff; check affected links, paths and command accuracy. No app build, publish, reinstall or model call solely for this change. |
+| Core/provider behavior or a correctness bug | Relevant regression tests, including malformed/unknown input and state transitions where applicable. Synthetic fixtures must match the official protocol shape. |
+| WPF state, layout, localization, theme or interaction | Release build and affected `CycleArc.UiSmoke` checks; visually inspect affected views in English/Korean and relevant themes/sizes. |
+| Login, cache, concurrency or account lifecycle | Deterministic failure/cancellation/restart tests; isolated data roots and fake provider/process adapters. Live checks only when required by the task. |
+| Installer, startup, executable routing or distribution | Installer rollback scenarios, single-file publish and built/published Claude receiver checks via the full gate below. |
 
-- Start with Windows and automatic history synchronization require explicit user opt-in.
-- ChatGPT internal endpoints are unofficial and may change without notice.
-- Any retained legacy history-access UI must disclose its unsupported status; active CycleArc has no history access.
-- Onboarding must never display a quota count as successfully loaded when sync failed.
+- Before delivering a changed executable, run `pwsh -NoProfile -File ./dev-run.ps1 -NoLaunch` once on the final
+  executable-producing changes. It restores, builds/tests Release, runs WPF/installer checks and validates the
+  win-x64 single-file artifact and headless receiver. `-NoLaunch` leaves the installed app untouched.
+- For targeted unit checks use `dotnet test tests/CycleArc.Tests/CycleArc.Tests.csproj -c Release --filter ...`;
+  use a real matching test filter. Use `--no-build` only after building the code being checked.
+- After checks pass, broaden or repeat them only for a new change, failure or unresolved concern.
+  Do not add tests that merely restate a text edit. Preserve meaningful regression coverage.
+- Use production views with synthetic accounts for screenshots. Inspect and replace only affected previews;
+  do not regenerate unrelated images just to change dates. Update relevant EN/KO guidance when behavior changes.
+- Claim only checks actually run. Distinguish fixture coverage from real-account verification; an awaiting
+  Claude sample is not evidence of received usage. Do not create a model request to satisfy a test.
 
-## Transport
+## Git and delivery
 
-- Transport schema failures must never be reported as network offline errors.
-- Chrome Native Messaging through runtime.connectNative is a long-lived, full-duplex channel. Never implement it as alternating request/reply I/O.
-- Application-initiated messages must reach the extension without requiring a preceding extension message.
-- Every bridge request must have a bounded timeout and must complete when the connection closes.
-- Browser companion authentication is owned by the extension. ChatGPT access tokens may exist only in chatgpt.com page-local memory and must never cross Native Messaging, named pipes, logs, settings, SQLite, or exports.
-- Page-context modules must not be reinitialized for every operation when doing so destroys authentication state.
-- ChatGPT access tokens remain page-local only and must never cross the extension/native boundary.
-- The retained legacy collector must work with the user's normal browser networking configuration, including a browser VPN/proxy, when chatgpt.com itself works in that browser.
-- Do not instruct users to disable VPN as a product requirement.
-- Browser Companion ChatGPT requests should execute in the authenticated chatgpt.com page context when extension service-worker fetches do not share equivalent site/session context.
-- ChatGPT credentials, cookies, access tokens and Cloudflare/session material must never cross into Native Messaging or the desktop app.
-- Page-context execution must remain operation-allowlisted and metadata-only.
-- The browser bridge is read-only except for narrowly approved requests that are indispensable to usage reconstruction.
-- Arbitrary HTTP methods and arbitrary /backend-api paths are forbidden.
-- Browser responses must be projected through endpoint-specific metadata allowlists before leaving the browser. Recursive denylist deletion is not an adequate privacy boundary.
-- Named-pipe writes must be serialized and pipe access must be restricted to the current Windows user.
-- Native-host registration must fail closed when the companion executable or extension ID is invalid.
-- An encoded or canonicalized path must never escape an approved route.
-- Browser companion setup must be completable from onboarding without first performing a failed sync.
-- Transport migrations must never silently change an existing user's selected transport.
-- Native-host caller-origin validation must use the actual argument shape received by the executable. Top-level C# `args` does not include the executable path.
-- Tests for native-host invocation must reproduce Chrome's real Windows argument order.
-- A bridge response operation must exactly match the pending request operation.
-- Native-side projected-shape validation must be an endpoint-specific structural allowlist, not only a search for known forbidden keys.
-- User-created project names and titles are not required for usage counting and must not cross the browser bridge.
-- Payload limits must be calculated in UTF-8 bytes on both JavaScript and .NET.
-- Native Messaging per-message size limits must not be bypassed by simply raising a constant.
-- Large SAFE projected conversation metadata must use bounded chunked transport.
-- Chunking applies only AFTER privacy projection.
-- Raw ChatGPT conversation responses must never be chunked or forwarded.
-- PayloadTooLarge is a transport-size condition, not SchemaMismatch.
-- Conversation endpoint timeout and whole-conversation timeout are separate concepts.
-- Alternate endpoint failure must not automatically imply global auth failure when live evidence proves that alternate endpoint is unsupported while the authenticated account/index path works.
-- Page bridge schema/behavior changes require PAGE_BRIDGE_VERSION increment.
-- Do not claim companion connectivity from pump tests that bypass the production native-host entrypoint.
-
-## Diagnostic safety
-
-- Diagnostic tests must never silently change the user's selected transport.
-- WebView2 compatibility testing must use an isolated diagnostic flow.
-- A failed WebView2 test must leave Browser Companion and existing settings untouched.
-- Never delete or overwrite existing reconstructed usage data during a transport test.
-- Interactive OAuth may require user input and must never be automated by spoofing, credential injection, user-agent spoofing, or identity-provider bypass.
-- Lightweight WebView2 diagnostics must not perform a full history scan.
-- A compatibility test must distinguish sign-in failure from API incompatibility.
-- The existing Korean/English localization system must be reused. Do not create a second localization system.
-- No WebView2 initialization/navigation operation may wait indefinitely.
-- Every diagnostic WebView2 stage must support cancellation and a bounded timeout.
-- A WebView2 control that needs an HWND/visual host must not depend on a permanently hidden/unrealized WPF Window for first initialization.
-- WebView2 diagnostic progress/failure stages must be logged before the final result.
-- Closing Settings or cancelling a diagnostic must release the diagnostic-running state.
-- Browser Companion must remain untouched by WebView2 diagnostic failures.
-- No WebView2 network request may wait indefinitely after initialization succeeds.
-- WebView2 fetch execution must have a bounded request timeout.
-- NavigationCompleted with IsSuccess=false is a navigation failure, not successful completion.
-- Cancellation and timeout must return control to the UI even if WebView2 internally cannot synchronously abort every underlying operation.
-- Timeout/error diagnostics must distinguish initialization, navigation and API request stages.
-- Diagnostic failures must never alter Browser Companion state, selected transport, production usage data, watermarks, AutoSync or StartWithWindows.
-- Every user-visible sync-error notification must first produce a corresponding safe diagnostic log entry.
-- Offline and SignedOut sync failures must be logged without exception or network/session text.
-- Duplicate desktop sync-error notifications for the same failure must be suppressed; logs must not be suppressed.
-- Opening the Flyout must not immediately retry a just-failed automatic ChatGPT sync.
-- Startup/UI/WebView2 regression paths require tests.
-- Commit, push, remote SHA verification, and pushed CI verification remain mandatory.
-- PAGE_BRIDGE_VERSION changes only if extension page-bridge JavaScript is modified.
-- Browser/ChatGPT reachability and Browser Companion transport health are distinct.
-- A disconnected Native Messaging bridge must never be labeled Network Offline.
-- Known local bridge failures require explicit diagnostic categories.
-- An opted-in Browser Companion should recover automatically from transient native-host disconnects without requiring the user to reopen the extension popup.
-- Automatic reconnect must use bounded exponential backoff and must not busy-loop.
-- Sync should tolerate a short transient companion disconnect before declaring failure.
-- Extension reconnect changes require extension regression tests.
-- If PAGE_FILES/page-bridge behavior is changed, increment PAGE_BRIDGE_VERSION. Merely changing background/native reconnect logic does not require a page bridge version bump.
-- PAGE_BRIDGE_VERSION must be incremented whenever page bridge projection/schema behavior changes.
-- Changes to extension projection require extension regression tests and the final report must explicitly tell the user to Reload the unpacked Edge extension.
-
-## Architecture
-
-- All ChatGPT internal API paths stay behind the provider/transport abstraction. UI must not hard-code backend endpoints.
-- Preserve raw model slugs. Do not guess unknown future slugs into an existing model.
-- Database reconciliation must preserve OfficialExport evidence unless explicitly superseded by equivalent verified evidence.
-- A successful HTTP conversation response with zero parsed assistant usage must be diagnostically distinguishable from an actually empty conversation.
-- Browser projection must support both nested mapping-node message shapes and direct paginated message shapes.
-- Projection must canonicalize both server shapes into one metadata-only internal shape before crossing Native Messaging.
-- UI callbacks originating from pipe/background threads must marshal to the WPF Dispatcher before touching controls.
-- Dark-theme flyout values must never rely on the platform default foreground.
-- Dark and light theme controls must never rely on Windows/WPF default foreground/background colors.
-- Every visible TextBlock, TextBox, ComboBox, TabControl, DataGrid and context UI must be readable in Dark, Light and System themes.
-- Stateful controls must make their current state obvious without hover or focus.
-- Checked/selected state must never depend on Windows default theme chrome.
-- Dark and light themes must both provide explicit visible selected, unselected, hover, pressed, focused, and disabled states.
-- Checkbox/radio selection indicators must have sufficient visual contrast.
-- Disabled checked controls must still visibly communicate that they are checked.
-- Custom dark-theme controls must not rely on platform default ControlTemplates when those templates can ignore or conflict with app theme resources.
-- UI-state regressions require tests.
-- Commit, push, remote SHA verification, and CI verification remain mandatory.
-- An incomplete reconstruction must not present "0 / quota" as though zero were a trustworthy usage measurement.
-- User-visible UI strings must go through localization resources.
-- Korean and English are supported UI languages.
-- Model names, raw model slugs and product names are not translated.
-- If Windows UI culture is Korean on a new install, default UI language to Korean; otherwise English.
-- Codex quota data must come from the installed Codex App Server protocol.
-- Do not read, copy, parse, monitor, or persist Codex auth.json, OAuth tokens, access tokens, cookies, Authorization headers, prompts, responses, projects, rollouts, or conversation files.
-- Do not invoke a Codex model turn merely to measure quota.
-- Rate-limit windows must be identified by `windowDurationMins`, not by assuming `primary` always means five hours or `secondary` always means weekly.
-- A missing optional rate-limit window is not a provider failure.
-- Never convert an unavailable percentage into zero.
-- Preserve the last valid Codex snapshot on transient failure and mark it stale.
-- Every spawned Codex App Server process must have bounded startup, request, shutdown, and cancellation behavior.
-- Child processes must not be leaked after refresh, cancellation, app exit, or protocol failure.
-- Taskbar status uses the Windows-owned NotifyIcon slot only. Do not re-enable the retired
-  overlay, Explorer window parenting/subclassing, injection, or taskbar geometry polling.
-- Other running-app icons, notification icons and the clock must remain unobstructed.
-- Reset countdowns use server timestamps; unavailable credit expiries remain unknown.
-- Persist only projected credit expiry timestamps, never raw credit IDs or descriptions.
-- User-visible status must distinguish fresh, stale, unavailable, refreshing and failed data.
-- A click intended to inspect status must not accidentally begin a long sync.
-- All new UI strings must use the existing Korean/English localization system.
-- Stateful controls and buttons must remain visible in dark, light and system themes.
-- Manual refresh must provide unmistakable visible progress feedback.
-- A static color change alone is not sufficient progress feedback.
-- Combined manual refresh must be single-flight across every UI entry point.
-- A duplicate refresh request must never clear another invocation's busy state.
-- Only the invocation that owns the active refresh may set or clear the combined
-  manual-refresh state.
-- Refresh controls must remain disabled until the real shared refresh completes.
-- Overlapping refresh behavior requires deterministic concurrency tests.
-- Codex fixtures must match the official generated app-server protocol shape.
-- Root response metadata and selected rate-limit bucket metadata must not be conflated.
-- SystemEvents callbacks must marshal to the owning WPF Dispatcher before touching windows, controls, DispatcherTimer or presentation state.
-- Taskbar auto-hide state must affect overlay visibility.
-- Commit, push, remote SHA verification and pushed CI verification remain mandatory.
-
-## Testing and completion
-
-- Every correctness bug gets a regression test. Preserve existing tests.
-- Malformed API fixtures must be synthetic and contain no real user content.
-- Live compatibility tests must cover the actual response-shape families observed from ChatGPT, using synthetic fixtures without storing real content.
-- Before completion run: `dotnet restore`, Release build, Release tests (`--no-build`), win-x64 self-contained single-file publish.
-- Do not report PASS without actual command output.
-- Keep the GitHub Actions Windows workflow green.
-- Never claim live ChatGPT compatibility that was not actually validated.
-- A task is not complete after a local commit. The agent must push the final commit to the configured origin unless the user explicitly says not to.
-- Never force-push.
-- After pushing, verify that the remote branch SHA exactly matches local HEAD.
-- Do not report "complete", "pushed", or provide a commit for review until the remote SHA has been verified.
-- If push authentication or network access fails, report the exact failure and clearly state that the commit remains local.
-- A GitHub Actions run triggered by the pushed SHA should be reported as pending, passed, or failed when the GitHub CLI is available.
-- Startup/UI formatting regressions require tests.
-- Commit, push, remote SHA verification, and CI verification remain mandatory.
-
-## Working style
-
-- Inspect the existing implementation before changing architecture. Prefer small targeted changes.
-- Do not leave TODO/mock implementations for required behavior.
-- Perform a final diff review before committing.
-- Report changed files, tests added, actual build/test/publish results, and remaining live-account verification items.
+- Review the final diff and commit the intended changes. Push to the configured origin unless the user says
+  otherwise; preserve existing authorization and respect any host approval block. Never force-push.
+- On a branch's first push use `git push -u origin <branch>` with its actual name. If already published without
+  tracking, verify the remote branch, then use `git branch --set-upstream-to=origin/<branch> <branch>`.
+- Verify upstream, ahead/behind state and the actual remote SHA against local HEAD. A successful push alone
+  does not prove tracking is configured; this prevents GitHub Desktop showing **Publish branch** after upload.
+- Check the CI run for the pushed SHA. Fix relevant failures and verify the corrected run; report pending,
+  passed or failed accurately. If publication is blocked, state the exact blocker and that the commit is local.
+- Install/restart only when the task calls for a working local executable. Use the validated artifact and
+  existing guarded installer/rollback path; confirm the target checkout, running path and file hash.
+  Documentation-only changes do not require replacing the user's running app.
+- Finish with what changed, verification results and material limitations, using concise Korean for this user.
+  Do not stop at a local commit when push/CI or an authorized installation still remains.

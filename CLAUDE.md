@@ -1,12 +1,9 @@
 # CycleArc — Claude / agent notes
 
-This repository is **CycleArc**, a Windows tray app that reads Codex account limits through the installed App Server and Claude Code limits through official statusLine JSON. ChatGPT history collection is retired; its remaining code is only retained for legacy regression coverage.
+This repository is **CycleArc**, a Windows tray app for Codex limits and Claude's shared subscription quota. Claude Code statusLine delivers the last received Claude sample. ChatGPT history collection is retired.
 
-Before changing metering, reconstruction, quota periods, sync watermarks, or usage presentation, read:
+Follow [AGENTS.md](AGENTS.md) for current product contracts, scoped document reading, verification and delivery. Read only the documents relevant to the actual change; ordinary Codex/Claude presentation work does not require legacy reconstruction documents.
 
-1. `AGENTS.md` — product correctness, privacy, transport, and test/delivery rules
-2. `docs/metering-contract.md` — request identity, evidence, allowances, and display semantics
+For retained ChatGPT history/reconstruction or browser/companion maintenance only, read [legacy maintenance](docs/LEGACY-MAINTENANCE.md) and its relevant references.
 
-Do not duplicate `AGENTS.md` here. Cursor model selection does not automatically load this file; follow the `.cursor/rules` pointer as well.
-
-Privacy, authentication, and Native Messaging rules in `AGENTS.md` are unchanged by metering work.
+Keep this file a pointer; do not duplicate or broaden the instructions here.

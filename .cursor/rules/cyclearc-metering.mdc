@@ -1,8 +1,8 @@
 ---
-description: CycleArc metering correctness and evidence preservation
+description: CycleArc project instructions and scoped legacy guidance
 alwaysApply: true
 ---
 
-Before changing metering, reconstruction, quota periods, sync watermarks, or usage presentation, read `AGENTS.md`, `CLAUDE.md`, and `docs/metering-contract.md`.
+Follow `AGENTS.md` for current product contracts and its task-specific document/verification guidance.
 
-Do not hide inaccurate counts or relabel them as exact remaining. Preserve observations; reconcile canonical requests. Never persist prompts, responses, tokens, or cookies.
+Only retained ChatGPT history/reconstruction or browser/companion maintenance requires `docs/LEGACY-MAINTENANCE.md` and its relevant references. Do not load legacy metering documents for ordinary Codex/Claude usage presentation.
