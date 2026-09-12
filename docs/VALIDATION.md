@@ -2,6 +2,22 @@
 
 ## Current release — Codex and Claude Code
 
+- Conditional Codex five-hour display (2026-09-12): the seven added unit cases cover
+  unknown weekly values with known five-hour values in available/stale/refreshing states,
+  unknown/non-finite percentages and windows arriving/disappearing. **144 Codex-window WPF
+  renders** cover five-hour-only, both windows, reversed slots, weekly-only and partial
+  percentages across English/Korean, all themes and 80/100/150% popup zoom. These use
+  synthetic [official App Server](https://learn.chatgpt.com/docs/app-server) response shapes
+  with Plus, Pro and absent plan metadata; **no live Plus account was available**.
+  - Eight popup/widget preview images were visually inspected. Run the focused exporter with
+    `dotnet run --project tests/CycleArc.UiSmoke/CycleArc.UiSmoke.csproj -c Release -- --codex-windows artifacts/codex-windows`.
+  - `./dev-run.ps1 -NoLaunch` passed restore, Release build (0 warnings/errors),
+    **1,150 unit tests**, 15 installer scenarios, all 630 WPF renders and built/published
+    headless receiver checks. The single-file win-x64 executable SHA-256 is
+    `E6BA517313530E28D73DE6E7DCB45B43EF80E5718E3F014B92B413D108CE1204`.
+  - The existing Claude five-minute stale threshold and original receipt timestamps remain
+    unchanged. These checks did not request model responses or modify real account data.
+
 - Explicit Claude stale display (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore,
   Release build (0 warnings/errors), **1,143 unit tests**, 15 installer scenarios,
   120 account, 150 mixed-provider, 180 widget and 36 resource WPF renders, plus built

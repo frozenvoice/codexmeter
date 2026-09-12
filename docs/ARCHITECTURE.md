@@ -2,6 +2,11 @@
 
 ## Active product — Codex and Claude Code (2026-09-12)
 
+- Codex displays the five-hour (300 minutes) and weekly (10,080 minutes) windows supplied by
+  the official App Server, regardless of plan name or primary/secondary position. Account
+  cards and details retain all reported windows. Compact surfaces prefer a known weekly
+  percentage, then a known five-hour percentage; an unknown weekly value cannot hide usable
+  five-hour data. Missing windows are omitted, and unknown percentages are never filled with zero.
 - `IUsageProvider` creates isolated `IUsageAccountService` instances for the shared account
   manager. `CodexUsageProvider` adapts the existing Codex service without changing its
   protocol/client, identity verification, concurrency or cache format. `ClaudeUsageProvider`

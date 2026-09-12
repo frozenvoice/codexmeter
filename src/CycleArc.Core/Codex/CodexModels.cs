@@ -59,13 +59,18 @@ public sealed record CodexQuotaSnapshot(
     public bool HasUsablePercentages => Windows.Any(window => window.UsedPercent is not null);
 
     public CodexQuotaWindow? CompactWindow =>
-        Windows.FirstOrDefault(window => window.Kind == CodexWindowKind.Weekly)
-        ?? Windows.FirstOrDefault(window => window.Kind == CodexWindowKind.FiveHour)
-        ?? Windows
+        PreferredWindow(Windows.Where(window => window.UsedPercent is { } used && double.IsFinite(used)))
+        ?? PreferredWindow(Windows);
+
+    // An unknown weekly percentage must not hide a usable five-hour limit.
+    private static CodexQuotaWindow? PreferredWindow(IEnumerable<CodexQuotaWindow> windows) =>
+        windows.FirstOrDefault(window => window.Kind == CodexWindowKind.Weekly)
+        ?? windows.FirstOrDefault(window => window.Kind == CodexWindowKind.FiveHour)
+        ?? windows
             .Where(window => window.WindowDurationMinutes is > 0)
             .OrderByDescending(window => window.WindowDurationMinutes)
             .FirstOrDefault()
-        ?? Windows.FirstOrDefault();
+        ?? windows.FirstOrDefault();
 
     public CodexQuotaSnapshot AsStale(DateTimeOffset attempted, string? detail)
     {

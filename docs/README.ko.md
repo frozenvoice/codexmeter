@@ -6,7 +6,9 @@ Windows 트레이에서 **여러 Codex·Claude 프로필의 사용률, 남은 �
 
 계정 카드·선택한 상세 화면·트레이 툴팁·위젯의 **Codex 또는 Claude 표시**로 서비스를 구분합니다. Claude는 현재 로그인을 연결하거나 공식 브라우저 로그인을 시작하면 **CycleArc가 statusLine 연결을 자동으로 설정**합니다. Gemini는 지원하지 않습니다. 기존 Codex 계정, 설정과 캐시는 유지합니다.
 
-> **Codex:** ChatGPT Pro 구독을 지원하며 ChatGPT Plus 구독의 5시간 사용량은 지원하지 않습니다. **Claude:** 공식 statusLine에서 한도 필드가 제공되어야 합니다. 첫 응답 전이거나 지원하지 않는 플랜에서는 필드가 없을 수 있습니다.
+> **Codex:** Plus를 포함해 공식 App Server가 보내는 5시간·주간 한도를 표시합니다. 구독 이름으로 표시를 제한하지 않으며, 없는 구간은 생략하고 알 수 없는 비율은 미확인으로 표시합니다. **Claude:** 공식 statusLine에서 한도 필드가 제공되어야 합니다. 첫 응답 전이거나 지원하지 않는 플랜에서는 필드가 없을 수 있습니다.
+
+Codex 계정 카드에는 제공된 한도별 사용률·잔여 비율을, 상세 화면에는 리셋 시각도 함께 표시합니다. 링·트레이·위젯은 주간 비율이 있으면 주간 값을, 없으면 5시간 값을 사용합니다.
 
 ## Claude Code 연결
 
@@ -90,7 +92,7 @@ ChatGPT Pro/Sol 기록 추정 기능은 종료했습니다. Edge/Chrome 확장, 
 
 현재 소스 빌드는 디버그 심볼을 제외한 **Release · Windows x64** 실행 파일을 생성합니다.
 
-Codex 조회에는 이 PC에 설치된 **Codex CLI**, ChatGPT Pro 구독과 네트워크 연결이 필요합니다. Claude 조회에는 공식 statusLine 한도 필드를 제공하는 **Claude Code**와 Windows PowerShell이 필요하며 Codex 로그인은 필요하지 않습니다. 두 서비스 모두 CycleArc에서 공식 로그인을 시작할 수 있습니다.
+Codex 조회에는 이 PC에 설치된 **Codex CLI**, 구독 한도를 제공하는 ChatGPT 계정으로의 CLI 로그인과 네트워크 연결이 필요합니다. Claude 조회에는 공식 statusLine 한도 필드를 제공하는 **Claude Code**와 Windows PowerShell이 필요하며 Codex 로그인은 필요하지 않습니다. 두 서비스 모두 CycleArc에서 공식 로그인을 시작할 수 있습니다.
 앱은 `codex.exe` 또는 `codex.cmd`를 PATH와 일반 설치 위치에서 찾습니다.
 자동으로 찾지 못하면 트레이 메뉴 → 설정에서 실행 파일의 절대 경로를 지정하세요.
 Codex CLI 자체는 이 배포 파일에 포함하지 않습니다.

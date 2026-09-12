@@ -69,6 +69,72 @@ public class CodexRingPresentationTests
         }
     }
 
+    [Theory]
+    [InlineData(CodexQuotaStatus.Available)]
+    [InlineData(CodexQuotaStatus.Stale)]
+    [InlineData(CodexQuotaStatus.Refreshing)]
+    public void UnknownWeeklyLimit_DoesNotHideKnownFiveHourLimit(CodexQuotaStatus status)
+    {
+        var snapshot = Available(31) with
+        {
+            Status = status,
+            Windows =
+            [
+                new("codex", null, 10080, null, CodexWindowKind.Weekly),
+                new("codex", 42, 300, null, CodexWindowKind.FiveHour)
+            ]
+        };
+
+        Assert.Equal(CodexWindowKind.FiveHour, snapshot.CompactWindow?.Kind);
+        var presentation = CodexRingPresentation.From(snapshot);
+        Assert.True(presentation.IsAvailable);
+        Assert.Equal(42, presentation.UsedPercent);
+        Assert.Equal("42%", presentation.CenterValueText);
+        Assert.Contains("42%", CycleArcPresentation.CompactText(snapshot));
+        Assert.Contains("42%", CycleArcPresentation.TrayTooltip(snapshot));
+        Assert.Null(snapshot.Windows[0].UsedPercent);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    public void WithoutAKnownPercentage_TheRingStaysUnknown(double? percent)
+    {
+        var snapshot = Available(31) with
+        {
+            Windows =
+            [
+                new("codex", percent, 300, null, CodexWindowKind.FiveHour),
+                new("codex", null, 10080, null, CodexWindowKind.Weekly)
+            ]
+        };
+
+        var presentation = CodexRingPresentation.From(snapshot);
+        Assert.False(presentation.IsAvailable);
+        Assert.Null(presentation.UsedPercent);
+        Assert.Equal("?", presentation.CenterValueText);
+    }
+
+    [Fact]
+    public void WeeklyLimitArrivesAndDisappears_CompactWindowFollowsAvailablePercentages()
+    {
+        var fiveHour = new CodexQuotaWindow("codex", 42, 300, null, CodexWindowKind.FiveHour);
+        var weekly = new CodexQuotaWindow("codex", 31, 10080, null, CodexWindowKind.Weekly);
+        var snapshot = Available(31) with { Windows = [fiveHour] };
+        Assert.Same(fiveHour, snapshot.CompactWindow);
+
+        snapshot = snapshot with { Windows = [fiveHour, weekly] };
+        Assert.Same(weekly, snapshot.CompactWindow);
+
+        snapshot = snapshot with { Windows = [weekly with { UsedPercent = null }, fiveHour] };
+        Assert.Same(fiveHour, snapshot.CompactWindow);
+
+        snapshot = snapshot with { Windows = [weekly] };
+        Assert.Same(weekly, snapshot.CompactWindow);
+        Assert.DoesNotContain(snapshot.Windows, window => window.Kind == CodexWindowKind.FiveHour);
+    }
+
     private static CodexQuotaSnapshot Available(double percent) => new(
         CodexQuotaStatus.Available,
         null,

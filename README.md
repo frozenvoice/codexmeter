@@ -6,7 +6,7 @@ A native Windows tray app for checking multiple Codex and Claude profiles, remai
 
 The **Codex** or **Claude** label on account cards, selected details, tray tooltips and the widget identifies the usage provider. Connect the current Claude login or sign in through the official browser flow; CycleArc sets up its **statusLine** connection automatically. See [Claude Code connection](#claude-code-connection). Gemini is not supported.
 
-> **Codex:** ChatGPT Pro subscriptions are supported; the ChatGPT Plus five-hour usage limit is not supported. **Claude:** the official statusLine must supply the requested rate-limit fields; these can be absent before the first response or on unsupported plans.
+> **Codex:** five-hour and weekly limits appear when the official App Server reports them, including on Plus; display is not restricted by plan name. Missing windows are omitted and unknown percentages stay unknown. **Claude:** the official statusLine must supply the requested rate-limit fields; these can be absent before the first response or on unsupported plans.
 
 [![Windows build](https://github.com/frozenvoice/cyclearc/actions/workflows/windows.yml/badge.svg)](https://github.com/frozenvoice/cyclearc/actions/workflows/windows.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -31,7 +31,7 @@ The **Codex** or **Claude** label on account cards, selected details, tray toolt
 
 - **Codex and Claude together.** Connect an existing CLI login or sign in through the official browser flow. Connected Claude accounts appear immediately, with **Awaiting usage** until the first sample; choose which account appears in the tray and widget.
 - **Usage in the tray.** A Windows notification-area icon keeps the meter within reach. Click for the detailed card; pin it to keep it visible.
-- **Clear quota windows.** See Pro account usage and remaining percentages, the server's reset time, and a countdown for the windows reported by the server.
+- **Clear quota windows.** See usage and remaining percentages, reset times and countdowns for each reported five-hour or weekly window. The ring, tray and widget use the weekly percentage when known, otherwise the five-hour percentage.
 - **Reset credits.** View the available count and expiry times when the server supplies them. Use an individual reset after confirmation. Missing expiry information stays explicitly unknown.
 - **Optional desktop widget.** A compact, draggable meter with adjustable opacity, always-on-top, and click-through options. Off-screen positions recover automatically.
 - **Your preferred appearance.** Dark, Light, or live System theme; English and Korean; keyboard zoom from 80% to 150%.
@@ -39,7 +39,7 @@ The **Codex** or **Claude** label on account cards, selected details, tray toolt
 
 ## Get started
 
-**Requirements:** Windows 10/11 on x64. Codex monitoring requires an installed Codex CLI, a ChatGPT Pro subscription and network access. Claude monitoring requires Claude Code with official statusLine rate-limit support and Windows PowerShell; it does not require Codex sign-in.
+**Requirements:** Windows 10/11 on x64. Codex monitoring requires an installed Codex CLI signed into a ChatGPT account that reports subscription limits, and network access. Claude monitoring requires Claude Code with official statusLine rate-limit support and Windows PowerShell; it does not require Codex sign-in.
 
 1. Download the executable from the [latest release](https://github.com/frozenvoice/cyclearc/releases/latest). Current source builds produce **`CycleArc.exe`**.
 2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.

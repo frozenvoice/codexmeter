@@ -48,6 +48,11 @@ internal static class Program
                 DocumentationScreenshots.Export(directory);
                 return 0;
             }
+            if (args is ["--codex-windows", var codexWindowsDirectory])
+            {
+                CodexWindowUiChecks.Run(codexWindowsDirectory);
+                return 0;
+            }
             if (args is ["--accounts", var accountsDirectory])
             {
                 AccountUiChecks.Run(accountsDirectory);
@@ -60,6 +65,7 @@ internal static class Program
             }
             ClaudeStatusLineProcessChecks.Run();
             AccountUiChecks.Run();
+            CodexWindowUiChecks.Run();
             MixedProviderUiChecks.Run();
             CheckEnvironmentCallbacks(app);
             CheckWidgetRecovery();
