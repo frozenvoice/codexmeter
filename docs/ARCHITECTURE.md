@@ -36,8 +36,9 @@
 - Claude callbacks merge under a bounded exclusive lock and atomically replace a per-profile
   cache with a previous-good backup. Earlier receipt times cannot overwrite newer data.
   Missing/malformed input retains the last good values as stale. Optional absent windows are
-  not filled from another sample. The cache is stale after five minutes without valid input,
-  at an elapsed reset or on future-dated receipt metadata; no local reset invents zero usage.
+  not filled from another sample. Idle samples stay Received with their original receipt;
+  elapsed time alone does not raise attention. An elapsed reset or invalid receipt metadata
+  makes the saved values stale; no local reset invents zero usage.
 - A separate two-second passive check reads Claude inboxes off the UI thread and emits changes
   only for new data/freshness transitions, preserving nickname editor focus. It does not start
   Codex, renew receipt timestamps or alter manual-refresh ownership. Normal manual refresh

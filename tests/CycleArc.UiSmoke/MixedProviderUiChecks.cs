@@ -116,7 +116,49 @@ internal static class MixedProviderUiChecks
                             && ((TextBlock)widget.FindName("CodexValue")).Text.Contains('~'), "Claude widget hides stale state.");
                     count++;
                 }
-                // Reuse the same views after the stale account: a real new sample clears the warning.
+                // An unchanged older receipt remains neutral; only a concrete failure raises attention.
+                flyout.ApplyWindowSettings(new AppSettings { FlyoutZoomPercent = 100 });
+                var idle = accounts[1];
+                Check(idle.Snapshot.Status == CodexQuotaStatus.Available
+                    && DateTimeOffset.Now - idle.Snapshot.LastSuccessfulRefresh > TimeSpan.FromMinutes(5),
+                    "Idle Claude fixture did not pass through the provider's receipt policy.");
+                flyout.BindAccounts([accounts[0], idle], idle.Profile.Id, false);
+                AccountUiChecks.Render(flyout, 440, null, directory is null ? null
+                    : Path.Combine(directory, $"claude-idle-{language}-{theme}.png"));
+                Check(((TextBlock)flyout.FindName("StatusText")).Text == UiText.T("Samples received", "수신값 표시"),
+                    "Idle Claude receipt unnecessarily raises attention.");
+                CheckStaleText((TextBlock)flyout.FindName("CodexStatusText"), idle.Snapshot);
+                var idleCard = ((ItemsControl)flyout.FindName("AccountOverview")).Items.Cast<Button>().Last();
+                CheckStaleText(AccountUiChecks.Descendants<TextBlock>(idleCard).Single(text =>
+                    text.Text == CycleArcPresentation.StatusLabel(idle.Snapshot)), idle.Snapshot);
+                widget.BindAccount(idle, true);
+                AccountUiChecks.Render(widget, 245, null, directory is null ? null
+                    : Path.Combine(directory, $"claude-idle-widget-{language}-{theme}.png"));
+                CheckStaleText((TextBlock)widget.FindName("HistoryValue"), idle.Snapshot);
+                Check(!((TextBlock)widget.FindName("CodexValue")).Text.Contains('~')
+                    && ((TextBlock)widget.FindName("ClaudeReceipt")).Text == ClaudeUsagePresentation.LastReceivedText(idle.Snapshot),
+                    "Idle Claude values look stale or hide their original receipt.");
+                count += 2;
+
+                var elapsed = idle with { Snapshot = ClaudeQuotaService.ApplyFreshness(idle.Snapshot with
+                {
+                    Windows = idle.Snapshot.Windows.Select((window, index) => index == 0
+                        ? window with { ResetsAt = DateTimeOffset.Now.AddSeconds(-1) } : window).ToArray()
+                }, DateTimeOffset.Now) };
+                flyout.BindAccounts([accounts[0], elapsed], elapsed.Profile.Id, false);
+                AccountUiChecks.Render(flyout, 440, null, directory is null ? null
+                    : Path.Combine(directory, $"claude-reset-elapsed-{language}-{theme}.png"));
+                var resetNotice = (TextBlock)flyout.FindName("CodexStatusText");
+                CheckStaleText(resetNotice, elapsed.Snapshot);
+                Check(resetNotice.Text.Contains(UiText.T("reset time has passed", "리셋 시각이 지났습니다"))
+                    && ((TextBlock)flyout.FindName("StatusText")).Text == UiText.T("1 need attention", "1개 확인 필요"),
+                    "Elapsed reset does not explain why the saved Claude values need attention.");
+                widget.BindAccount(elapsed, true);
+                AccountUiChecks.Render(widget, 245, null, null);
+                CheckStaleText((TextBlock)widget.FindName("HistoryValue"), elapsed.Snapshot);
+                count += 2;
+
+                // Reuse the same views after the expired sample: a real new sample clears the warning.
                 var renewed = accounts[1] with { Snapshot = accounts[1].Snapshot with { LastSuccessfulRefresh = DateTimeOffset.Now } };
                 flyout.Bind(renewed.Snapshot);
                 AccountUiChecks.Render(flyout, 440, null, null);
@@ -296,9 +338,11 @@ internal static class MixedProviderUiChecks
                 [new("codex", 32, 10080, now.AddDays(6), CodexWindowKind.Weekly)], null), "work@example.invalid");
         CodexAccountView Claude(string id, string name, CodexQuotaStatus status, double percentage) =>
             new(new CodexAccountProfile(id, "", name) { Provider = UsageProviderId.Claude },
-                new CodexQuotaSnapshot(status, null, now.AddMinutes(status == CodexQuotaStatus.Stale ? -12 : -1), now, null, null, null,
+                ClaudeQuotaService.ApplyFreshness(new CodexQuotaSnapshot(status, null, now.AddMinutes(-12), now, null, null, null,
                     [new("five_hour", percentage, 300, now.AddHours(3), CodexWindowKind.FiveHour),
-                     new("seven_day", 47.2, 10080, now.AddDays(4), CodexWindowKind.Weekly)], null) { Provider = UsageProviderId.Claude });
+                     new("seven_day", 47.2, 10080, now.AddDays(4), CodexWindowKind.Weekly)],
+                    status == CodexQuotaStatus.Stale ? "claude-statusline-malformed" : null)
+                    { Provider = UsageProviderId.Claude }, now));
         return [codex, Claude("11111111111111111111111111111111", UiText.T("Personal · Claude", "개인 계정 · Claude"), CodexQuotaStatus.Available, 23.5),
             Claude("22222222222222222222222222222222", UiText.T("Research · Claude", "연구용 계정 · Claude"), CodexQuotaStatus.Stale, 78.2)];
     }

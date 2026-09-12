@@ -101,7 +101,7 @@ public class ClaudeStatusLineTests
     }
 
     [Fact]
-    public async Task IdlePollingAndManualRefreshCannotRenewReceivedTimeOrAlterCache()
+    public async Task IdlePollingAndManualRefreshDoNotWarnOrRenewReceivedTimeOrAlterCache()
     {
         using var data = new ClaudeTestData();
         await data.Receive(Payload());
@@ -110,23 +110,23 @@ public class ClaudeStatusLineTests
         var changes = 0;
         service.Changed += _ => changes++;
         Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
-        data.Clock.UtcNow = Now.AddMinutes(5).AddSeconds(-1);
-        await service.RefreshAsync(CancellationToken.None);
-        Assert.Equal(Now, service.Snapshot.LastSuccessfulRefresh);
-        Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
-        Assert.False(ClaudeUsagePresentation.IsStale(service.Snapshot));
-        data.Clock.UtcNow = Now.AddMinutes(5);
-        await service.RefreshAsync(CancellationToken.None);
-        Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
-        Assert.True(ClaudeUsagePresentation.IsStale(service.Snapshot));
-        Assert.Equal(1, changes); // One expiry event; unchanged polls do not rebuild nickname editors.
-        await service.RefreshAsync(CancellationToken.None);
-        Assert.Equal(1, changes);
-        Assert.Equal(23.5, service.Snapshot.Windows[0].UsedPercent);
-        Assert.Equal(Now, service.Snapshot.LastSuccessfulRefresh);
-        Assert.Equal(bytes, File.ReadAllBytes(data.Path));
-        Assert.Equal(CodexQuotaStatus.Stale, data.Service().Snapshot.Status);
-        data.Clock.UtcNow = Now.AddMinutes(6);
+        foreach (var idle in new[] { TimeSpan.FromSeconds(299), TimeSpan.FromMinutes(5),
+            TimeSpan.FromMinutes(12), TimeSpan.FromHours(1), TimeSpan.FromHours(4) })
+        {
+            data.Clock.UtcNow = Now + idle;
+            await service.RefreshAsync(CancellationToken.None);
+            await service.RefreshAsync(CancellationToken.None);
+            Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
+            Assert.False(ClaudeUsagePresentation.IsStale(service.Snapshot));
+            Assert.Equal(0, changes); // Unchanged polls do not rebuild nickname editors or raise attention.
+            Assert.Equal(23.5, service.Snapshot.Windows[0].UsedPercent);
+            Assert.Equal(Now, service.Snapshot.LastSuccessfulRefresh);
+            Assert.Equal(bytes, File.ReadAllBytes(data.Path));
+            var restarted = data.Service().Snapshot;
+            Assert.Equal(CodexQuotaStatus.Available, restarted.Status);
+            Assert.Equal(Now, restarted.LastSuccessfulRefresh);
+        }
+        data.Clock.UtcNow = Now.AddHours(4).AddMinutes(1);
         await data.Receive(Payload(27));
         await service.RefreshAsync(CancellationToken.None);
         Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
@@ -144,12 +144,21 @@ public class ClaudeStatusLineTests
         await data.Receive(Payload());
         data.Clock.UtcNow = Now.AddSeconds(30);
         await data.Receive(json);
-        var snapshot = data.Service().Snapshot;
+        var service = data.Service();
+        var snapshot = service.Snapshot;
         Assert.Equal(CodexQuotaStatus.Stale, snapshot.Status);
         Assert.Equal(Now, snapshot.LastSuccessfulRefresh);
         Assert.Equal(data.Clock.UtcNow, snapshot.LastAttemptedRefresh);
         Assert.Equal(23.5, snapshot.Windows[0].UsedPercent);
         Assert.Equal(detail, snapshot.TechnicalDetail);
+        data.Clock.UtcNow = Now.AddHours(1);
+        await service.RefreshAsync(CancellationToken.None);
+        Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
+        await data.Receive(Payload(27));
+        await service.RefreshAsync(CancellationToken.None);
+        Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
+        Assert.Equal(27, service.Snapshot.Windows[0].UsedPercent);
+        Assert.Equal(data.Clock.UtcNow, service.Snapshot.LastSuccessfulRefresh);
     }
 
     [Fact]
@@ -173,11 +182,29 @@ public class ClaudeStatusLineTests
         await data.Receive(JsonSerializer.Serialize(new { rate_limits = new { five_hour = new
             { used_percentage = 100, resets_at = Now.AddSeconds(30).ToUnixTimeSeconds() } } }));
         var service = data.Service();
+        data.Clock.UtcNow = Now.AddSeconds(29);
+        Assert.Equal(CodexQuotaStatus.Available, service.Snapshot.Status);
         data.Clock.UtcNow = Now.AddSeconds(30);
         Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
+        Assert.Equal("claude-reset-elapsed", service.Snapshot.TechnicalDetail);
         Assert.Equal(100, service.Snapshot.CompactWindow!.UsedPercent);
+        Assert.Equal(Now, service.Snapshot.LastSuccessfulRefresh);
+        Assert.Equal(CodexQuotaStatus.Stale, data.Service().Snapshot.Status);
         data.Clock.UtcNow = Now.AddMinutes(-1);
         Assert.Equal(CodexQuotaStatus.Stale, service.Snapshot.Status);
+        Assert.Equal("claude-receipt-invalid", service.Snapshot.TechnicalDetail);
+    }
+
+    [Fact]
+    public async Task WeeklyOnlySampleRemainsReceivedAfterDaysOfIdleTimeBeforeItsReset()
+    {
+        using var data = new ClaudeTestData();
+        await data.Receive("""{"rate_limits":{"seven_day":{"used_percentage":41.2,"resets_at":1894060800}}}""");
+        data.Clock.UtcNow = Now.AddDays(6);
+        var snapshot = data.Service().Snapshot;
+        Assert.Equal(CodexQuotaStatus.Available, snapshot.Status);
+        Assert.Equal(Now, snapshot.LastSuccessfulRefresh);
+        Assert.Equal(41.2, Assert.Single(snapshot.Windows).UsedPercent);
     }
 
     [Fact]
@@ -249,7 +276,8 @@ public class ClaudeStatusLineTests
             Assert.Contains("Claude", CycleArcPresentation.Tooltip(snapshot));
             Assert.DoesNotContain("Codex", CycleArcPresentation.Tooltip(snapshot));
             Assert.StartsWith("Claude ", CycleArcPresentation.CompactText(snapshot));
-            Assert.Contains("~", CycleArcPresentation.CompactText(snapshot));
+            Assert.DoesNotContain("~", CycleArcPresentation.CompactText(snapshot));
+            Assert.Equal(UiText.T("Received", "수신됨"), CycleArcPresentation.StatusLabel(snapshot));
             var rows = CodexDisplayFormatting.Rows(snapshot, data.Clock.UtcNow);
             Assert.Contains(rows, row => row.Value == "23.5% / 76.5%");
             Assert.Equal("41.2%", CodexRingPresentation.From(snapshot).CenterValueText);

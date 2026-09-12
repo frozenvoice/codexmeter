@@ -42,9 +42,10 @@ Repository: `cyclearc`; solution: `CycleArc.sln`; distribution: one self-contain
 - Claude values describe the **shared Web·Desktop·Code subscription quota**, last delivered via Code's
   official statusLine `rate_limits.five_hour` / `seven_day` (`used_percentage`, `resets_at`).
   Preserve fractional percentages. Code is the delivery source, not the whole scope of account usage.
-- Label Claude samples as received, not live/current. Retain last-good values and original receipt time;
-  clearly mark stale after five minutes without valid input, an elapsed reset, missing/malformed input,
-  or future-dated receipt metadata. Keep the last receipt date/time and shared scope in the UI.
+- Label Claude samples as received, not live/current. Keep idle samples in Received with last-good values
+  and their original receipt time. Reserve stale warnings for an elapsed reset, missing/malformed input,
+  cache/identity failures or invalid receipt metadata. Elapsed idle time alone must not raise attention.
+  Keep the last receipt date/time and shared scope in the UI.
   Polling, manual refresh and opening the usage page must not renew a receipt or invent zero after reset.
 - Do not force a Claude quota refresh without a supported, safe official query. The current refresh reads
   the local inbox only; the usage-page button opens the normal browser without collecting its contents.

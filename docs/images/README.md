@@ -11,7 +11,7 @@ reset times and credits illustrate the layout; they do not promise specific plan
 | `accounts-overview-{en,ko}-{dark,light}.png` | Two ready Codex accounts, with Work / 업무용 selected; the unconnected Claude profile is absent from the cards and counts |
 | `accounts-manage-{en,ko}-{dark,light}.png` | All three registered profiles, including unconnected Research / 실험용 Claude, with connection, nickname and saved-order controls |
 | `claude-waiting-{en,ko}-{dark,light}.png` | Connected Research before its first sample, with unknown shared subscription limits, Awaiting usage and Open usage page |
-| `claude-overview-{en,ko}-{dark,light}.png` | Research selected with shared subscription usage, separate five-hour/weekly windows, a visibly stale receipt and the manual usage-page action |
+| `claude-overview-{en,ko}-{dark,light}.png` | Research selected with shared subscription usage, separate five-hour/weekly windows, the original receipt without an idle-time warning and the manual usage-page action |
 | `claude-connection-{en,ko}-{dark,light}.png` | Automatic Claude connection, shared quota/receipt guidance, official-login choices and manual usage-page access; advanced settings collapsed |
 
 The multi-account fixtures live in `DocumentationScreenshots.SampleAccounts`. They use the
@@ -24,8 +24,8 @@ Account-management previews scroll to the bottom so all three sets of actions ar
 
 The waiting view shows Research after connection but before any quota sample. The Claude
 overview then supplies a synthetic sample with 91% five-hour usage and 47%
-seven-day usage, received 12 minutes ago. Its explicit amber stale warning, amber ring,
-last receipt date/time and preserved values remain visible, and selecting
+seven-day usage, received 12 minutes ago. It remains Received without an idle-time warning,
+with its last receipt date/time and preserved values visible, and selecting
 Claude removes the Codex reset-credit card. Connection previews drive the production
 window through `IClaudeConnectionActions` using `PreviewClaudeConnection`; the adapter
 returns fictional login metadata and only changes in-memory state. It never runs a CLI,
@@ -36,6 +36,12 @@ Generate on Windows after building the solution:
 
 ```powershell
 dotnet run --project tests/CycleArc.UiSmoke/CycleArc.UiSmoke.csproj -c Release -- --screenshots docs/images
+```
+
+To export only the four Claude usage previews for review:
+
+```powershell
+dotnet run --project tests/CycleArc.UiSmoke/CycleArc.UiSmoke.csproj -c Release -- --claude-usage-screenshots artifacts/claude-usage
 ```
 
 The exporter never runs production startup, requests account data, or reads/writes user settings.

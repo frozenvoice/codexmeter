@@ -99,9 +99,21 @@ public class UsageAccountOverviewTests
         await data.Receive(ClaudeStatusLineTests.Payload());
         await service.RefreshAsync(default);
         Assert.Single(UsageAccountOverview.Create([View()], data.Profile.Id).Accounts);
+        var receivedAt = service.Snapshot.LastSuccessfulRefresh;
         data.Clock.UtcNow = data.Clock.UtcNow.AddMinutes(6);
         await service.RefreshAsync(default);
-        Assert.Equal(CodexQuotaStatus.Stale, UsageAccountOverview.Create([View()], data.Profile.Id).Snapshot.Status);
+        var idle = UsageAccountOverview.Create([View()], data.Profile.Id);
+        Assert.Equal(CodexQuotaStatus.Available, idle.Snapshot.Status);
+        Assert.Equal(receivedAt, idle.Snapshot.LastSuccessfulRefresh);
+        Assert.Single(idle.Accounts);
+
+        await data.Receive("{}");
+        await service.RefreshAsync(default);
+        var failed = UsageAccountOverview.Create([View()], data.Profile.Id);
+        Assert.Equal(CodexQuotaStatus.Stale, failed.Snapshot.Status);
+        Assert.Equal(receivedAt, failed.Snapshot.LastSuccessfulRefresh);
+        Assert.Equal(23.5, failed.Snapshot.Windows[0].UsedPercent);
+        Assert.Single(failed.Accounts);
         Assert.True(data.Accounts.ContainsClaude(data.Profile.Id));
     }
 

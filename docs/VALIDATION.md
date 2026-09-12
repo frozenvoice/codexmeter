@@ -2,6 +2,24 @@
 
 ## Current release — Codex and Claude Code
 
+- Claude idle receipts (2026-09-12): elapsed idle time no longer marks a valid sample stale
+  or raises attention. This supersedes the five-minute cutoff in the earlier checks below.
+  Last-good percentages and original receipt timestamps remain unchanged; elapsed resets,
+  malformed/missing input and invalid receipt/cache/identity data retain their warning paths.
+  - Regression checks cover 4:59, 5:00, 12 minutes, one/four hours and a weekly-only sample
+    after six days, repeated polls, manual reads and restart. Actual receipt failures still
+    retain saved values as stale until valid input arrives; reset and clock rollback boundaries
+    remain covered, including stable account visibility and original timestamps.
+  - `./dev-run.ps1 -NoLaunch` passed restore, Release build (0 warnings/errors), **1,151 unit
+    tests**, 15 installer scenarios, all **654 WPF renders**, and built/published headless
+    receiver checks. The single-file win-x64 executable SHA-256 is
+    `7F782F1BA5CB127611F6A586CB6BAFE2126BC7428C4C0CB3956BFA814DF553B8`.
+  - The 174 mixed-provider renders include neutral idle receipts without attention, retained
+    receipt times on cards/widgets, explicit elapsed-reset reasons, and recovery after a new
+    sample in both languages/all themes. Normal and elapsed-reset previews were visually
+    inspected; only the four affected Claude documentation PNGs were replaced, with matching
+    hashes. All fixtures are synthetic; these checks did not request model responses.
+
 - Conditional Codex five-hour display (2026-09-12): the seven added unit cases cover
   unknown weekly values with known five-hour values in available/stale/refreshing states,
   unknown/non-finite percentages and windows arriving/disappearing. **144 Codex-window WPF

@@ -43,6 +43,11 @@ internal static class Program
                 WidgetDpiChecks.Run(dpiDirectory);
                 return 0;
             }
+            if (args is ["--claude-usage-screenshots", var claudeUsageDirectory])
+            {
+                DocumentationScreenshots.Export(claudeUsageDirectory, claudeUsageOnly: true);
+                return 0;
+            }
             if (args is ["--screenshots", var directory])
             {
                 DocumentationScreenshots.Export(directory);

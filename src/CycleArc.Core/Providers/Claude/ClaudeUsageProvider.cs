@@ -17,7 +17,6 @@ public sealed class ClaudeUsageProvider(CodexAccountStore accounts, IClock? cloc
 
 public sealed class ClaudeQuotaService : IUsageAccountService
 {
-    public static readonly TimeSpan FreshnessLifetime = TimeSpan.FromMinutes(5);
     private readonly ClaudeStatusLineStore _store;
     private readonly IClock _clock;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -127,9 +126,11 @@ public sealed class ClaudeQuotaService : IUsageAccountService
     {
         if (snapshot.Status != CodexQuotaStatus.Available) return snapshot;
         var received = snapshot.LastSuccessfulRefresh;
-        if (received is null || received > now || now - received >= FreshnessLifetime
-            || snapshot.Windows.Any(window => window.ResetsAt is { } reset && reset <= now))
-            return snapshot with { Status = CodexQuotaStatus.Stale, TechnicalDetail = "claude-statusline-stale" };
+        if (received is null || received > now)
+            return snapshot with { Status = CodexQuotaStatus.Stale, TechnicalDetail = "claude-receipt-invalid" };
+        // Idle time alone does not invalidate a sample; its original receipt remains visible.
+        if (snapshot.Windows.Any(window => window.ResetsAt is { } reset && reset <= now))
+            return snapshot with { Status = CodexQuotaStatus.Stale, TechnicalDetail = "claude-reset-elapsed" };
         return snapshot;
     }
 
