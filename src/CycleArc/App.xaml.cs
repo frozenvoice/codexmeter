@@ -294,7 +294,7 @@ public partial class App : Application
         window.RenameAccount = (id, label) => _codex.Rename(id, label);
         window.MoveAccount = (id, direction) => _codex.Move(id, direction);
         window.RemoveAccount = id => _codex.Remove(id);
-        window.AddClaudeAccount = label => _codex.AddClaude(label);
+        window.AddClaudeAccount = label => _codex.ConfigureNewClaude(label, profile => window.ConfigureClaude?.Invoke(profile.Id));
         window.ConfigureClaude = id =>
         {
             var profile = _codex.Accounts.FirstOrDefault(account => account.Profile.Id == id)?.Profile;

@@ -29,13 +29,13 @@ The **Codex** or **Claude** label on account cards, selected details, tray toolt
 
 ## At a glance
 
-- **Codex and Claude together.** Connect an existing CLI login or sign in through the official browser flow. Accounts appear in the popup once usage is received; choose which account appears in the tray and widget.
+- **Codex and Claude together.** Connect an existing CLI login or sign in through the official browser flow. Connected Claude accounts appear immediately, with **Awaiting usage** until the first sample; choose which account appears in the tray and widget.
 - **Usage in the tray.** A Windows notification-area icon keeps the meter within reach. Click for the detailed card; pin it to keep it visible.
 - **Clear quota windows.** See Pro account usage and remaining percentages, the server's reset time, and a countdown for the windows reported by the server.
 - **Reset credits.** View the available count and expiry times when the server supplies them. Use an individual reset after confirmation. Missing expiry information stays explicitly unknown.
 - **Optional desktop widget.** A compact, draggable meter with adjustable opacity, always-on-top, and click-through options. Off-screen positions recover automatically.
 - **Your preferred appearance.** Dark, Light, or live System theme; English and Korean; keyboard zoom from 80% to 150%.
-- **Honest refresh states.** Check Codex at a selectable 1, 2, 5, 10, 30 or 60-minute interval (default: five minutes). Claude receives updates while Claude Code is in use. Previously received values remain visibly stale during a temporary update failure; profiles awaiting their first sample stay in account management.
+- **Honest refresh states.** Check Codex at a selectable 1, 2, 5, 10, 30 or 60-minute interval (default: five minutes). Claude receives updates from Claude Code terminal responses. Previously received values remain visibly stale during a temporary update failure; unconnected profiles stay in account management.
 
 ## Get started
 
@@ -44,7 +44,7 @@ The **Codex** or **Claude** label on account cards, selected details, tray toolt
 1. Download the executable from the [latest release](https://github.com/frozenvoice/cyclearc/releases/latest). Current source builds produce **`CycleArc.exe`**.
 2. Put it in a folder you want to keep and run it. The .NET runtime is bundled; there is no separate runtime installer.
 3. Open the tray icon and **Manage accounts → Add an account**. For Codex, existing CLI sign-ins are discovered automatically; choose **New account sign-in** to add another account. For Claude, choose **Connect Claude**, then connect the current login or sign in through your browser.
-4. Accounts appear in the main view after usage arrives. If Codex cannot be found, install the [Codex CLI](https://developers.openai.com/codex/cli/) or open **Settings → Connection** and select its executable path. For Claude setup, follow the [connection steps below](#claude-code-connection).
+4. Codex appears after a successful quota check; Claude appears after verified connection, with unknown limits until usage arrives. If Codex cannot be found, install the [Codex CLI](https://developers.openai.com/codex/cli/) or open **Settings → Connection** and select its executable path. For Claude setup, follow the [connection steps below](#claude-code-connection).
 
 CycleArc discovers `codex.exe` or `codex.cmd` through PATH and supported installation locations. The Codex CLI itself is not bundled. Sign-in remains managed by Codex.
 
@@ -52,7 +52,7 @@ CycleArc discovers `codex.exe` or `codex.cmd` through PATH and supported install
 
 **Manage accounts** is available in the popup and **Settings → Connection → Manage Codex and Claude accounts**. **Add an account** offers Codex login/discovery and Claude connection. It opens automatically when there is no previously checked account; existing users see their account list first. Accounts retain separate percentages, reset windows and refresh states; values are never added together. Reset credits belong only to the selected Codex account.
 
-**Only accounts with received usage appear in the main view.** Unconnected profiles and profiles waiting for their first quota sample remain in **Manage accounts** and do not increase the main account count or attention count. After the first valid sample, they appear automatically. Previously received values remain visible as stale during a temporary update failure. Popup, tray and widget share the same visible selection; if no account is ready, the widget stays hidden and the popup shows a connection hint.
+**Connected Claude accounts remain visible while awaiting usage.** They show **Awaiting usage** and unknown limits, without increasing the attention count. Unconnected profiles stay in **Manage accounts** and do not increase the main account count. Previously received values remain visible as stale during a temporary update failure. Popup, tray and widget share the same visible selection; if none is available, the widget stays hidden and the popup shows a connection hint.
 
 <table>
   <tr>
@@ -60,8 +60,8 @@ CycleArc discovers `codex.exe` or `codex.cmd` through PATH and supported install
     <td align="center"><strong>Two ready accounts · Light</strong></td>
   </tr>
   <tr>
-    <td><img src="docs/images/accounts-overview-en-dark.png" alt="Dark popup with Personal and Work Codex accounts, Work selected, count two and all updated; the waiting Claude profile is hidden" width="440"></td>
-    <td><img src="docs/images/accounts-overview-en-light.png" alt="The same two ready Codex accounts in the light theme, without a card for the waiting Claude profile" width="440"></td>
+    <td><img src="docs/images/accounts-overview-en-dark.png" alt="Dark popup with Personal and Work Codex accounts, Work selected, count two and all updated; the unconnected Claude profile is hidden" width="440"></td>
+    <td><img src="docs/images/accounts-overview-en-light.png" alt="The same two ready Codex accounts in the light theme, without a card for the unconnected Claude profile" width="440"></td>
   </tr>
 </table>
 
@@ -71,7 +71,7 @@ Read the example from the account list down to the detail card:
 
 1. **Compare accounts separately.** Personal has used 18% and Work 64% of their own Codex weekly windows. These percentages are not combined into one allowance.
 2. **Choose the detail account.** The blue border and dot mark Work as selected, so the ring shows Work's **64% used**, with **36% left** in the quota row. The reset-credit card also belongs to Work. Clicking another account changes the detail card, tray and widget; it does not switch the login used by your other Codex apps or start a refresh.
-3. **Keep pending profiles out of the overview.** The Research Claude profile is waiting for its first sample. It remains in account management, but the main view shows **2 accounts** and **All updated**. A temporary delay after a successful reading instead keeps that account visible as **Saved data**; see the [Claude example](#claude-code-connection).
+3. **Keep unconnected profiles out of the overview.** The previously registered Research Claude profile has not been connected. It remains in account management, but the main view shows **2 accounts** and **All updated**. Connecting it makes it visible immediately; see the [Claude example](#claude-code-connection).
 
 To connect an account, choose the option that matches your setup:
 
@@ -90,15 +90,15 @@ Use **Order ↑ / ↓** beside each account's nickname to move it. The popup fol
 <details>
 <summary><strong>Account manager · Dark preview</strong></summary>
 
-<p>The account manager retains all three profiles, including Research waiting for Claude usage. Its summary cannot be selected yet, while Connect, nickname and order actions remain available. The main popup above counts only the two ready accounts. Work stays selected while you arrange the list.</p>
-<p><img src="docs/images/accounts-manage-en-dark.png" alt="Dark account manager with two synthetic Codex accounts and a waiting Research Claude profile whose Connect button remains available" width="700"></p>
+<p>The account manager retains all three profiles, including the unconnected Research profile. Its summary cannot be selected yet, while Connect, nickname and order actions remain available. The main popup above counts only the two ready accounts. Work stays selected while you arrange the list.</p>
+<p><img src="docs/images/accounts-manage-en-dark.png" alt="Dark account manager with two synthetic Codex accounts and an unconnected Research Claude profile whose Connect button remains available" width="700"></p>
 
 </details>
 
 <details>
 <summary><strong>Account manager · Light preview</strong></summary>
 
-<p><img src="docs/images/accounts-manage-en-light.png" alt="Light account manager retaining all three synthetic profiles, selected Work and the waiting Claude connection" width="700"></p>
+<p><img src="docs/images/accounts-manage-en-light.png" alt="Light account manager retaining all three synthetic profiles, selected Work and the unconnected Claude profile" width="700"></p>
 
 </details>
 
@@ -114,7 +114,16 @@ The first launch opens the detail card. Later launches start in the tray; `Cycle
 
 1. Open **Manage accounts → Add an account → Connect Claude**. Set an optional nickname.
 2. Choose **Connect current login** to use the signed-in Claude CLI, or **Sign in to Claude** to complete the official browser login. CycleArc verifies `claude auth status --json` and configures the connection automatically. Other settings and the existing status line are preserved; no JSON copying is required.
-3. Use Claude Code and complete a response. For a separate login created by CycleArc, choose **Open Claude Code…** and select your working folder. This launches Claude with that profile's configuration. Only the official `rate_limits.five_hour` / `rate_limits.seven_day` → `used_percentage` and `resets_at` fields supply usage; absent values stay unknown.
+3. Complete a response in the **Claude Code terminal**. For a separate login created by CycleArc, choose **Open Claude Code…** and select your working folder. This launches Claude with that profile's configuration. Only the official `rate_limits.five_hour` / `rate_limits.seven_day` → `used_percentage` and `resets_at` fields supply usage; absent values stay unknown.
+
+**Chats on claude.ai or in the Claude desktop app do not update CycleArc.** Connection and usage receipt are separate: a connected account stays visible with **Awaiting usage** until Claude Code sends a sample. Repeating **Connect current login** reuses the same verified configuration binding and preserves its name and usage history. Closing or cancelling a new connection before it succeeds removes its empty draft from the list.
+
+<details>
+<summary><strong>Connected, awaiting usage · Dark and Light</strong></summary>
+
+<p><img src="docs/images/claude-waiting-en-dark.png" alt="Connected Claude visible with awaiting usage, unknown limits and the claude.ai limitation" width="440"> <img src="docs/images/claude-waiting-en-light.png" alt="The same connected waiting state in the light theme" width="440"></p>
+
+</details>
 
 <table>
   <tr><td align="center"><strong>Automatic connection · Dark</strong></td><td align="center"><strong>Automatic connection · Light</strong></td></tr>
@@ -143,7 +152,7 @@ The last valid sample becomes **stale after five minutes without valid statusLin
 
 </details>
 
-**Connection details → Disconnect** restores the previous status line and hides the profile from the main view across restarts. The profile stays in account management, with its last good cache and configuration location preserved. Reconnecting waits for a new official sample before showing it again; it does not log out of Claude.
+**Connection details → Disconnect** restores the previous status line and hides the profile from the main view across restarts. The profile stays in account management, with its last good cache and configuration location preserved. Reconnecting shows the account with **Awaiting usage** until a new official sample arrives; it does not log out of Claude.
 
 Only the official statusLine input is used for usage. Authentication uses the official `claude auth login --claudeai` and `claude auth status --json` commands. CycleArc does not parse `/usage`, read Claude auth/token files, launch a model turn, inspect transcripts or call an undocumented usage endpoint. It saves projected quota fields, receipt/status metadata and local connection paths/fingerprint, never the full stdin JSON. See [integration details](docs/CLAUDE.md) and the [official statusLine documentation](https://code.claude.com/docs/en/statusline).
 

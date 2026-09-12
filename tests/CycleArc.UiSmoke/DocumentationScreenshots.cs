@@ -50,7 +50,7 @@ internal static class DocumentationScreenshots
         }
         finally { widget.Close(); }
         ExportAccounts(directory, now, applyTheme);
-        Console.WriteLine("Exported 20 production WPF views: Codex usage, pending-profile filtering, account management, mixed Claude usage and automatic connection; synthetic data only.");
+        Console.WriteLine("Exported 24 production WPF views: Codex usage, unconnected-profile filtering, account management, connected Claude awaiting usage, mixed usage and automatic connection; synthetic data only.");
     }
 
     private static void ExportAccounts(string directory, DateTimeOffset now, MethodInfo applyTheme)
@@ -75,6 +75,11 @@ internal static class DocumentationScreenshots
                 manager.Bind(accounts, selected);
                 Save(manager, Path.Combine(directory, $"accounts-manage-{suffix}.png"), 700, 800,
                     () => ((ScrollViewer)manager.FindName("AccountsScroll")).ScrollToBottom());
+
+                var waiting = accounts[2] with { IsConnected = true, Email = "research@example.invalid",
+                    Snapshot = accounts[2].Snapshot with { TechnicalDetail = "claude-connected-waiting" } };
+                flyout.BindAccounts([accounts[0], accounts[1], waiting], waiting.Profile.Id, false);
+                Save(flyout, Path.Combine(directory, $"claude-waiting-{suffix}.png"), 440, null);
 
                 var received = accounts[2] with
                 {

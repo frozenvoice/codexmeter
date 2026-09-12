@@ -8,6 +8,9 @@ public static class ClaudeUsagePresentation
     public static string StatusText(CodexQuotaSnapshot snapshot)
     {
         if (snapshot.Status == CodexQuotaStatus.Available) return "";
+        if (snapshot.TechnicalDetail == "claude-connected-waiting")
+            return UiText.T("Connected. Waiting for a Claude Code terminal response to receive usage. Chats on claude.ai or in the desktop app do not update CycleArc.",
+                "계정은 연결됐습니다. Claude Code 터미널에서 응답을 받으면 사용량을 수신합니다. claude.ai 웹·데스크톱 채팅만으로는 갱신되지 않습니다.");
         if (snapshot.Status == CodexQuotaStatus.SignedOut)
             return UiText.T("Claude is disconnected. Open Connect to reconnect this profile.", "Claude 연결이 해제되었습니다. 연결 버튼에서 다시 연결할 수 있습니다.");
         if (snapshot.TechnicalDetail == "claude-statusline-malformed" || snapshot.Status == CodexQuotaStatus.ProtocolMismatch)

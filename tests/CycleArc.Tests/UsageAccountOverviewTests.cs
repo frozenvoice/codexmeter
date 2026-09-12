@@ -6,6 +6,23 @@ namespace CycleArc.Tests;
 
 public class UsageAccountOverviewTests
 {
+    [Fact]
+    public void ConnectedWaitingAccountKeepsItsPlaceAndSelectedProviderWithoutUsage()
+    {
+        var waiting = Account("connected", UsageProviderId.Claude, CodexQuotaStatus.Unavailable, null) with
+        {
+            IsConnected = true, Email = "person@example.invalid",
+            Snapshot = CodexQuotaSnapshot.Empty(CodexQuotaStatus.Unavailable, "claude-connected-waiting") with { Provider = UsageProviderId.Claude }
+        };
+        var known = Account("known", UsageProviderId.Codex, CodexQuotaStatus.Available, 11);
+        var overview = UsageAccountOverview.Create([known, waiting], waiting.Profile.Id);
+        Assert.Equal(new[] { known, waiting }, overview.Accounts);
+        Assert.Equal(waiting, overview.Selected);
+        Assert.True(waiting.IsAwaitingUsage);
+        Assert.False(overview.Snapshot.HasUsablePercentages);
+        Assert.Contains("Claude", overview.Tooltip);
+    }
+
     [Theory]
     [InlineData(UsageProviderId.Codex)]
     [InlineData(UsageProviderId.Claude)]

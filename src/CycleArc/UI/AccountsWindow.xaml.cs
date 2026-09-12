@@ -18,7 +18,7 @@ public partial class AccountsWindow : Window
     public Action<string, string>? RenameAccount { get; set; }
     public Func<string, int, bool>? MoveAccount { get; set; }
     public Func<string, bool>? RemoveAccount { get; set; }
-    public Func<string, CodexAccountProfile>? AddClaudeAccount { get; set; }
+    public Action<string>? AddClaudeAccount { get; set; }
     public Action<string>? ConfigureClaude { get; set; }
     public Action<string>? LogFailure { get; set; }
     private CancellationTokenSource? _operation;
@@ -29,6 +29,7 @@ public partial class AccountsWindow : Window
     private string _selected = "";
     private bool _bound;
     private bool _rowsBusy;
+    private bool _addingClaude;
     private readonly Dictionary<string, string> _labels = new(StringComparer.Ordinal);
     public Task ActiveOperation => _active;
 
@@ -56,8 +57,8 @@ public partial class AccountsWindow : Window
         ChooseHomeButton.Content = UiText.T("Choose Codex home folder…", "Codex 홈 폴더 선택…");
         ChooseHomeButton.ToolTip = ChooseHomeHint.Text;
         ClaudeHeading.Text = "Claude · Claude Code";
-        ClaudeHint.Text = UiText.T("Connect a current Claude login or sign in through your browser. CycleArc configures usage updates automatically.",
-            "현재 Claude 로그인을 연결하거나 브라우저에서 로그인하세요. CycleArc가 사용량 수신을 자동으로 설정합니다.");
+        ClaudeHint.Text = UiText.T("Connect a Claude Code login. Usage updates arrive after responses in the Claude Code terminal. Chats on claude.ai or in the desktop app do not update CycleArc.",
+            "Claude Code 로그인을 연결하세요. Claude Code 터미널에서 응답을 받으면 사용량이 갱신됩니다. claude.ai 웹·데스크톱 채팅만으로는 갱신되지 않습니다.");
         ClaudeLabelCaption.Text = UiText.T("Nickname in CycleArc (optional)", "CycleArc에서 쓸 별명 (선택 사항)");
         AddClaudeButton.Content = UiText.T("Connect Claude", "Claude 연결");
         System.Windows.Automation.AutomationProperties.SetName(ClaudeAccountLabel, ClaudeLabelCaption.Text + " · Claude");
@@ -100,7 +101,7 @@ public partial class AccountsWindow : Window
         _rowsBusy = busy;
         _accounts = accounts;
         _selected = selected;
-        AccountsHeading.Text = UiText.T($"Connected accounts · {accounts.Count}", $"연결된 계정 · {accounts.Count}");
+        AccountsHeading.Text = UiText.T($"Registered profiles · {accounts.Count}", $"등록된 프로필 · {accounts.Count}");
         EmptyAccountsHint.Visibility = accounts.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         AccountRows.Items.Clear();
         for (var index = 0; index < accounts.Count; index++)
@@ -112,7 +113,7 @@ public partial class AccountsWindow : Window
             summary.IsEnabled = _operation is null && UsageAccountOverview.CanDisplay(account);
             if (!UsageAccountOverview.CanDisplay(account))
             {
-                summary.ToolTip = UiText.T("This profile appears in the main view after it connects and receives usage.", "연결 후 사용량을 받으면 메인 화면에 표시됩니다.");
+                summary.ToolTip = UiText.T("Connect this profile to show it in the main view.", "이 프로필을 연결하면 메인 화면에 표시됩니다.");
                 ToolTipService.SetShowOnDisabled(summary, true);
             }
             content.Children.Add(summary);
@@ -217,20 +218,21 @@ public partial class AccountsWindow : Window
     private void OnAdd(object sender, RoutedEventArgs e) => StartLogin(null, NewAccountLabel.Text);
     private void OnAddClaude(object sender, RoutedEventArgs e)
     {
-        if (_operation is not null || AddClaudeAccount is null) return;
+        if (_operation is not null || _addingClaude || AddClaudeAccount is null) return;
+        _addingClaude = true;
+        AddClaudeButton.IsEnabled = false;
         try
         {
-            var profile = AddClaudeAccount(ClaudeAccountLabel.Text);
+            AddClaudeAccount(ClaudeAccountLabel.Text);
             ClaudeAccountLabel.Clear();
-            OperationStatus.Text = UiText.T("Claude profile added. Complete the connection in the login window.",
-                "Claude 프로필을 추가했습니다. 로그인 창에서 연결을 완료하세요.");
-            ConfigureClaude?.Invoke(profile.Id);
+            OperationStatus.Text = "";
         }
         catch
         {
             LogFailure?.Invoke("claude-profile-add-failed");
             OperationStatus.Text = UiText.T("Could not add the Claude profile.", "Claude 프로필을 추가하지 못했습니다.");
         }
+        finally { _addingClaude = false; AddClaudeButton.IsEnabled = _operation is null; }
     }
     private void StartLogin(string? id, string label)
     {

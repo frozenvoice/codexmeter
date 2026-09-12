@@ -40,9 +40,13 @@ public sealed class ClaudeQuotaService : IUsageAccountService
         Apply(store.Read());
     }
 
-    public CodexQuotaSnapshot Snapshot => ApplyFreshness(_snapshot, _clock.UtcNow);
+    public CodexQuotaSnapshot Snapshot => IsConnected && _snapshot.Status == CodexQuotaStatus.Unavailable
+        && _snapshot.TechnicalDetail is "claude-statusline-missing" or "claude-statusline-waiting"
+        ? _snapshot with { TechnicalDetail = "claude-connected-waiting" }
+        : ApplyFreshness(_snapshot, _clock.UtcNow);
     public string? Email => _connection?.Binding?.Disconnected == true ? null : _email?.Invoke(_connection?.Binding?.IdentityFingerprint);
     public string? IdentityFingerprint => Email is null ? null : _connection?.Binding?.IdentityFingerprint;
+    public bool IsConnected => _connection is { Unavailable: false, Binding.Disconnected: false } && Email is not null;
     public bool IsRefreshing { get; private set; }
     public bool ReceivesPassiveUpdates => true;
     public bool ShouldRefresh(DateTimeOffset now, TimeSpan interval) => false;

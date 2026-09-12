@@ -30,6 +30,8 @@ public interface IUsageAccountService
     CodexQuotaSnapshot Snapshot { get; }
     string? Email { get; }
     string? IdentityFingerprint { get; }
+    bool IsConnected => Snapshot.HasUsablePercentages
+        && Snapshot.Status is not (CodexQuotaStatus.SignedOut or CodexQuotaStatus.CodexNotFound);
     bool IsRefreshing { get; }
     bool ReceivesPassiveUpdates { get; }
     bool ShouldRefresh(DateTimeOffset now, TimeSpan interval);

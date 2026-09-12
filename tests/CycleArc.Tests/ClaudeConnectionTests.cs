@@ -135,16 +135,91 @@ public class ClaudeConnectionTests
     public async Task AnotherActiveProfileCannotTakeOverTheSameSettings()
     {
         using var data = new ClaudeTestData();
-        var connection = new ClaudeConnectionService(data.Accounts, new FakeCli(data.Root), data.Clock);
+        var cli = new FakeCli(data.Root);
+        var connection = new ClaudeConnectionService(data.Accounts, cli, data.Clock);
         Assert.True((await connection.ConnectAsync(data.Profile.Id, AppFor(data), false, DirectoryFor(data), default)).Success);
         var first = File.ReadAllBytes(Settings(data));
         var second = data.Accounts.NewClaude("Second");
         var registry = data.Accounts.LoadOrMigrate("unused");
         data.Accounts.Save(registry with { Profiles = registry.Profiles.Append(second).ToArray() });
+        cli.Response = Auth with { Email = "different@example.invalid", Fingerprint = new string('B', 64) };
         var result = await connection.ConnectAsync(second.Id, AppFor(data), false, DirectoryFor(data), default);
         Assert.False(result.Success); Assert.Equal(ClaudeSetupFailure.AlreadyLinked, result.Failure);
         Assert.Equal(first, File.ReadAllBytes(Settings(data)));
         Assert.Null(new ClaudeConnectionStore(data.Accounts, second.Id).Read().Binding);
+    }
+
+    [Fact]
+    public async Task RepeatedCurrentLoginReusesTheExistingBindingAndPreservesItsUsageAndName()
+    {
+        using var data = new ClaudeTestData();
+        await data.Receive(Payload());
+        var connection = new ClaudeConnectionService(data.Accounts, new FakeCli(data.Root), data.Clock);
+        var original = await connection.ConnectAsync(data.Profile.Id, AppFor(data), false, DirectoryFor(data), default);
+        Assert.True(original.Success);
+        var settings = File.ReadAllBytes(Settings(data));
+        var quota = File.ReadAllBytes(data.Path);
+        var second = data.Accounts.NewClaude("Temporary name");
+        var registry = data.Accounts.LoadOrMigrate("unused");
+        data.Accounts.Save(registry with { Profiles = registry.Profiles.Append(second).ToArray() });
+        data.Clock.UtcNow = data.Clock.UtcNow.AddMinutes(1);
+        var repeated = await connection.ConnectAsync(second.Id, AppFor(data), false, DirectoryFor(data), default);
+        Assert.True(repeated.Success);
+        Assert.Equal(original.Binding, repeated.Binding);
+        Assert.Null(new ClaudeConnectionStore(data.Accounts, second.Id).Read().Binding);
+        Assert.Equal(Auth.Email, connection.Email(data.Profile.Id, Auth.Fingerprint));
+        Assert.Null(connection.Email(second.Id, Auth.Fingerprint));
+        Assert.Equal(settings, File.ReadAllBytes(Settings(data)));
+        Assert.Equal(quota, File.ReadAllBytes(data.Path));
+        Assert.Equal(data.Profile, data.Accounts.LoadOrMigrate("unused").Profiles.Single(p => p.Id == data.Profile.Id));
+    }
+
+    [Fact]
+    public async Task SameIdentityInDifferentSettingsFoldersRemainsIndependent()
+    {
+        using var data = new ClaudeTestData();
+        var connection = new ClaudeConnectionService(data.Accounts, new FakeCli(data.Root), data.Clock);
+        Assert.True((await connection.ConnectAsync(data.Profile.Id, AppFor(data), false, DirectoryFor(data), default)).Success);
+        var second = data.Accounts.NewClaude("Independent");
+        var registry = data.Accounts.LoadOrMigrate("unused");
+        data.Accounts.Save(registry with { Profiles = registry.Profiles.Append(second).ToArray() });
+        var result = await connection.ConnectAsync(second.Id, AppFor(data), false, Path.Combine(data.Root, "other-home"), default);
+        Assert.True(result.Success);
+        Assert.Equal(second.Id, result.Binding!.ProfileId);
+        Assert.True(ClaudeStatusLineInstaller.IsInstalled(DirectoryFor(data), data.Profile.Id));
+        Assert.True(ClaudeStatusLineInstaller.IsInstalled(result.Binding.ConfigDirectory, second.Id));
+    }
+
+    [Fact]
+    public async Task VerifiedConnectionAppearsBeforeUsageAndAfterRestartInspectionWithoutInventingNumbers()
+    {
+        using var data = new ClaudeTestData();
+        var cli = new FakeCli(data.Root);
+        var connection = new ClaudeConnectionService(data.Accounts, cli, data.Clock);
+        var service = new ClaudeUsageProvider(data.Accounts, data.Clock, connection).Create(data.Profile);
+        CodexAccountView View() => new(data.Profile, service.Snapshot, service.Email) { IsConnected = service.IsConnected };
+        await connection.InspectAsync(data.Profile.Id, default);
+        Assert.False(service.IsConnected); // A signed-in CLI without a binding is not connected.
+        Assert.False(UsageAccountOverview.CanDisplay(View()));
+        Assert.True((await connection.ConnectAsync(data.Profile.Id, AppFor(data), false, DirectoryFor(data), default)).Success);
+        await service.RefreshAsync(default);
+        Assert.True(View().IsAwaitingUsage);
+        Assert.True(UsageAccountOverview.CanDisplay(View()));
+        Assert.False(service.Snapshot.HasUsablePercentages);
+        Assert.Null(service.Snapshot.LastSuccessfulRefresh);
+        Assert.Equal(Auth.Email, View().Email);
+        Assert.Contains("claude.ai", ClaudeUsagePresentation.StatusText(service.Snapshot));
+        connection = new ClaudeConnectionService(data.Accounts, cli, data.Clock);
+        service = new ClaudeUsageProvider(data.Accounts, data.Clock, connection).Create(data.Profile);
+        Assert.False(service.IsConnected);
+        await connection.InspectAsync(data.Profile.Id, default);
+        await service.RefreshAsync(default);
+        Assert.True(View().IsAwaitingUsage);
+        Assert.True(UsageAccountOverview.CanDisplay(View()));
+        await connection.DisconnectAsync(data.Profile.Id, default);
+        await service.RefreshAsync(default);
+        Assert.False(service.IsConnected);
+        Assert.False(UsageAccountOverview.CanDisplay(View()));
     }
 
     [Fact]

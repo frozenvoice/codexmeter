@@ -8,7 +8,7 @@ namespace CycleArc.UI;
 
 public partial class ClaudeConnectionWindow : Window
 {
-    private readonly CodexAccountProfile _profile;
+    private string _activeProfileId;
     private readonly string _executable;
     private readonly IClaudeConnectionActions? _connections;
     private readonly CancellationToken _lifetime;
@@ -22,7 +22,7 @@ public partial class ClaudeConnectionWindow : Window
         IClaudeConnectionActions? connections = null, CancellationToken lifetime = default)
     {
         if (profile.Provider != UsageProviderId.Claude) throw new ArgumentException("Wrong usage provider.");
-        _profile = profile; _executable = executable; _connections = connections; _lifetime = lifetime;
+        _activeProfileId = profile.Id; _executable = executable; _connections = connections; _lifetime = lifetime;
         InitializeComponent();
         Title = UiText.ProductName + " · Claude";
         Heading.Text = UiText.T("Connect Claude Code", "Claude Code 연결");
@@ -32,8 +32,8 @@ public partial class ClaudeConnectionWindow : Window
         ConnectExistingButton.Content = UiText.T("Connect current login", "현재 로그인 연결");
         LoginButton.Content = UiText.T("Sign in to Claude", "Claude 로그인");
         OpenClaudeButton.Content = UiText.T("Open Claude Code…", "Claude Code 열기…");
-        FreshnessHint.Text = UiText.T("Usage arrives when you use Claude Code. Before the first update, limits remain unknown; after 5 minutes without an update, the last values are marked stale.",
-            "Claude Code를 사용하면 사용량을 자동으로 받습니다. 첫 데이터가 오기 전에는 한도를 알 수 없으며, 5분간 새 데이터가 없으면 마지막 값을 오래됨으로 표시합니다.");
+        FreshnessHint.Text = UiText.T("Usage arrives after a response in the Claude Code terminal. Chats on claude.ai or in the desktop app do not update CycleArc. Until the first update, limits stay unknown; after 5 minutes, the last values are marked stale.",
+            "Claude Code 터미널에서 응답을 받으면 사용량을 수신합니다. claude.ai 웹·데스크톱 채팅만으로는 갱신되지 않습니다. 첫 수신 전에는 한도를 알 수 없으며, 5분간 새 데이터가 없으면 마지막 값을 오래됨으로 표시합니다.");
         AdvancedDetails.Header = UiText.T("Connection details", "연결 상세 설정");
         ExistingStatusLineHint.Text = UiText.T("Your other settings and existing status line are preserved. Disconnect restores the previous status line. Authentication stays in the official Claude CLI; CycleArc does not read credential files.",
             "다른 설정과 기존 상태 표시줄을 유지합니다. 연결을 해제하면 이전 상태 표시줄로 복원합니다. 인증은 공식 Claude CLI가 관리하며 CycleArc는 인증 파일을 읽지 않습니다.");
@@ -61,7 +61,7 @@ public partial class ClaudeConnectionWindow : Window
     private async Task InspectAsync(CancellationToken token)
     {
         if (_connections is null) return;
-        var overview = await Task.Run(() => _connections.InspectAsync(_profile.Id, token), token).ConfigureAwait(false);
+        var overview = await Task.Run(() => _connections.InspectAsync(_activeProfileId, token), token).ConfigureAwait(false);
         await Dispatcher.InvokeAsync(() => ApplyOverview(overview));
     }
 
@@ -109,9 +109,14 @@ public partial class ClaudeConnectionWindow : Window
 
     private async Task ConnectAsync(bool login, CancellationToken token)
     {
-        var result = await Task.Run(() => _connections!.ConnectAsync(_profile.Id, _executable, login, null, token), token).ConfigureAwait(false);
+        var result = await Task.Run(() => _connections!.ConnectAsync(_activeProfileId, _executable, login, null, token), token).ConfigureAwait(false);
         if (result.Success)
         {
+            if (result.Binding is { } binding && binding.ProfileId != _activeProfileId)
+            {
+                _activeProfileId = binding.ProfileId;
+                await Dispatcher.InvokeAsync(() => ProfileName.Text = result.Authentication.Email ?? "Claude");
+            }
             await InspectAsync(token).ConfigureAwait(false);
             await Dispatcher.InvokeAsync(() =>
             {
@@ -155,7 +160,7 @@ public partial class ClaudeConnectionWindow : Window
     private void OnLogin(object sender, RoutedEventArgs e) => Begin(token => ConnectAsync(true, token), UiText.T("Finish signing in in your browser. Settings will be applied automatically.", "브라우저에서 로그인을 완료하세요. 설정은 자동으로 적용됩니다."));
     private void OnDisconnect(object sender, RoutedEventArgs e) => Begin(async token =>
     {
-        await Task.Run(() => _connections!.DisconnectAsync(_profile.Id, token), token).ConfigureAwait(false);
+        await Task.Run(() => _connections!.DisconnectAsync(_activeProfileId, token), token).ConfigureAwait(false);
         await InspectAsync(token).ConfigureAwait(false);
         await Dispatcher.InvokeAsync(() => OperationStatus.Text = UiText.T("Disconnected.", "연결을 해제했습니다."));
     }, UiText.T("Disconnecting…", "연결 해제 중…"));
@@ -163,7 +168,7 @@ public partial class ClaudeConnectionWindow : Window
     {
         var picker = new Microsoft.Win32.OpenFolderDialog { Title = UiText.T("Choose a folder for Claude Code", "Claude Code에서 사용할 폴더 선택") };
         if (picker.ShowDialog(this) != true) return;
-        try { _connections!.OpenClaude(_profile.Id, picker.FolderName); }
+        try { _connections!.OpenClaude(_activeProfileId, picker.FolderName); }
         catch { OperationStatus.Text = UiText.T("Could not open Claude Code.", "Claude Code를 열지 못했습니다."); }
     }
     private void OnCancel(object sender, RoutedEventArgs e) => CancelOperation();

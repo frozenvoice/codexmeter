@@ -8,8 +8,9 @@ reset times and credits illustrate the layout; they do not promise specific plan
 | Files | Contents |
 | --- | --- |
 | `overview-dark.png`, `overview-light.png`, `settings.png`, `widget.png` | English single-account, settings and widget previews |
-| `accounts-overview-{en,ko}-{dark,light}.png` | Two ready Codex accounts, with Work / 업무용 selected; the pending Claude profile is absent from the cards and counts |
-| `accounts-manage-{en,ko}-{dark,light}.png` | All three profiles, including pending Research / 실험용 Claude, with connection, nickname and saved-order controls |
+| `accounts-overview-{en,ko}-{dark,light}.png` | Two ready Codex accounts, with Work / 업무용 selected; the unconnected Claude profile is absent from the cards and counts |
+| `accounts-manage-{en,ko}-{dark,light}.png` | All three registered profiles, including unconnected Research / 실험용 Claude, with connection, nickname and saved-order controls |
+| `claude-waiting-{en,ko}-{dark,light}.png` | Connected Research is visible before its first sample, with unknown limits, Awaiting usage and the web/desktop limitation |
 | `claude-overview-{en,ko}-{dark,light}.png` | The same list after Claude usage arrives: Research selected, separate five-hour/weekly windows and a visibly stale receipt |
 | `claude-connection-{en,ko}-{dark,light}.png` | Automatic Claude connection, official-login choices and Open Claude Code; advanced settings collapsed |
 
@@ -17,11 +18,12 @@ The multi-account fixtures live in `DocumentationScreenshots.SampleAccounts`. Th
 names Personal / Work / Research (개인용 / 업무용 / 실험용), reserved `example.invalid` email
 addresses and display-only paths under `C:\CycleArc-Samples`. Personal and Work have Codex
 weekly usage of 18% and 64%; Work is selected, so its detail ring shows 64% used and the
-quota row includes 36% remaining. Research has no usage in the main/manager comparison:
+quota row includes 36% remaining. Research is unconnected in the main/manager comparison:
 the main popup counts two ready accounts, while management retains all three profiles.
 Account-management previews scroll to the bottom so all three sets of actions are visible.
 
-The Claude overview then supplies a synthetic sample with 91% five-hour usage and 47%
+The waiting view shows Research after connection but before any quota sample. The Claude
+overview then supplies a synthetic sample with 91% five-hour usage and 47%
 seven-day usage, received 12 minutes ago. Its stale values remain visible, and selecting
 Claude removes the Codex reset-credit card. Connection previews drive the production
 window through `IClaudeConnectionActions` using `PreviewClaudeConnection`; the adapter
@@ -36,7 +38,7 @@ dotnet run --project tests/CycleArc.UiSmoke/CycleArc.UiSmoke.csproj -c Release -
 ```
 
 The exporter never runs production startup, requests account data, or reads/writes user settings.
-It creates 20 PNGs at 2x resolution through WPF `RenderTargetBitmap`, without taking a desktop
+It creates 24 PNGs at 2x resolution through WPF `RenderTargetBitmap`, without taking a desktop
 screenshot. It runs under the smoke harness's `OfflineApp`; the live-account diagnostic path
 is not used. Each image must be visually inspected before replacing the checked-in files.
 Export to an `artifacts/` directory for visual review before copying the generated images

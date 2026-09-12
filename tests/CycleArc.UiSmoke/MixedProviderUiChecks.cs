@@ -90,11 +90,18 @@ internal static class MixedProviderUiChecks
                     count++;
                 }
                 string? configured = null;
-                manager.AddClaudeAccount = label => accounts[1].Profile with { Label = label };
+                var additions = 0;
+                manager.AddClaudeAccount = label =>
+                {
+                    additions++;
+                    Check(label == "New synthetic", "Claude nickname was lost before setup.");
+                    ((Button)manager.FindName("AddClaudeButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    manager.ConfigureClaude?.Invoke(accounts[1].Profile.Id);
+                };
                 manager.ConfigureClaude = id => configured = id;
                 ((TextBox)manager.FindName("ClaudeAccountLabel")).Text = "New synthetic";
                 ((Button)manager.FindName("AddClaudeButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Check(configured == accounts[1].Profile.Id, "Adding Claude did not open the matching connection guide.");
+                Check(configured == accounts[1].Profile.Id && additions == 1, "Claude add did not open exactly one matching connection flow.");
                 guide.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
                 AccountUiChecks.PumpUntil(guide.ActiveOperation);
                 Check(((Button)guide.FindName("ConnectExistingButton")).IsEnabled, "Existing signed-in account cannot be connected.");
@@ -122,8 +129,16 @@ internal static class MixedProviderUiChecks
                 guide.CancelOperation();
                 AccountUiChecks.PumpUntil(active);
                 Check(((ProgressBar)guide.FindName("OperationProgress")).Visibility == Visibility.Collapsed, "Cancel left Claude connection busy.");
+                connection.DelayLogin = false;
+                connection.RedirectId = "33333333333333333333333333333333";
+                ((Button)guide.FindName("ConnectExistingButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                AccountUiChecks.PumpUntil(guide.ActiveOperation);
+                Check(connection.LastInspectedId == connection.RedirectId, "Reused connection inspected the discarded draft.");
+                ((Button)guide.FindName("DisconnectButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                AccountUiChecks.PumpUntil(guide.ActiveOperation);
+                Check(connection.LastDisconnectedId == connection.RedirectId, "Disconnect targeted the discarded draft.");
                 CheckPendingAccounts(flyout, manager, accounts, directory, language, theme);
-                count += 4;
+                count += 5;
             }
             finally { flyout.Close(); widget.Close(); manager.Close(); guide.Close(); }
         }
@@ -161,6 +176,17 @@ internal static class MixedProviderUiChecks
             && ((Border)flyout.FindName("ResetCreditsCard")).Visibility == Visibility.Collapsed
             && ((UsageProviderBadge)flyout.FindName("SelectedProviderBadge")).Visibility == Visibility.Collapsed, "Empty overview displays an unconnected provider or quota card.");
 
+        var connected = pending with { IsConnected = true, Email = "person@example.invalid",
+            Snapshot = pending.Snapshot with { TechnicalDetail = "claude-connected-waiting" } };
+        flyout.BindAccounts([first, connected, second], connected.Profile.Id, false);
+        AccountUiChecks.Render(flyout, 440, null, directory is null ? null : Path.Combine(directory, $"connected-waiting-{language}-{theme}.png"));
+        Check(rows.Items.Count == 3 && flyout.SelectedProfileId == connected.Profile.Id, "Connected Claude without usage is hidden.");
+        Check(((TextBlock)flyout.FindName("StatusText")).Text == UiText.T("1 awaiting usage", "1개 수신 대기"), "A connected account awaiting usage was labeled as an error.");
+        Check(((TextBlock)flyout.FindName("CodexStatusText")).Text.Contains("claude.ai"), "Web-only limitation is missing.");
+        Check(((ItemsControl)flyout.FindName("CodexRows")).Items.Count == 0, "Waiting connection invented quota numbers.");
+        manager.Bind([first, connected, second], connected.Profile.Id);
+        Check(((Button)((StackPanel)managed.Items[1]).Children[0]).IsEnabled, "Connected waiting account cannot be selected.");
+
         flyout.BindAccounts([first, fixtures[1], second], pending.Profile.Id, false);
         AccountUiChecks.Render(flyout, 440, null, null);
         Check(rows.Items.Count == 3 && flyout.SelectedProfileId == pending.Profile.Id
@@ -174,16 +200,22 @@ internal static class MixedProviderUiChecks
         public bool LastLogin { get; private set; }
         public int Calls { get; private set; }
         public bool DelayLogin { get; set; }
-        public Task<ClaudeConnectionOverview> InspectAsync(string id, CancellationToken token) =>
-            Task.FromResult(new ClaudeConnectionOverview(_binding, _auth, _binding is not null, @"C:\Synthetic Claude"));
+        public string? RedirectId { get; set; }
+        public string? LastInspectedId { get; private set; }
+        public string? LastDisconnectedId { get; private set; }
+        public Task<ClaudeConnectionOverview> InspectAsync(string id, CancellationToken token)
+        {
+            LastInspectedId = id;
+            return Task.FromResult(new ClaudeConnectionOverview(_binding, _auth, _binding is not null, @"C:\Synthetic Claude"));
+        }
         public async Task<ClaudeConnectionResult> ConnectAsync(string id, string executable, bool login, string? directory, CancellationToken token)
         {
             Calls++; LastLogin = login;
             if (DelayLogin) await Task.Delay(Timeout.Infinite, token);
-            _binding = new(1, profileId, @"C:\Synthetic Claude", @"C:\Synthetic Claude\claude.cmd", false, _auth.Fingerprint!, DateTimeOffset.UtcNow);
+            _binding = new(1, RedirectId ?? profileId, @"C:\Synthetic Claude", @"C:\Synthetic Claude\claude.cmd", false, _auth.Fingerprint!, DateTimeOffset.UtcNow);
             return new(true, _auth, _binding);
         }
-        public Task DisconnectAsync(string id, CancellationToken token) { _binding = null; return Task.CompletedTask; }
+        public Task DisconnectAsync(string id, CancellationToken token) { LastDisconnectedId = id; _binding = null; return Task.CompletedTask; }
         public void OpenClaude(string id, string workingDirectory) => throw new InvalidOperationException("Offline tests cannot open a live session.");
     }
 

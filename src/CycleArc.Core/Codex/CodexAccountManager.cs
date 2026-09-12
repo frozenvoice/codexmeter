@@ -1,4 +1,5 @@
 using CycleArc.Providers.Usage;
+using CycleArc.Providers.Claude;
 
 namespace CycleArc.Codex;
 
@@ -51,7 +52,8 @@ public sealed class CodexAccountManager
                 {
                     var service = _services[profile.Id];
                     return new CodexAccountView(profile, service.Snapshot, service.Email, _loginProfile == profile.Id,
-                        service.IdentityFingerprint is { } fingerprint && repeated.Contains(fingerprint));
+                        service.IdentityFingerprint is { } fingerprint && repeated.Contains(fingerprint))
+                        { IsConnected = service.IsConnected };
                 }).ToArray();
             }
         }
@@ -93,6 +95,21 @@ public sealed class CodexAccountManager
         return profile;
     }
 
+    // The modal flow finishes authentication before returning. Only its own new,
+    // never-connected draft may be discarded; existing profiles and data stay intact.
+    public void ConfigureNewClaude(string label, Action<CodexAccountProfile> configure)
+    {
+        var profile = AddClaude(label);
+        try { configure(profile); }
+        finally
+        {
+            var connection = new ClaudeConnectionStore(_store, profile.Id).Read();
+            var usage = new ClaudeStatusLineStore(_store.ClaudeStatusLinePath(profile.Id), profile.Id).Read();
+            if (connection is { Binding: null, Unavailable: false } && usage is { State: null, Unavailable: false })
+                Remove(profile.Id, discardClaudeDraft: true);
+        }
+    }
+
     public bool Move(string id, int direction)
     {
         if (direction is not (-1 or 1)) return false;
@@ -111,12 +128,17 @@ public sealed class CodexAccountManager
     }
 
     // Forget only local references. Never delete/log out shared Codex credentials or histories.
-    public bool Remove(string id)
+    public bool Remove(string id) => Remove(id, discardClaudeDraft: false);
+
+    private bool Remove(string id, bool discardClaudeDraft)
     {
         lock (_gate)
         {
-            if (id == _loginProfile || !_services.TryGetValue(id, out var service) || service.IsRefreshing) return false;
+            if (id == _loginProfile || !_services.TryGetValue(id, out var service)) return false;
             var profile = _configuration.Profiles.First(p => p.Id == id);
+            // A passive read of an empty Claude inbox can finish after forgetting the
+            // draft. It performs no login, settings write or quota collection.
+            if (service.IsRefreshing && !(discardClaudeDraft && profile.Provider == UsageProviderId.Claude)) return false;
             var profiles = _configuration.Profiles.Where(p => p.Id != id).ToArray();
             Save(_configuration with { Profiles = profiles,
                 SelectedId = _configuration.SelectedId == id ? profiles.FirstOrDefault()?.Id ?? "" : _configuration.SelectedId,

@@ -70,10 +70,31 @@ public sealed class ClaudeConnectionService(CodexAccountStore accounts, IClaudeC
             var cliPath = previous is not null && File.Exists(previous.CliExecutable) ? previous.CliExecutable : _cli.FindExecutable();
             if (cliPath is null) return new(false, new(ClaudeAuthStatus.NotInstalled));
             var auth = await _cli.AuthenticateAsync(cliPath, useDefault ? null : target, login, token).ConfigureAwait(false);
-            _identities[profileId] = auth;
-            if (auth.Status != ClaudeAuthStatus.SignedIn) return new(false, auth);
+            if (auth.Status != ClaudeAuthStatus.SignedIn)
+            {
+                _identities[profileId] = auth;
+                return new(false, auth);
+            }
             RequireProfile(profileId);
             token.ThrowIfCancellationRequested();
+            // Repeated "connect current login" resolves the already verified binding.
+            // Never merge different configuration folders or identities by email alone.
+            var existing = accounts.LoadOrMigrate(CodexHomeDiscovery.DefaultHome).Profiles
+                .Where(profile => profile.Provider == Usage.UsageProviderId.Claude && profile.Id != profileId)
+                .Select(profile => new ClaudeConnectionStore(accounts, profile.Id).Read())
+                .Where(candidate => !candidate.Unavailable).Select(candidate => candidate.Binding)
+                .FirstOrDefault(candidate => candidate is { Disconnected: false }
+                    && string.Equals(candidate.ConfigDirectory, target, StringComparison.OrdinalIgnoreCase)
+                    && candidate.UseDefaultConfig == useDefault && candidate.IdentityFingerprint == auth.Fingerprint);
+            if (existing is not null)
+            {
+                profileId = existing.ProfileId;
+                store = new ClaudeConnectionStore(accounts, profileId);
+                previous = existing;
+                managedRoot = accounts.ManagedClaudeDirectory(profileId);
+                RequireProfile(profileId);
+            }
+            _identities[profileId] = auth;
             var same = previous is { Disconnected: false } && string.Equals(previous.ConfigDirectory, target, StringComparison.OrdinalIgnoreCase)
                 && previous.IdentityFingerprint == auth.Fingerprint && previous.UseDefaultConfig == useDefault;
             var binding = new ClaudeConnectionBinding(1, profileId, target, cliPath,

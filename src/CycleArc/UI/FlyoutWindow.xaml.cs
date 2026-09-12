@@ -103,17 +103,18 @@ public partial class FlyoutWindow : Window
                     () => { if (!_redeemingCredit) AccountSelected?.Invoke(account.Profile.Id); }));
         AccountSelectionHint.Text = accounts.Count > 1
             ? UiText.T("Select an account for details, tray and widget.", "계정을 선택하면 상세 카드·트레이·위젯에 표시됩니다.")
-            : UiText.T("Connect accounts in Manage accounts. They appear here when usage is received.", "계정 관리에서 계정을 연결하세요. 사용량을 받으면 여기에 자동으로 표시됩니다.");
+            : UiText.T("Connect accounts in Manage accounts to show them here.", "계정 관리에서 연결한 계정이 여기에 표시됩니다.");
         AccountSelectionHint.Visibility = accounts.Count == 1 ? Visibility.Collapsed : Visibility.Visible;
         SelectedAccountText.Text = selected?.DisplayName ?? UiText.T("Add your first account", "첫 계정을 추가하세요");
         SelectedAccountText.Visibility = Visibility.Visible;
         SelectedAccountText.ToolTip = selected?.Email ?? selected?.DisplayName;
-        var failed = accounts.Count(a => a.Snapshot.Status != CodexQuotaStatus.Available);
+        var failed = accounts.Count(a => a.Snapshot.Status != CodexQuotaStatus.Available && !a.IsAwaitingUsage);
+        var waiting = accounts.Count(a => a.IsAwaitingUsage);
         if (accounts.Count > 1 && !refreshing)
-            StatusText.Text = failed == 0 ? UiText.T("All updated", "전체 최신")
-                : UiText.T($"{failed} need attention", $"{failed}개 확인 필요");
+            StatusText.Text = failed > 0 ? UiText.T($"{failed} need attention", $"{failed}개 확인 필요")
+                : waiting > 0 ? UiText.T($"{waiting} awaiting usage", $"{waiting}개 수신 대기") : UiText.T("All updated", "전체 최신");
         StatusDot.SetResourceReference(System.Windows.Shapes.Shape.FillProperty,
-            refreshing ? "AccentBrush" : accounts.Count > 0 && failed == 0 ? "OkBrush" : "MutedBrush");
+            refreshing ? "AccentBrush" : accounts.Count > 0 && failed == 0 && waiting == 0 ? "OkBrush" : "MutedBrush");
         if (selected is null)
         {
             SelectedAccountHeader.Visibility = SelectedProviderBadge.Visibility = CodexCard.Visibility = ResetCreditsCard.Visibility = Visibility.Collapsed;

@@ -2,6 +2,28 @@
 
 ## Current release — Codex and Claude Code
 
+- Claude connected visibility and duplicate drafts (2026-09-12): `./dev-run.ps1 -NoLaunch`
+  passed restore, Release build (0 warnings/errors), **1,139 unit tests** (9 added cases),
+  15 installer scenarios, 120 account, 138 mixed-provider, 180 widget and 36 resource WPF
+  renders. Built and published automatic/legacy headless process checks passed with
+  isolated synthetic input. The win-x64 self-contained single-file SHA-256 is
+  `BE3AC06EE60E2AAB66B75E9B37F7D40A0D7C0FC88A5BD17FE0A00BEB81F933DC`.
+  - Connected Claude profiles now remain visible before the first sample, with unknown
+    limits and Awaiting usage, excluded from attention totals. Tests cover restart,
+    disconnection, duplicate current-login reuse, distinct configuration folders, draft
+    cancellation/failure and preservation of existing or unreadable connection/usage data.
+    WPF checks also cover reentrant Add and actions redirected to a reused profile.
+  - English/Korean documentation and **24 production WPF previews** were updated and
+    visually checked, including the connected-waiting state and the web/desktop limitation.
+    All preview data is synthetic; generating previews does not access a real account.
+  - Local installation matched the validated hash and the restarted process was responsive.
+    Two verified empty draft references were removed after a registry-only backup, preserving
+    the existing Claude connection and both Codex profiles. Read-only official CLI inspection
+    confirmed one matching connected Claude profile, three visible accounts, zero empty draft
+    references and zero attention items. No authentication settings or quota files were changed
+    during cleanup. Actual Claude usage remains absent because web-only chats do not feed this
+    statusLine integration; no model turn was launched or live quota sample fabricated.
+
 - README and screenshot refresh (2026-09-12): English/Korean guides now describe automatic
   Claude login/connection, hidden pending profiles, first-sample appearance, stale usage,
   disconnection and Release single-file installation. Obsolete manual-JSON steps and old

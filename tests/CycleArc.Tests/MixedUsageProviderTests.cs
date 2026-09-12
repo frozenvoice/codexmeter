@@ -8,6 +8,44 @@ namespace CycleArc.Tests;
 
 public class MixedUsageProviderTests
 {
+    [Theory]
+    [InlineData("cancel", false)]
+    [InlineData("exception", false)]
+    [InlineData("binding", true)]
+    [InlineData("cache", true)]
+    [InlineData("unreadable", true)]
+    public void NewClaudeFlowDiscardsOnlyItsOwnEmptyDraft(string outcome, bool kept)
+    {
+        using var data = new AccountTestDirectory();
+        var store = new CodexAccountStore(data.Root);
+        var manager = new CodexAccountManager(store, data.Home("codex"),
+            [new CodexUsageProvider(p => data.Service(p, new ScriptedCodexProcessFactory()), () => AccountTestDirectory.Executable),
+             new ClaudeUsageProvider(store)]);
+        var existing = manager.AddClaude("Previously registered");
+        manager.Select(existing.Id);
+        string? draftId = null;
+        void Configure() => manager.ConfigureNewClaude("Draft", profile =>
+        {
+            draftId = profile.Id;
+            if (outcome == "exception") throw new InvalidOperationException("Synthetic failure");
+            if (outcome == "binding") new ClaudeConnectionStore(store, profile.Id).Save(new(1, profile.Id,
+                data.Home("claude"), Path.Combine(data.Root, "claude.cmd"), false, new string('A', 64), DateTimeOffset.UtcNow));
+            if (outcome == "cache") new ClaudeStatusLineStore(store.ClaudeStatusLinePath(profile.Id), profile.Id)
+                .RecordAsync(new(ClaudeInputStatus.Missing), DateTimeOffset.UtcNow, default).GetAwaiter().GetResult();
+            if (outcome == "unreadable")
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(store.ClaudeConnectionPath(profile.Id))!);
+                File.WriteAllText(store.ClaudeConnectionPath(profile.Id), "{broken");
+            }
+        });
+        if (outcome == "exception") Assert.Throws<InvalidOperationException>(Configure); else Configure();
+        Assert.Equal(kept, manager.Accounts.Any(account => account.Profile.Id == draftId));
+        Assert.Equal(kept, store.ContainsClaude(draftId!));
+        Assert.Contains(manager.Accounts, account => account.Profile == existing);
+        Assert.Equal(existing.Id, manager.SelectedId);
+        Assert.Equal(kept ? 3 : 2, manager.Accounts.Count);
+    }
+
     [Fact]
     public async Task MixedProfilesKeepIndependentValuesAliasesOrderAndSelectedProviderAcrossRestart()
     {

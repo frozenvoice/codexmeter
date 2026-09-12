@@ -7,6 +7,7 @@ public static class CycleArcPresentation
 {
     public static string StatusLabel(CodexQuotaSnapshot snapshot) => snapshot.Status switch
     {
+        CodexQuotaStatus.Unavailable when snapshot.TechnicalDetail == "claude-connected-waiting" => UiText.T("Awaiting usage", "수신 대기"),
         CodexQuotaStatus.Unavailable when snapshot.Provider == UsageProviderId.Claude => UiText.T("Waiting for data", "데이터 대기 중"),
         CodexQuotaStatus.ProtocolMismatch when snapshot.Provider == UsageProviderId.Claude => UiText.ProviderSchemaMismatch,
         CodexQuotaStatus.SignedOut when snapshot.Provider == UsageProviderId.Claude => UiText.T("Disconnected", "미연결"),

@@ -43,13 +43,18 @@
   check cannot authenticate an already-running session's emitter; users must restart sessions after
   external login changes. The old manual receiver cannot bypass an automatic binding's checks.
   Passive polls never invoke authentication. Details are in [CLAUDE.md](CLAUDE.md).
-- `UsageAccountOverview` filters the monitoring UI to profiles with usable quota data and an
-  available connection, retaining stale samples during temporary failures. Pending/never-connected
-  profiles remain in account management. Account totals, attention totals, detail selection, tray
+- A new Claude connection uses a draft profile and removes it on modal completion only if no
+  connection or usage record exists. Repeated current-login setup resolves the existing profile
+  for the same verified identity, configuration path and implicit/explicit directory mode.
+- `UsageAccountOverview` shows verified connected Claude profiles before their first sample,
+  with unknown limits and **Awaiting usage**, excluded from attention totals. It also retains usable
+  stale samples during temporary failures. Unconnected profiles remain in account management.
+  Account totals, attention totals, detail selection, tray
   tooltip and widget all use this same projection, with an ordered fallback when the saved selection
   is hidden. The projection never deletes profiles or rewrites the user's saved selection.
   Explicit Claude disconnection is persisted separately from its preserved quota cache, so a restart
-  cannot resurrect the disconnected card. Reconnection waits for a new official sample.
+  cannot resurrect the disconnected card. Reconnection shows **Awaiting usage** until a new official
+  sample arrives. Claude Code terminal responses supply updates; web/desktop chats do not.
 
 - The repository is `frozenvoice/cyclearc`; clone instructions use the folder `cyclearc`.
   Clone instructions, documentation badges/download links and the app's repository link use
