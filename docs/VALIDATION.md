@@ -2,6 +2,23 @@
 
 ## Current release — Codex and Claude Code
 
+- README and screenshot refresh (2026-09-12): English/Korean guides now describe automatic
+  Claude login/connection, hidden pending profiles, first-sample appearance, stale usage,
+  disconnection and Release single-file installation. Obsolete manual-JSON steps and old
+  account-menu labels were removed. The documentation exporter generated **20 production
+  WPF PNGs**, all visually checked, including the two-ready/three-registered comparison,
+  mixed Claude usage and automatic connection in both languages and Dark/Light themes.
+  Synthetic identities and an in-memory connection adapter were used; no live account,
+  browser login, Claude settings or credentials were accessed for the previews.
+  - All 36 local links/anchors in the two READMEs, Claude guide and image guide resolved;
+    HTML table/details tags were balanced and all 20 PNGs matched the reviewed exports.
+  - `./dev-run.ps1 -NoLaunch` passed restore, Release build (0 warnings/errors), 1,130 unit
+    tests, 15 installer scenarios, 120 account, 132 mixed-provider, 180 widget and 36 resource
+    WPF renders, plus built/published automatic and legacy headless process checks.
+    Single-file publish SHA-256:
+    `CD3F21DE042D0D0C3DB717A03E4D2425E414609AE3A51AD742AC5257851ACDD4`.
+    This change affects documentation and its preview exporter; production behavior is unchanged.
+
 - Connected-account visibility (2026-09-12): `./dev-run.ps1 -NoLaunch` passed restore,
   Release build (0 warnings/errors), **1,130 unit tests** (11 added regression cases),
   15 installer scenarios, 120 account WPF renders, 132 mixed-provider WPF renders,
